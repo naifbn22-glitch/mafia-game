@@ -1,0 +1,16 @@
+{
+  "appId": "com.naif.mafiagame",
+  "appName": "Mafia Game",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#050912",
+      "overlaysWebView": false
+    }
+  }
+}

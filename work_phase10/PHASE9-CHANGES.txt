@@ -1,0 +1,7 @@
+تم إعداد هوية الخطوط:
+- beIN Black للعناوين والأزرار والأرقام المهمة وأسماء الأدوار.
+- beIN Normal للنصوص والوصف وأسماء اللاعبين والمدخلات.
+
+مسارات الخطوط المتوقعة:
+public/fonts/beIN-Black.ttf
+public/fonts/beIN-Normal.ttf

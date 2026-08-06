@@ -1,0 +1,567 @@
+.online-page{position:relative;min-height:100vh;padding:24px;overflow:hidden;background:radial-gradient(circle at 80% 10%,rgba(120,63,255,.16),transparent 34%),radial-gradient(circle at 10% 90%,rgba(0,214,143,.12),transparent 34%),#070810}.online-atmosphere{position:fixed;inset:0;pointer-events:none;background:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,black,transparent)}.online-header,.online-content{position:relative;z-index:1}.online-header{max-width:1180px;margin:auto;display:grid;grid-template-columns:56px 1fr 58px;align-items:center;gap:16px}.online-header h1{font-size:clamp(22px,4vw,34px);margin-top:4px}.online-kicker{font-size:11px;letter-spacing:3px;color:#44e6ad}.online-logo{width:58px;height:58px;object-fit:contain}.online-back-button{width:48px;height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-size:24px;cursor:pointer}.online-content{max-width:1180px;margin:36px auto}.online-portal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}.online-action-card,.online-form-card,.room-preview-card,.host-room-hero,.invite-panel,.players-panel,.host-controls,.live-hero,.live-stats,.live-player-section{border:1px solid rgba(255,255,255,.1);background:rgba(16,18,30,.8);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.35)}.online-action-card{border-radius:30px;padding:38px;min-height:360px;display:flex;flex-direction:column;align-items:flex-start}.online-action-card h2{font-size:28px;margin:22px 0 12px}.online-action-card p{color:#a9acbd;line-height:1.9;flex:1}.online-action-icon{width:76px;height:76px;border-radius:24px;display:grid;place-items:center;font-size:38px;background:linear-gradient(135deg,rgba(126,76,255,.28),rgba(0,214,143,.18))}.online-primary-button,.online-secondary-button,.night-action-button,.role-wake-button{border:0;border-radius:16px;padding:15px 22px;font-weight:800;cursor:pointer;color:#fff}.online-primary-button{background:linear-gradient(135deg,#7d4cff,#4b20d5);box-shadow:0 12px 32px rgba(103,57,255,.28)}.online-secondary-button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}button:disabled{opacity:.4;cursor:not-allowed}.online-primary-button.large{width:100%;font-size:18px;padding:18px}.online-notice{margin-top:18px;padding:14px 18px;border-radius:14px;background:rgba(255,188,71,.08);border:1px solid rgba(255,188,71,.18);color:#e8c98f}.online-form-card{max-width:720px;margin:auto;border-radius:28px;padding:32px}.compact-form-card{max-width:560px}.online-form-heading{display:flex;align-items:center;gap:16px;margin-bottom:24px}.online-form-heading>span{font-size:38px}.online-form-heading p,.panel-title p{color:#9ea2b7;margin-top:6px}.online-form{display:grid;gap:20px}.online-form label,.field-label{display:grid;gap:9px;font-weight:700}.online-form input,.online-form select{width:100%;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#0d0f18;color:#fff;outline:none}.join-room-layout{display:grid;grid-template-columns:.8fr 1.2fr;gap:24px}.room-preview-card{border-radius:28px;padding:32px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.room-preview-card h2{font-size:32px;margin:16px 0}.room-preview-card p{color:#a4a8ba}.room-code-badge{font-size:32px;letter-spacing:8px;font-weight:900;margin:26px 0;padding:16px 22px;border-radius:16px;background:rgba(255,255,255,.06)}.live-dot,.live-status i,.connection-dot{width:10px;height:10px;border-radius:50%;background:#39e69d;box-shadow:0 0 14px #39e69d}.gender-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}.gender-options input{display:none}.gender-options span{display:block;text-align:center;padding:15px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.04)}.gender-options input:checked+span{border-color:#7d4cff;background:rgba(125,76,255,.16)}fieldset{border:0}.online-avatar-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}.online-avatar-option{aspect-ratio:1;border-radius:16px;padding:3px;border:2px solid transparent;background:rgba(255,255,255,.05);overflow:hidden}.online-avatar-option.selected{border-color:#42e0a7;transform:scale(1.05)}.online-avatar-option img{width:100%;height:100%;object-fit:cover;border-radius:12px}.host-dashboard{display:grid;gap:20px}.host-room-hero{border-radius:28px;padding:28px;display:flex;justify-content:space-between;align-items:center}.live-status{display:inline-flex;align-items:center;gap:9px;color:#55e8af;font-size:13px}.host-room-hero h2{font-size:34px;margin:12px 0 6px}.host-room-code{text-align:center;background:rgba(255,255,255,.06);padding:16px 24px;border-radius:18px}.host-room-code strong{display:block;font-size:28px;letter-spacing:5px;margin-top:6px}.invite-panel{border-radius:22px;padding:18px;display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:end}.invite-panel input{width:100%;padding:12px;border:0;background:transparent;color:#b8bccd}.dashboard-grid{display:grid;grid-template-columns:1.5fr .7fr;gap:20px}.players-panel,.host-controls{border-radius:26px;padding:24px}.panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.panel-title>strong{font-size:22px}.online-players-list{display:grid;gap:10px}.online-player-card{display:grid;grid-template-columns:54px 1fr 12px auto;align-items:center;gap:13px;padding:11px;border:1px solid rgba(255,255,255,.08);border-radius:17px;background:rgba(255,255,255,.035)}.online-player-card img{width:54px;height:54px;border-radius:15px;object-fit:cover}.online-player-card div{display:grid;gap:5px}.online-player-card span{font-size:12px;color:#9ca0b3}.remove-player-button{border:0;background:rgba(255,73,99,.12);color:#ff7d91;border-radius:10px;padding:8px 10px}.host-controls{display:grid;align-content:start;gap:14px}.control-stat{display:flex;justify-content:space-between;padding:14px;border-radius:14px;background:rgba(255,255,255,.04)}.night-action-button{background:linear-gradient(135deg,#162555,#291765)}.role-control-grid{display:grid;gap:9px}.role-wake-button{background:rgba(255,255,255,.07);text-align:right}.player-wait-screen,.role-envelope,.revealed-role,.eyes-closed-screen,.active-role-screen,.role-hidden-confirmation,.online-empty{max-width:680px;min-height:520px;margin:auto;border:1px solid rgba(255,255,255,.1);border-radius:32px;background:rgba(13,15,26,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:38px}.player-wait-screen>img{width:128px;height:128px;border-radius:34px;object-fit:cover;margin-bottom:22px}.player-wait-screen h2,.role-envelope h2,.revealed-role h2,.eyes-closed-screen h2,.active-role-screen h2{font-size:36px;margin:14px 0}.player-wait-screen p,.role-envelope p,.revealed-role p,.eyes-closed-screen p,.active-role-screen p{color:#a8acbd}.waiting-pulse{display:flex;gap:8px;margin:28px}.waiting-pulse b{width:10px;height:10px;border-radius:50%;background:#6c43e8;animation:pulseDot 1.2s infinite}.waiting-pulse b:nth-child(2){animation-delay:.2s}.waiting-pulse b:nth-child(3){animation-delay:.4s}.sealed-card,.role-symbol{width:130px;height:160px;border-radius:24px;display:grid;place-items:center;font-size:66px;background:linear-gradient(145deg,#261c50,#102d35);border:1px solid rgba(255,255,255,.16);box-shadow:0 24px 60px rgba(0,0,0,.4)}.role-symbol{width:140px;height:140px;border-radius:50%}.eyes-closed-screen>div:first-child{font-size:90px}.night-target-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;margin-top:24px}.night-target{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;border-radius:16px;padding:10px}.night-target img{width:58px;height:58px;border-radius:14px;object-fit:cover;display:block;margin:auto auto 8px}.live-dashboard{display:grid;gap:20px}.live-hero{border-radius:28px;padding:30px;text-align:center}.live-hero h2{font-size:42px;margin:12px}.live-stats{border-radius:24px;padding:18px;display:grid;grid-template-columns:repeat(3,1fr);text-align:center}.live-stats div{display:grid;gap:5px}.live-stats strong{font-size:30px}.live-stats span{color:#9fa3b5}.live-player-section{border-radius:26px;padding:24px}.live-player-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.online-player-card.eliminated{opacity:.42;filter:grayscale(1)}@keyframes pulseDot{50%{transform:translateY(-8px);opacity:.45}}@media(max-width:800px){.online-portal-grid,.join-room-layout,.dashboard-grid{grid-template-columns:1fr}.online-page{padding:16px}.online-action-card{min-height:280px}.online-avatar-grid{grid-template-columns:repeat(4,1fr)}.invite-panel{grid-template-columns:1fr 1fr}.invite-panel>div{grid-column:1/-1}.host-room-hero{align-items:flex-start;gap:16px}.live-player-grid{grid-template-columns:1fr}.night-target-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* بطاقات الأدوار في اللعب عبر الشبكة تستخدم نفس تصميم اللعب بجهاز واحد */
+.online-role-reveal-wrap {
+  width: min(100%, 460px);
+  margin: 0 auto;
+  text-align: center;
+}
+.online-role-reveal-wrap .role-card-details h2 { margin: 4px 0 8px; font-size: 30px; }
+.online-role-reveal-wrap .role-card-details p { color: rgba(255,255,255,.7); }
+.night-target { position: relative; cursor: pointer; }
+.night-target.selected {
+  border-color: #65f0c2;
+  box-shadow: 0 0 0 2px rgba(101,240,194,.25), 0 14px 35px rgba(0,0,0,.35);
+  transform: translateY(-3px);
+}
+.night-target b {
+  display: block;
+  margin-top: 5px;
+  color: #65f0c2;
+  font-size: 12px;
+}
+.night-choice-status {
+  margin-top: 18px;
+  color: rgba(255,255,255,.78);
+  text-align: center;
+}
+
+/* المحقق والعفو الملكي */
+.royal-pardon-panel {
+  width: min(100%, 520px);
+  margin: 18px auto 4px;
+  padding: 16px 20px;
+  border: 1px solid rgba(244, 196, 76, .28);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(244, 196, 76, .1), rgba(22, 70, 50, .16));
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.royal-pardon-panel > span { color: rgba(255,255,255,.72); font-size: 13px; }
+.royal-pardon-panel > strong { color: #f7d66b; }
+.royal-pardon-medals { display: flex; gap: 12px; font-size: 30px; }
+.royal-pardon-medals b { transition: opacity .2s ease, filter .2s ease, transform .2s ease; }
+.royal-pardon-medals b.available { filter: drop-shadow(0 0 10px rgba(247,214,107,.45)); }
+.royal-pardon-medals b.used { opacity: .18; filter: grayscale(1); transform: scale(.9); }
+.king-skip-button { margin-top: 16px; width: min(100%, 420px); }
+.investigation-result {
+  width: min(100%, 460px);
+  margin: 22px auto 0;
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.055);
+  box-shadow: 0 18px 45px rgba(0,0,0,.3);
+  animation: investigationReveal .32s ease both;
+}
+.investigation-result small { color: rgba(255,255,255,.62); }
+.investigation-result > div { font-size: 48px; margin: 8px 0; }
+.investigation-result h3 { margin: 0 0 7px; font-size: 28px; }
+.investigation-result p { margin: 0; font-size: 13px; line-height: 1.7; }
+.investigation-result--thief { border-color: rgba(255,87,103,.35); background: rgba(108,23,35,.24); }
+.investigation-result--citizen { border-color: rgba(71,188,255,.3); background: rgba(23,72,108,.2); }
+.investigation-result--investigator { border-color: rgba(64,222,157,.32); background: rgba(20,91,67,.2); }
+@keyframes investigationReveal {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Unified confirmed night actions */
+.confirm-night-action-button {
+  width: min(100%, 520px);
+  margin-top: 18px;
+}
+
+.night-action-locked {
+  width: min(100%, 620px);
+  margin: 24px auto 8px;
+  padding: 28px 22px;
+  border: 1px solid rgba(45, 220, 139, 0.22);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(27, 111, 75, 0.2),
+      rgba(17, 25, 35, 0.84)
+    );
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+
+.night-action-locked-icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(43, 215, 135, 0.14);
+  font-size: 28px;
+  box-shadow: 0 0 24px rgba(43, 215, 135, 0.18);
+}
+
+.night-action-locked h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 22px;
+}
+
+.night-action-locked p {
+  margin: 9px 0 5px;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.8;
+}
+
+.night-action-locked small {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.king-skip-button.selected-skip {
+  border-color: rgba(45, 220, 139, 0.55);
+  background: rgba(45, 220, 139, 0.12);
+  color: #6ce4aa;
+}
+
+.night-choice-status.is-confirmed {
+  color: #68e3a7;
+}
+
+/* =========================================
+   Host role reveal countdown
+========================================= */
+.role-reveal-countdown {
+  --countdown-color: #30df8d;
+  width: 100%;
+  margin-top: 18px;
+  padding: 22px 18px;
+  border: 1px solid color-mix(in srgb, var(--countdown-color) 30%, transparent);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--countdown-color) 12%, transparent), transparent 45%),
+    linear-gradient(145deg, rgba(10, 17, 28, 0.96), rgba(7, 12, 20, 0.92));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.34),
+    0 0 36px color-mix(in srgb, var(--countdown-color) 14%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  text-align: center;
+  transition: border-color 240ms ease, box-shadow 240ms ease;
+}
+
+.role-reveal-countdown.is-green {
+  --countdown-color: #31df8d;
+}
+
+.role-reveal-countdown.is-yellow {
+  --countdown-color: #ffd54a;
+}
+
+.role-reveal-countdown.is-red {
+  --countdown-color: #ff4f5f;
+}
+
+.role-reveal-countdown.is-complete {
+  --countdown-color: #986cff;
+}
+
+.role-reveal-countdown-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.role-reveal-countdown-heading > span {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--countdown-color) 38%, transparent);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--countdown-color) 10%, transparent);
+  font-size: 23px;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--countdown-color) 16%, transparent);
+}
+
+.role-reveal-countdown-heading h4 {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: 18px;
+}
+
+.role-reveal-countdown-heading p {
+  margin: 0;
+  color: rgba(255,255,255,.62);
+  font-size: 13px;
+}
+
+.role-reveal-timer-ring {
+  --countdown-progress: 100%;
+  width: 190px;
+  height: 190px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(8, 13, 22, 1) 59%, transparent 60%),
+    conic-gradient(var(--countdown-color) var(--countdown-progress), rgba(255,255,255,.08) 0);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--countdown-color) 22%, transparent),
+    0 0 34px color-mix(in srgb, var(--countdown-color) 20%, transparent),
+    inset 0 0 32px rgba(0,0,0,.5);
+  transition: background 180ms linear, box-shadow 240ms ease;
+}
+
+.role-reveal-timer-core {
+  width: 142px;
+  height: 142px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--countdown-color) 28%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--countdown-color) 9%, transparent), rgba(7, 12, 21, .98) 70%);
+  box-shadow: inset 0 0 25px rgba(0,0,0,.55);
+}
+
+.role-reveal-timer-core strong {
+  color: var(--countdown-color);
+  font-size: 58px;
+  font-weight: 900;
+  line-height: .95;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--countdown-color) 55%, transparent);
+  font-variant-numeric: tabular-nums;
+  transition: color 220ms ease, transform 160ms ease;
+}
+
+.role-reveal-countdown.is-red .role-reveal-timer-core strong {
+  animation: roleRevealCountdownPulse 1s ease-in-out infinite;
+}
+
+.role-reveal-timer-core span {
+  margin-top: 8px;
+  color: rgba(255,255,255,.54);
+  font-size: 12px;
+}
+
+.role-reveal-timer-status {
+  margin: 15px 0 13px;
+  color: var(--countdown-color);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.role-reveal-known-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 auto 16px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 13px;
+  background: rgba(255,255,255,.035);
+  color: rgba(255,255,255,.64);
+  font-size: 12px;
+}
+
+.role-reveal-known-progress strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.role-reveal-eyes-button {
+  width: 100%;
+  margin-top: 2px;
+  animation: roleRevealButtonEnter 360ms ease both;
+}
+
+.role-reveal-skip-button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.52);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  transition: color 160ms ease;
+}
+
+.role-reveal-skip-button:hover {
+  color: #fff;
+}
+
+.role-reveal-countdown [hidden] {
+  display: none !important;
+}
+
+@keyframes roleRevealCountdownPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes roleRevealButtonEnter {
+  from { opacity: 0; transform: translateY(9px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 560px) {
+  .role-reveal-countdown {
+    padding: 19px 14px;
+    border-radius: 22px;
+  }
+
+  .role-reveal-timer-ring {
+    width: 165px;
+    height: 165px;
+  }
+
+  .role-reveal-timer-core {
+    width: 123px;
+    height: 123px;
+  }
+
+  .role-reveal-timer-core strong {
+    font-size: 49px;
+  }
+}
+
+/* شاشة كشف الدور، تصميم يحمل هوية اللعبة من خلال HTML وCSS */
+.role-envelope--branded {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 560px;
+  padding: 48px 42px 44px;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(125, 76, 255, 0.16), transparent 36%),
+    linear-gradient(145deg, rgba(13, 15, 28, 0.96), rgba(7, 10, 18, 0.94));
+  border-color: rgba(121, 80, 255, 0.32);
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.52),
+    0 0 70px rgba(124, 73, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.role-envelope--branded::before,
+.role-envelope--branded::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  filter: blur(58px);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.role-envelope--branded::before {
+  top: -100px;
+  right: -90px;
+  background: #713cff;
+}
+
+.role-envelope--branded::after {
+  bottom: -120px;
+  left: -90px;
+  background: #00d68f;
+}
+
+.role-reveal-emblem {
+  position: relative;
+  width: 178px;
+  height: 178px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 26px;
+}
+
+.role-reveal-emblem-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 210deg,
+      #7d4cff,
+      #a753ff 26%,
+      rgba(255, 255, 255, 0.08) 46%,
+      #00d68f 72%,
+      #42e0a7 88%,
+      #7d4cff
+    );
+  box-shadow:
+    0 0 28px rgba(125, 76, 255, 0.45),
+    0 0 42px rgba(0, 214, 143, 0.25);
+  animation: roleRevealRing 8s linear infinite;
+}
+
+.role-reveal-emblem-ring::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: inherit;
+  background: #0a0c16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.role-reveal-emblem img {
+  position: relative;
+  z-index: 1;
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 18px rgba(125, 76, 255, 0.45))
+    drop-shadow(0 0 15px rgba(0, 214, 143, 0.22));
+}
+
+.role-reveal-title-wrap {
+  width: min(100%, 430px);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.role-envelope--branded .role-reveal-title-wrap h2 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 48px);
+  letter-spacing: -1px;
+  text-shadow:
+    0 0 28px rgba(126, 76, 255, 0.26),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.role-reveal-title-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(178, 166, 217, 0.62));
+}
+
+.role-reveal-title-line:last-child {
+  transform: scaleX(-1);
+}
+
+.role-envelope--branded .role-reveal-privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 24px 0 0;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #b8bbca;
+}
+
+.role-reveal-privacy-icon,
+.role-reveal-button-icon {
+  color: #9b5cff;
+  text-shadow: 0 0 13px rgba(155, 92, 255, 0.72);
+}
+
+.role-reveal-divider {
+  width: min(100%, 450px);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 34px 0 32px;
+  color: #8a55ff;
+}
+
+.role-reveal-divider span {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(132, 79, 255, 0.65));
+}
+
+.role-reveal-divider span:last-child {
+  transform: scaleX(-1);
+}
+
+.role-reveal-divider b {
+  font-size: 12px;
+  text-shadow: 0 0 12px currentColor;
+}
+
+.role-reveal-button {
+  margin-top: 0;
+  min-height: 66px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid rgba(181, 105, 255, 0.72);
+  background:
+    linear-gradient(135deg, rgba(126, 67, 255, 0.94), rgba(75, 32, 213, 0.96));
+  box-shadow:
+    0 14px 40px rgba(103, 57, 255, 0.34),
+    0 0 24px rgba(142, 72, 255, 0.27),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.role-reveal-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow:
+    0 18px 48px rgba(103, 57, 255, 0.42),
+    0 0 34px rgba(142, 72, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.role-reveal-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
+@keyframes roleRevealRing {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .role-envelope--branded {
+    min-height: 510px;
+    padding: 38px 22px 30px;
+  }
+
+  .role-reveal-emblem {
+    width: 146px;
+    height: 146px;
+    margin-bottom: 22px;
+  }
+
+  .role-reveal-emblem img {
+    width: 122px;
+    height: 122px;
+  }
+
+  .role-reveal-title-wrap {
+    gap: 11px;
+  }
+
+  .role-envelope--branded .role-reveal-privacy {
+    margin-top: 20px;
+    font-size: 14px;
+  }
+
+  .role-reveal-divider {
+    margin: 28px 0 26px;
+  }
+}
+
+/* مسافة احترافية بين وصف الدور وزر إخفاء البطاقة */
+.online-role-reveal-wrap .role-card-details p {
+  margin: 0 0 30px;
+  line-height: 1.9;
+}
+
+.online-role-reveal-wrap .role-card-details .online-secondary-button {
+  margin-top: 0;
+}

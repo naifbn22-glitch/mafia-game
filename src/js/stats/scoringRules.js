@@ -1,0 +1,23 @@
+export const SCORING_RULES = Object.freeze({
+
+  THIEF: {
+    SURVIVED: 10,
+    ONE_ROUND_BEFORE_END: 7,
+    TWO_ROUNDS_BEFORE_END: 5,
+    EARLY_ELIMINATION: 0,
+  },
+
+  CITIZEN: {
+    ROUND_1: 0,
+    ROUND_2_3: 4,
+    ROUND_4_AND_AFTER: 5,
+    SURVIVED: 7,
+  },
+
+  BONUS: {
+    CORRECT_THIEF_VOTE: 1,
+    NURSE_SUCCESSFUL_SAVE: 3,
+    KING_REVEAL_THIEF: 3,
+  },
+
+});
