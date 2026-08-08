@@ -1,0 +1,103 @@
+{
+  "SLH9DD": {
+    "code": "SLH9DD",
+    "roomName": "Naif-Game",
+    "hostName": "naif",
+    "maxPlayers": 6,
+    "status": "playing",
+    "phase": "role-reveal",
+    "activeRole": null,
+    "createdAt": 1786038624843,
+    "players": [
+      {
+        "id": "player_mshtivfx_hxe3oc",
+        "name": "Layali",
+        "gender": "female",
+        "avatar": "/avatars/avatar-10.png",
+        "online": true,
+        "alive": true,
+        "role": "citizen",
+        "roleKnown": false,
+        "joinedAt": 1786039029933,
+        "royalPardonsRemaining": 0
+      },
+      {
+        "id": "player_mshtd4tv_q06vfe",
+        "name": "Naif",
+        "gender": "male",
+        "avatar": "/avatars/avatar-01.png",
+        "online": true,
+        "alive": true,
+        "role": "citizen",
+        "roleKnown": true,
+        "joinedAt": 1786038762163,
+        "royalPardonsRemaining": 0
+      },
+      {
+        "id": "player_mshtexet_ijcojp",
+        "name": "Aseel",
+        "gender": "male",
+        "avatar": "/avatars/avatar-01.png",
+        "online": true,
+        "alive": true,
+        "role": "king",
+        "roleKnown": true,
+        "joinedAt": 1786038845861,
+        "royalPardonsRemaining": 3
+      },
+      {
+        "id": "player_mshteczd_al8gzl",
+        "name": "Sara",
+        "gender": "female",
+        "avatar": "/avatars/avatar-02.png",
+        "online": true,
+        "alive": true,
+        "role": "nurse",
+        "roleKnown": true,
+        "joinedAt": 1786038819385,
+        "royalPardonsRemaining": 0
+      },
+      {
+        "id": "player_mshtgxkm_9b0qls",
+        "name": "Heba",
+        "gender": "female",
+        "avatar": "/avatars/avatar-08.png",
+        "online": true,
+        "alive": true,
+        "role": "thief",
+        "roleKnown": false,
+        "joinedAt": 1786038939382,
+        "royalPardonsRemaining": 0
+      },
+      {
+        "id": "player_mshtfq2e_1hherk",
+        "name": "Jamelah",
+        "gender": "female",
+        "avatar": "/avatars/avatar-06.png",
+        "online": true,
+        "alive": true,
+        "role": "investigator",
+        "roleKnown": false,
+        "joinedAt": 1786038882998,
+        "royalPardonsRemaining": 0
+      }
+    ],
+    "nightNumber": 0,
+    "nightActions": {
+      "thiefVotes": {},
+      "nurseTargetId": null,
+      "kingTargetId": null,
+      "kingSkipped": false,
+      "kingPardonFinalized": false,
+      "investigatorTargetId": null,
+      "confirmedActors": {}
+    },
+    "lastTargets": {
+      "thief": null,
+      "nurse": null
+    },
+    "serverUpdatedAt": 1786039218062,
+    "roleRevealStartedAt": 1786039111001,
+    "roleRevealEndsAt": 1786039141001
+  }
+}

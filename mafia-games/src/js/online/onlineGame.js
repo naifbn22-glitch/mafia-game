@@ -5,62 +5,66 @@ const STORAGE_KEY = "mafia_online_rooms_v1";
 const PLAYER_SESSION_KEY = "mafia_online_player_session_v1";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
+const ONLINE_SERVER_URL = String(import.meta.env.VITE_SERVER_URL || window.location.origin).replace(/\/$/, "");
+const serverEvents = new EventSource(`${ONLINE_SERVER_URL}/api/events`);
 let hostRoleRevealIntervalId = null;
-let serverSyncReady = false;
-let serverSaveTimer = null;
+let remoteSaveTimerId = null;
 
-function applyServerRooms(rooms) {
-  const safeRooms = rooms && typeof rooms === "object" ? rooms : {};
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(safeRooms));
-  serverSyncReady = true;
+function dispatchRoomsUpdated() {
   channel?.postMessage({ type: "rooms-updated" });
   window.dispatchEvent(new CustomEvent("mafia-rooms-updated"));
 }
 
-async function fetchServerRooms() {
+function cacheServerRoom(room) {
+  if (!room?.code) return;
+  const rooms = loadRooms();
+  rooms[normalizeRoomCode(room.code)] = room;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  dispatchRoomsUpdated();
+}
+
+async function fetchRoomFromServer(code) {
+  const normalizedCode = normalizeRoomCode(code);
+  if (!normalizedCode) return null;
   try {
-    const response = await fetch("/api/rooms", { cache: "no-store" });
-    if (!response.ok) throw new Error("ROOMS_FETCH_FAILED");
-    applyServerRooms(await response.json());
+    const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/${normalizedCode}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    const room = await response.json();
+    cacheServerRoom(room);
+    return room;
   } catch {
-    serverSyncReady = false;
+    return null;
   }
 }
 
-function pushRoomsToServer(rooms) {
-  clearTimeout(serverSaveTimer);
-  serverSaveTimer = setTimeout(async () => {
-    try {
-      const response = await fetch("/api/rooms", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rooms),
-      });
-      if (!response.ok) throw new Error("ROOMS_SAVE_FAILED");
-      serverSyncReady = true;
-    } catch {
-      serverSyncReady = false;
-    }
-  }, 40);
+function queueRoomsForServer(rooms) {
+  clearTimeout(remoteSaveTimerId);
+  remoteSaveTimerId = window.setTimeout(async () => {
+    const entries = Object.values(rooms || {}).filter(room => room?.code);
+    await Promise.all(entries.map(async room => {
+      try {
+        await fetch(`${ONLINE_SERVER_URL}/api/rooms/${normalizeRoomCode(room.code)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(room),
+        });
+      } catch {
+        // تبقى النسخة المحلية محفوظة، وستتم المزامنة عند التعديل التالي.
+      }
+    }));
+  }, 80);
 }
 
-function connectServerEvents() {
-  if (!("EventSource" in window)) return;
-  const events = new EventSource("/api/events");
-  events.addEventListener("rooms", event => {
-    try {
-      applyServerRooms(JSON.parse(event.data));
-    } catch {
-      // تجاهل أي رسالة غير مكتملة ثم انتظار الرسالة التالية.
-    }
-  });
-  events.onerror = () => {
-    serverSyncReady = false;
-  };
-}
-
-fetchServerRooms();
-connectServerEvents();
+serverEvents.addEventListener("room-updated", event => {
+  try {
+    cacheServerRoom(JSON.parse(event.data));
+  } catch {
+    // نتجاهل رسائل المزامنة غير الصالحة.
+  }
+});
+serverEvents.addEventListener("open", () => {
+  window.dispatchEvent(new CustomEvent("mafia-server-connected"));
+});
 
 const AVATARS = Array.from({ length: 12 }, (_, index) => ({
   id: `avatar-${String(index + 1).padStart(2, "0")}`,
@@ -132,9 +136,8 @@ function loadRooms() {
 
 function saveRooms(rooms) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
-  pushRoomsToServer(rooms);
-  channel?.postMessage({ type: "rooms-updated" });
-  window.dispatchEvent(new CustomEvent("mafia-rooms-updated"));
+  dispatchRoomsUpdated();
+  queueRoomsForServer(rooms);
 }
 
 function readRoom(code) {
@@ -301,7 +304,7 @@ export function openOnlinePortal({ app, onBack }) {
         <button id="joinRoomChoice" class="online-secondary-button" type="button">إدخال رابط أو رمز</button>
       </article>
     </div>
-    <div class="online-notice">الغرف متصلة بالخادم وتعمل لحظيًا بين الأجهزة عبر الإنترنت.</div>
+    <div class="online-notice">الاتصال بالخادم مفعّل. الغرف تتزامن لحظيًا بين الهواتف وأجهزة الكمبيوتر عبر الإنترنت.</div>
   `);
   attachBack(onBack);
   document.querySelector("#createRoomChoice")?.addEventListener("click", () => renderCreateRoom({ app, onBack }));
@@ -345,7 +348,7 @@ function renderJoinCode({ app, onBack }) {
     </div>
   `, "الانضمام");
   attachBack(() => openOnlinePortal({ app, onBack }));
-  document.querySelector("#joinCodeForm")?.addEventListener("submit", event => {
+  document.querySelector("#joinCodeForm")?.addEventListener("submit", async event => {
     event.preventDefault();
     const value = document
       .querySelector("#roomCodeInput")
@@ -359,11 +362,11 @@ function renderJoinCode({ app, onBack }) {
       );
     }
 
-    const room = readRoom(code);
+    const room = readRoom(code) || await fetchRoomFromServer(code);
 
     if (!room) {
       return showErrorToast(
-        "لم يتم العثور على الغرفة على هذا الجهاز. تأكد من الرمز ومن أن الغرفة ما زالت مفتوحة.",
+        "لم يتم العثور على الغرفة. تأكد من الرمز ومن أن الغرفة ما زالت مفتوحة.",
         "الغرفة غير موجودة",
       );
     }
@@ -380,9 +383,17 @@ function avatarPicker() {
 function renderJoinRoom({ app, onBack, code }) {
   const room = readRoom(code);
   if (!room) {
-    app.innerHTML = pageShell(`<div class="online-empty"><div>⚠️</div><h2>الغرفة غير موجودة</h2><p>قد يكون الرابط منتهيًا أو تم إغلاق الغرفة.</p><button id="returnPortal" class="online-primary-button">العودة</button></div>`);
+    app.innerHTML = pageShell(`<div class="online-empty"><div>⏳</div><h2>جارٍ البحث عن الغرفة</h2><p>يتم الاتصال بالخادم الآن.</p></div>`);
     attachBack(onBack);
-    document.querySelector("#returnPortal")?.addEventListener("click", () => openOnlinePortal({ app, onBack }));
+    fetchRoomFromServer(code).then(foundRoom => {
+      if (foundRoom) {
+        renderJoinRoom({ app, onBack, code: foundRoom.code });
+        return;
+      }
+      app.innerHTML = pageShell(`<div class="online-empty"><div>⚠️</div><h2>الغرفة غير موجودة</h2><p>قد يكون الرابط منتهيًا أو تم إغلاق الغرفة.</p><button id="returnPortal" class="online-primary-button">العودة</button></div>`);
+      attachBack(onBack);
+      document.querySelector("#returnPortal")?.addEventListener("click", () => openOnlinePortal({ app, onBack }));
+    });
     return;
   }
   if (room.status !== "waiting") {
@@ -558,7 +569,13 @@ function bindHostRoleRevealCountdown(code, room) {
 function renderHostLobby({ app, onBack, code }) {
   const draw = () => {
     const room = readRoom(code);
-    if (!room) return openOnlinePortal({ app, onBack });
+    if (!room) {
+      fetchRoomFromServer(code).then(foundRoom => {
+        if (foundRoom) draw();
+        else openOnlinePortal({ app, onBack });
+      });
+      return;
+    }
     const url = inviteUrl(code);
     app.innerHTML = pageShell(`
       <div class="host-dashboard">
@@ -1320,7 +1337,10 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
 export function openLiveRoom({ app, onBack, code }) {
   const draw = () => {
     const room = readRoom(code);
-    if (!room) return;
+    if (!room) {
+      fetchRoomFromServer(code).then(foundRoom => foundRoom && draw());
+      return;
+    }
     const alive = room.players.filter(p=>p.alive); const out = room.players.filter(p=>!p.alive);
     app.innerHTML = pageShell(`<div class="live-dashboard"><section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية"}</p></section><div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div><section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}</div>`, "مركز المباراة المباشر");
     attachBack(onBack);

@@ -11,8 +11,7 @@
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
     "cap:add:android": "npx cap add android",
-    "cap:add:ios": "npx cap add ios",
-    "start": "node server.js"
+    "cap:add:ios": "npx cap add ios"
   },
   "devDependencies": {
     "vite": "^8.1.1",

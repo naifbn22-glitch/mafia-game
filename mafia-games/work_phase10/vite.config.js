@@ -59,16 +59,17 @@ export default defineConfig({
       },
 
 workbox: {
-  maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
   cleanupOutdatedCaches: true,
+
   skipWaiting: true,
+
   clientsClaim: true,
+
   globPatterns: [
-    "**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2,ttf}",
+    "**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}",
   ],
-},
- devOptions: {
-        enabled: true,
+},      devOptions: {
+        enabled: false,
       },
     }),
   ],

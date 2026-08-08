@@ -1,0 +1,124 @@
+@font-face {
+  font-family: "beIN Black";
+  src: url("/fonts/beIN-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "beIN Normal";
+  src: url("/fonts/beIN-Normal.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  min-height: 100%;
+  direction: rtl;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-body);
+  color: var(--text);
+  background:
+    linear-gradient(
+      145deg,
+      #030706,
+      #0a1110 55%,
+      #090712
+    );
+  overflow-x: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* هوية الخطوط الرسمية */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+button,
+[role="button"],
+.home-brand,
+.home-brand-name,
+.setup-brand,
+.section-heading h1,
+.section-heading h2,
+.roles-heading h2,
+.online-title,
+.online-room-title,
+.online-card-title,
+.online-role-title,
+.online-stage-title,
+.role-card-name,
+.role-name,
+.role-title,
+.card-title,
+.section-title,
+.page-title,
+.modal-title,
+.final-results-header h2,
+.final-ranking-points strong,
+.game-over-card h1,
+.night-card h1,
+.voting-card h1,
+.timer-value,
+.role-reveal-countdown-number,
+.room-code,
+.match-score,
+.match-points,
+strong[class*="title"],
+[class*="headline"] {
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+
+body,
+p,
+span,
+small,
+label,
+input,
+textarea,
+select,
+li,
+td,
+th,
+.player-name,
+.final-ranking-player-info strong,
+.online-player-name,
+.room-player-name,
+.role-description,
+.online-role-description,
+.game-over-description,
+.night-description,
+.rules-description,
+.rules-card p,
+.rules-card li {
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+input,
+textarea,
+select,
+button {
+  letter-spacing: 0;
+}
