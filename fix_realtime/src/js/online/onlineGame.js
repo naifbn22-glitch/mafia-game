@@ -17,6 +17,7 @@ const socket = io(ONLINE_SERVER_URL, {
   timeout: 10000,
 });
 let hostRoleRevealIntervalId = null;
+let roomViewSyncCleanup = null;
 const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
 
@@ -26,14 +27,20 @@ function dispatchRoomsUpdated() {
 }
 
 function cacheServerRoom(room) {
-  if (!room?.code) return;
+  if (!room?.code) return false;
   const rooms = loadRooms();
   const code = normalizeRoomCode(room.code);
   const current = rooms[code];
-  if (current && Number(current.version || 0) > Number(room.version || 0)) return;
+  if (current && Number(current.version || 0) > Number(room.version || 0)) return false;
+
+  // لا نعيد رسم الواجهة إذا كانت نسخة الغرفة مطابقة تمامًا.
+  // هذا يجعل التحديث الدوري احتياطيًا وغير ملحوظ بصريًا.
+  if (current && JSON.stringify(current) === JSON.stringify(room)) return false;
+
   rooms[code] = room;
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
   dispatchRoomsUpdated();
+  return true;
 }
 
 function emitAck(eventName, payload) {
@@ -127,6 +134,50 @@ socket.on("connect", () => {
   }, 50);
 });
 socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server-disconnected")));
+
+function stopRoomViewSync() {
+  roomViewSyncCleanup?.();
+  roomViewSyncCleanup = null;
+}
+
+function startRoomViewSync({ code, mode = "public", playerId = null, draw, intervalMs = 700 }) {
+  stopRoomViewSync();
+
+  let disposed = false;
+  let requestInFlight = false;
+
+  const refresh = () => {
+    if (!disposed) draw();
+  };
+
+  // Socket.IO هو المسار الأساسي الفوري. كل room:snapshot يحدّث الكاش ثم يطلق هذا الحدث.
+  window.addEventListener("mafia-rooms-updated", refresh);
+
+  // إعادة الاشتراك فور رجوع الاتصال بعد انقطاع الشبكة.
+  const onConnected = () => {
+    subscribeRoom(code, mode, playerId);
+  };
+  window.addEventListener("mafia-server-connected", onConnected);
+
+  // طبقة احتياطية خفيفة. لا تعيد تحميل الصفحة، بل تجلب حالة الغرفة في الخلفية فقط.
+  // وإذا لم تتغير البيانات فلن يحدث أي إعادة رسم للواجهة.
+  const timer = window.setInterval(async () => {
+    if (disposed || requestInFlight || document.hidden) return;
+    requestInFlight = true;
+    try {
+      await fetchRoomFromServer(code);
+    } finally {
+      requestInFlight = false;
+    }
+  }, intervalMs);
+
+  roomViewSyncCleanup = () => {
+    disposed = true;
+    window.clearInterval(timer);
+    window.removeEventListener("mafia-rooms-updated", refresh);
+    window.removeEventListener("mafia-server-connected", onConnected);
+  };
+}
 
 const AVATARS = Array.from({ length: 12 }, (_, index) => ({
   id: `avatar-${String(index + 1).padStart(2, "0")}`,
@@ -343,6 +394,7 @@ function attachBack(onBack) {
 }
 
 export function openOnlinePortal({ app, onBack }) {
+  stopRoomViewSync();
   const params = new URLSearchParams(location.search);
   const linkedRoom = params.get("room");
   if (linkedRoom && params.get("join") === "1") {
@@ -755,9 +807,7 @@ function renderHostLobby({ app, onBack, code }) {
     }));
   };
   draw();
-  const refresh = () => draw();
-  channel?.addEventListener("message", refresh, { once: true });
-  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+  startRoomViewSync({ code, mode: "host", draw, intervalMs: 650 });
 }
 
 function finalizeActiveNightRole(room) {
@@ -1279,9 +1329,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     }
   };
   draw();
-  const refresh = () => draw();
-  channel?.addEventListener("message", refresh, { once: true });
-  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+  startRoomViewSync({ code, mode: "player", playerId, draw, intervalMs: 700 });
 }
 
 export function openLiveRoom({ app, onBack, code }) {
@@ -1297,7 +1345,7 @@ export function openLiveRoom({ app, onBack, code }) {
     attachBack(onBack);
   };
   draw();
-  const refresh=()=>draw(); channel?.addEventListener("message", refresh, {once:true}); window.addEventListener("mafia-rooms-updated", refresh, {once:true});
+  startRoomViewSync({ code, mode: "public", draw, intervalMs: 650 });
 }
 
 export function restoreOnlineRoute({ app, onBack }) {
