@@ -1,0 +1,476 @@
+import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
+import { getRoleCardImage } from "../ui/roleCards.js";
+
+const STORAGE_KEY = "mafia_online_rooms_v1";
+const PLAYER_SESSION_KEY = "mafia_online_player_session_v1";
+const CHANNEL_NAME = "mafia-online-sync";
+const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
+
+const AVATARS = Array.from({ length: 12 }, (_, index) => ({
+  id: `avatar-${String(index + 1).padStart(2, "0")}`,
+  src: `/avatars/avatar-${String(index + 1).padStart(2, "0")}.png`,
+}));
+
+function uid(prefix = "id") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function roomCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+function loadRooms() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRooms(rooms) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  channel?.postMessage({ type: "rooms-updated" });
+  window.dispatchEvent(new CustomEvent("mafia-rooms-updated"));
+}
+
+function readRoom(code) {
+  return loadRooms()[code] || null;
+}
+
+function updateRoom(code, updater) {
+  const rooms = loadRooms();
+  const room = rooms[code];
+  if (!room) return null;
+  const next = updater(structuredClone(room));
+  rooms[code] = next;
+  saveRooms(rooms);
+  return next;
+}
+
+function createRoomRecord(hostName, roomName, maxPlayers) {
+  const rooms = loadRooms();
+  let code = roomCode();
+  while (rooms[code]) code = roomCode();
+  rooms[code] = {
+    code,
+    roomName,
+    hostName,
+    maxPlayers,
+    status: "waiting",
+    phase: "lobby",
+    activeRole: null,
+    createdAt: Date.now(),
+    players: [],
+    nightNumber: 0,
+    nightActions: { thiefVotes: {}, nurseTargetId: null, kingTargetId: null, kingSkipped: false, kingPardonFinalized: false, investigatorTargetId: null },
+    lastTargets: { thief: null, nurse: null },
+  };
+  saveRooms(rooms);
+  return rooms[code];
+}
+
+function inviteUrl(code) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("room", code);
+  url.searchParams.set("join", "1");
+  return url.toString();
+}
+
+function pageShell(content, title = "اللعب عبر الشبكة") {
+  return `
+    <main class="online-page">
+      <div class="online-atmosphere" aria-hidden="true"></div>
+      <header class="online-header">
+        <button class="online-back-button" id="onlineBackButton" type="button">←</button>
+        <div>
+          <span class="online-kicker">MAFIA ONLINE</span>
+          <h1>${title}</h1>
+        </div>
+        <img src="/logo.png" alt="شعار مافيا" class="online-logo" />
+      </header>
+      <section class="online-content">${content}</section>
+    </main>`;
+}
+
+function attachBack(onBack) {
+  document.querySelector("#onlineBackButton")?.addEventListener("click", onBack);
+}
+
+export function openOnlinePortal({ app, onBack }) {
+  const params = new URLSearchParams(location.search);
+  const linkedRoom = params.get("room");
+  if (linkedRoom && params.get("join") === "1") {
+    renderJoinRoom({ app, onBack, code: linkedRoom });
+    return;
+  }
+
+  app.innerHTML = pageShell(`
+    <div class="online-portal-grid">
+      <article class="online-action-card host-card">
+        <div class="online-action-icon">👑</div>
+        <h2>إنشاء غرفة خاصة</h2>
+        <p>أنشئ المباراة، شارك رابط الدعوة، وتحكم بجميع مراحل اللعب من جهاز المدير.</p>
+        <button id="createRoomChoice" class="online-primary-button" type="button">إنشاء غرفة</button>
+      </article>
+      <article class="online-action-card player-card">
+        <div class="online-action-icon">🎭</div>
+        <h2>الانضمام إلى غرفة</h2>
+        <p>افتح رابط الدعوة الذي أرسله مدير اللعبة، ثم أضف اسمك وجنسك وصورتك.</p>
+        <button id="joinRoomChoice" class="online-secondary-button" type="button">إدخال رابط أو رمز</button>
+      </article>
+    </div>
+    <div class="online-notice">نسخة المعاينة الحالية تعمل لحظيًا بين تبويبات المتصفح. الربط بين الهواتف سيُفعّل بعد إضافة بيانات Firebase.</div>
+  `);
+  attachBack(onBack);
+  document.querySelector("#createRoomChoice")?.addEventListener("click", () => renderCreateRoom({ app, onBack }));
+  document.querySelector("#joinRoomChoice")?.addEventListener("click", () => renderJoinCode({ app, onBack }));
+}
+
+function renderCreateRoom({ app, onBack }) {
+  app.innerHTML = pageShell(`
+    <div class="online-form-card">
+      <div class="online-form-heading"><span>👑</span><div><h2>إنشاء غرفة المدير</h2><p>أدخل البيانات الأساسية، ويمكنك تعديل إعدادات الأدوار قبل بدء المباراة.</p></div></div>
+      <form id="createRoomForm" class="online-form">
+        <label>اسم مدير اللعبة<input id="hostNameInput" required maxlength="24" placeholder="مثال: نايف" /></label>
+        <label>اسم الغرفة<input id="roomNameInput" required maxlength="32" placeholder="مثال: سهرة الجمعة" /></label>
+        <label>الحد الأعلى للاعبين<select id="maxPlayersInput">${[6,7,8,9,10,12,14,16,18,20].map(n => `<option value="${n}" ${n===10?"selected":""}>${n} لاعبين</option>`).join("")}</select></label>
+        <button class="online-primary-button" type="submit">إنشاء الغرفة الخاصة</button>
+      </form>
+    </div>
+  `, "إنشاء غرفة");
+  attachBack(() => openOnlinePortal({ app, onBack }));
+  document.querySelector("#createRoomForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const hostName = document.querySelector("#hostNameInput").value.trim();
+    const roomName = document.querySelector("#roomNameInput").value.trim();
+    const maxPlayers = Number(document.querySelector("#maxPlayersInput").value);
+    if (!hostName || !roomName) return showErrorToast("أكمل اسم المدير واسم الغرفة.", "بيانات ناقصة");
+    const room = createRoomRecord(hostName, roomName, maxPlayers);
+    history.replaceState({}, "", `?host=${room.code}`);
+    showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
+    renderHostLobby({ app, onBack, code: room.code });
+  });
+}
+
+function renderJoinCode({ app, onBack }) {
+  app.innerHTML = pageShell(`
+    <div class="online-form-card compact-form-card">
+      <div class="online-form-heading"><span>🚪</span><div><h2>الانضمام إلى غرفة</h2><p>ألصق رابط الدعوة أو اكتب رمز الغرفة.</p></div></div>
+      <form id="joinCodeForm" class="online-form">
+        <label>رابط أو رمز الغرفة<input id="roomCodeInput" required placeholder="مثال: AB7K9P" /></label>
+        <button class="online-primary-button" type="submit">متابعة</button>
+      </form>
+    </div>
+  `, "الانضمام");
+  attachBack(() => openOnlinePortal({ app, onBack }));
+  document.querySelector("#joinCodeForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    let value = document.querySelector("#roomCodeInput").value.trim();
+    try { value = new URL(value).searchParams.get("room") || value; } catch {}
+    const code = value.toUpperCase();
+    if (!readRoom(code)) return showErrorToast("لم يتم العثور على الغرفة.", "رمز غير صحيح");
+    renderJoinRoom({ app, onBack, code });
+  });
+}
+
+function avatarPicker() {
+  return `<div class="online-avatar-grid">${AVATARS.map((a,i) => `<button class="online-avatar-option ${i===0?"selected":""}" type="button" data-avatar="${a.src}"><img src="${a.src}" alt="صورة شخصية ${i+1}" /></button>`).join("")}</div>`;
+}
+
+function renderJoinRoom({ app, onBack, code }) {
+  const room = readRoom(code);
+  if (!room) {
+    app.innerHTML = pageShell(`<div class="online-empty"><div>⚠️</div><h2>الغرفة غير موجودة</h2><p>قد يكون الرابط منتهيًا أو تم إغلاق الغرفة.</p><button id="returnPortal" class="online-primary-button">العودة</button></div>`);
+    attachBack(onBack);
+    document.querySelector("#returnPortal")?.addEventListener("click", () => openOnlinePortal({ app, onBack }));
+    return;
+  }
+  if (room.status !== "waiting") {
+    showInfoToast("المباراة بدأت بالفعل ولا يمكن إضافة لاعب جديد.", "الغرفة مغلقة");
+  }
+  app.innerHTML = pageShell(`
+    <div class="join-room-layout">
+      <div class="room-preview-card"><span class="live-dot"></span><small>دعوة خاصة</small><h2>${room.roomName}</h2><p>مدير اللعبة: <strong>${room.hostName}</strong></p><div class="room-code-badge">${room.code}</div><span>${room.players.length} / ${room.maxPlayers} لاعبين</span></div>
+      <form id="playerJoinForm" class="online-form-card online-form">
+        <h2>بيانات المتسابق</h2>
+        <label>اسم اللاعب<input id="playerNameInput" maxlength="24" required placeholder="اكتب اسمك" /></label>
+        <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>👨 ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>👩 أنثى</span></label></div></fieldset>
+        <div><span class="field-label">الصورة الشخصية</span>${avatarPicker()}</div>
+        <input id="selectedAvatar" type="hidden" value="${AVATARS[0].src}" />
+        <button class="online-primary-button" type="submit" ${room.status !== "waiting" ? "disabled" : ""}>الانضمام إلى الغرفة</button>
+      </form>
+    </div>
+  `, "تسجيل المتسابق");
+  attachBack(() => openOnlinePortal({ app, onBack }));
+  document.querySelectorAll(".online-avatar-option").forEach(button => button.addEventListener("click", () => {
+    document.querySelectorAll(".online-avatar-option").forEach(x => x.classList.remove("selected"));
+    button.classList.add("selected");
+    document.querySelector("#selectedAvatar").value = button.dataset.avatar;
+  }));
+  document.querySelector("#playerJoinForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const current = readRoom(code);
+    if (!current || current.status !== "waiting") return showErrorToast("الغرفة مغلقة الآن.", "تعذر الانضمام");
+    if (current.players.length >= current.maxPlayers) return showErrorToast("اكتمل عدد اللاعبين.", "الغرفة ممتلئة");
+    const name = document.querySelector("#playerNameInput").value.trim();
+    if (current.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return showErrorToast("هذا الاسم مستخدم داخل الغرفة.", "اختر اسمًا آخر");
+    const player = { id: uid("player"), name, gender: document.querySelector('input[name="gender"]:checked').value, avatar: document.querySelector("#selectedAvatar").value, online: true, alive: true, role: null, roleKnown: false, joinedAt: Date.now() };
+    updateRoom(code, r => { r.players.push(player); return r; });
+    localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify({ code, playerId: player.id }));
+    history.replaceState({}, "", `?room=${code}&player=${player.id}`);
+    renderPlayerRoom({ app, onBack, code, playerId: player.id });
+  });
+}
+
+function playerCard(player, host = false) {
+  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${player.avatar}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
+}
+
+function renderHostLobby({ app, onBack, code }) {
+  const draw = () => {
+    const room = readRoom(code);
+    if (!room) return openOnlinePortal({ app, onBack });
+    const url = inviteUrl(code);
+    app.innerHTML = pageShell(`
+      <div class="host-dashboard">
+        <section class="host-room-hero"><div><span class="live-status"><i></i>${room.status === "waiting" ? "الغرفة مفتوحة" : "المباراة جارية"}</span><h2>${room.roomName}</h2><p>مدير اللعبة: ${room.hostName}</p></div><div class="host-room-code"><small>رمز الغرفة</small><strong>${room.code}</strong></div></section>
+        <section class="invite-panel"><div><small>رابط دعوة المتسابقين</small><input id="inviteLinkInput" readonly value="${url}" /></div><button id="copyInviteButton" class="online-secondary-button">نسخ الرابط</button><button id="shareInviteButton" class="online-primary-button">مشاركة</button></section>
+        <div class="dashboard-grid">
+          <section class="players-panel"><div class="panel-title"><div><h3>المتسابقون</h3><p>يظهر كل لاعب فور انضمامه</p></div><strong>${room.players.length} / ${room.maxPlayers}</strong></div><div class="online-players-list">${room.players.length ? room.players.map(p => playerCard(p, room.status === "waiting")).join("") : `<div class="online-empty small"><div>👥</div><h3>بانتظار المتسابقين</h3><p>شارك الرابط ليبدأ اللاعبون بالانضمام.</p></div>`}</div></section>
+          <aside class="host-controls"><h3>التحكم بالمباراة</h3><div class="control-stat"><span>حالة الغرفة</span><strong>${room.status === "waiting" ? "انتظار" : "بدأت"}</strong></div><div class="control-stat"><span>عرفوا أدوارهم</span><strong>${room.players.filter(p=>p.roleKnown).length} / ${room.players.length}</strong></div><button id="startOnlineGame" class="online-primary-button large" ${room.players.length < 4 || room.status !== "waiting" ? "disabled" : ""}>▶ بدء اللعبة</button><button id="openLiveView" class="online-secondary-button">📡 شاشة البث المباشر</button>${room.status === "playing" ? `<button id="nightModeButton" class="night-action-button">🌙 أغمضوا أعينكم جميعًا</button><div class="role-control-grid">${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}</div>` : ""}</aside>
+        </div>
+      </div>
+    `, "لوحة مدير اللعبة");
+    attachBack(() => openOnlinePortal({ app, onBack }));
+    document.querySelector("#copyInviteButton")?.addEventListener("click", async () => { await navigator.clipboard.writeText(url); showSuccessToast("تم نسخ رابط الدعوة.", "تم النسخ"); });
+    document.querySelector("#shareInviteButton")?.addEventListener("click", async () => { if (navigator.share) await navigator.share({ title: room.roomName, text: "انضم إلى غرفة مافيا", url }); else { await navigator.clipboard.writeText(url); showInfoToast("تم نسخ الرابط بدلًا من المشاركة.", "الرابط جاهز"); } });
+    document.querySelectorAll("[data-remove-player]").forEach(btn => btn.addEventListener("click", () => updateRoom(code, r => { r.players = r.players.filter(p => p.id !== btn.dataset.removePlayer); return r; })));
+    document.querySelector("#startOnlineGame")?.addEventListener("click", () => {
+      updateRoom(code, r => {
+        const roles = distributeRoles(r.players.length);
+        r.players = shuffle(r.players).map((p, i) => ({ ...p, role: roles[i], roleKnown: false, royalPardonsRemaining: roles[i] === "king" ? 3 : 0 }));
+        r.status = "playing"; r.phase = "role-reveal"; r.activeRole = null; return r;
+      });
+      showSuccessToast("تم توزيع الأدوار وإرسالها للاعبين.", "بدأت المباراة");
+    });
+    document.querySelector("#openLiveView")?.addEventListener("click", () => window.open(`${location.pathname}?live=${code}`, "_blank"));
+    document.querySelector("#nightModeButton")?.addEventListener("click", () => updateRoom(code, r => { r.phase = "eyes-closed"; r.activeRole = null; r.nightNumber = (r.nightNumber || 0) + 1; r.nightActions = { thiefVotes: {}, nurseTargetId: null, kingTargetId: null, kingSkipped: false, kingPardonFinalized: false, investigatorTargetId: null }; return r; }));
+    document.querySelectorAll("[data-role]").forEach(btn => btn.addEventListener("click", () => updateRoom(code, r => {
+      finalizeActiveNightRole(r);
+      r.phase = "night-role";
+      r.activeRole = btn.dataset.role;
+      return r;
+    })));
+  };
+  draw();
+  const refresh = () => draw();
+  channel?.addEventListener("message", refresh, { once: true });
+  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+}
+
+function finalizeActiveNightRole(room) {
+  if (room.activeRole !== "king") return;
+  room.nightActions ||= {};
+  if (room.nightActions.kingPardonFinalized) return;
+  const targetId = room.nightActions.kingTargetId;
+  if (!targetId || room.nightActions.kingSkipped) return;
+  const king = room.players.find(player => player.role === "king" && player.alive);
+  if (!king || Number(king.royalPardonsRemaining || 0) <= 0) return;
+  king.royalPardonsRemaining = Math.max(0, Number(king.royalPardonsRemaining || 0) - 1);
+  room.nightActions.kingPardonFinalized = true;
+}
+
+function shuffle(items) { return [...items].sort(() => Math.random() - 0.5); }
+function distributeRoles(count) {
+  const thiefCount = count <= 6 ? 1 : count <= 10 ? 2 : Math.max(3, Math.floor(count / 4));
+  const roles = [...Array(thiefCount).fill("thief"), "nurse", "king"];
+  if (count >= 6) roles.push("investigator");
+  while (roles.length < count) roles.push("citizen");
+  return shuffle(roles);
+}
+const ROLE_LABELS = { thief: "اللص", nurse: "الممرضة", king: "الملك", investigator: "المحقق", citizen: "المواطن" };
+const ROLE_ICONS = { thief: "🗡️", nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
+
+function onlineRoleCard(player) {
+  const image = getRoleCardImage(player.role, player.gender || "male");
+  if (!image) return "";
+  return `
+    <section class="online-role-reveal-wrap">
+      <p class="role-card-secret-label">دورك السري</p>
+      <h2 class="role-card-player-name">${player.name}</h2>
+      <div class="role-card-stage">
+        <div class="role-playing-card" id="onlineRoleCard">
+          <div class="role-card-inner">
+            <div class="role-card-face role-card-back">
+              <img class="role-card-back-logo" src="/logo.png" alt="" />
+              <p class="role-card-back-title">مافيا</p>
+            </div>
+            <div class="role-card-face role-card-front">
+              <img class="role-card-front-image" src="${image}" alt="بطاقة ${ROLE_LABELS[player.role]}" />
+              <span class="role-card-shine"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="role-card-details" id="onlineRoleDetails">
+        <h2>${ROLE_LABELS[player.role]}</h2>
+        <p>${({
+          thief: "استيقظ مع اللصوص ليلًا واختروا ضحية واحدة.",
+          nurse: "احمِ لاعبًا واحدًا كل ليلة، ويمكنك حماية نفسك.",
+          king: "لديك 3 أوسمة عفو. امنح أحد اللاعبين عفوًا أو احتفظ بالوسام.",
+          investigator: "اختر لاعبًا كل ليلة لكشف هويته، مع بقاء الملك والممرض متخفيين كمواطنين.",
+          citizen: "ناقش وصوّت بحكمة لاكتشاف اللصوص وإخراجهم.",
+        })[player.role] || "احفظ دورك جيدًا ولا تكشفه لأي لاعب."}</p>
+        <button id="hideMyRole" class="online-secondary-button">إخفاء البطاقة</button>
+      </div>
+    </section>`;
+}
+
+function allowedTargets(room, player) {
+  return room.players.filter(target => {
+    if (!target.alive) return false;
+    if (player.role === "thief") {
+      return target.role !== "thief" && target.id !== room.lastTargets?.thief;
+    }
+    if (player.role === "nurse") {
+      return target.id !== room.lastTargets?.nurse; // يسمح لها بحماية نفسها
+    }
+    if (player.role === "king") {
+      const remaining = Number(player.royalPardonsRemaining || 0);
+      return remaining > 0 && !room.nightActions?.kingPardonFinalized && target.id !== player.id;
+    }
+    if (player.role === "investigator") return target.id !== player.id;
+    return false;
+  });
+}
+
+function selectedTargetId(room, player) {
+  if (player.role === "thief") return room.nightActions?.thiefVotes?.[player.id] || null;
+  if (player.role === "nurse") return room.nightActions?.nurseTargetId || null;
+  if (player.role === "king") return room.nightActions?.kingTargetId || null;
+  if (player.role === "investigator") return room.nightActions?.investigatorTargetId || null;
+  return null;
+}
+
+function saveNightTarget(code, playerId, targetId) {
+  return updateRoom(code, room => {
+    const player = room.players.find(p => p.id === playerId);
+    const target = room.players.find(p => p.id === targetId);
+    if (!player || !target || room.phase !== "night-role" || room.activeRole !== player.role) return room;
+    const valid = allowedTargets(room, player).some(p => p.id === targetId);
+    if (!valid) return room;
+    room.nightActions ||= { thiefVotes: {}, nurseTargetId: null, kingTargetId: null, kingSkipped: false, kingPardonFinalized: false, investigatorTargetId: null };
+    if (player.role === "thief") room.nightActions.thiefVotes[player.id] = targetId;
+    if (player.role === "nurse") room.nightActions.nurseTargetId = targetId;
+    if (player.role === "king") {
+      room.nightActions.kingTargetId = targetId;
+      room.nightActions.kingSkipped = false;
+    }
+    if (player.role === "investigator") room.nightActions.investigatorTargetId = targetId;
+    return room;
+  });
+}
+
+function skipKingPardon(code, playerId) {
+  return updateRoom(code, room => {
+    const player = room.players.find(item => item.id === playerId);
+    if (!player || player.role !== "king" || room.activeRole !== "king" || room.phase !== "night-role") return room;
+    if (room.nightActions?.kingPardonFinalized) return room;
+    room.nightActions ||= {};
+    room.nightActions.kingTargetId = null;
+    room.nightActions.kingSkipped = true;
+    return room;
+  });
+}
+
+function getInvestigationResult(target) {
+  if (!target) return null;
+  if (target.role === "king" || target.role === "nurse" || target.role === "citizen") {
+    return { role: "citizen", label: target.gender === "female" ? "مواطنة" : "مواطن", icon: "🏙️" };
+  }
+  if (target.role === "thief") {
+    return { role: "thief", label: target.gender === "female" ? "لصة" : "لص", icon: "🗡️" };
+  }
+  if (target.role === "investigator") {
+    return { role: "investigator", label: target.gender === "female" ? "محققة" : "محقق", icon: "🕵️" };
+  }
+  return { role: target.role, label: ROLE_LABELS[target.role] || "غير معروف", icon: ROLE_ICONS[target.role] || "🎭" };
+}
+
+function renderPlayerRoom({ app, onBack, code, playerId }) {
+  const draw = () => {
+    const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
+    if (!room || !player) return renderJoinRoom({ app, onBack, code });
+    let content = "";
+    if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
+    else if (room.phase === "role-reveal" && !player.roleKnown) content = `<div class="role-envelope"><div class="sealed-card">🎴</div><h2>دورك جاهز</h2><p>تأكد أن لا أحد ينظر إلى شاشتك.</p><button id="revealMyRole" class="online-primary-button large">كشف الدور</button></div>`;
+    else if (room.phase === "role-reveal") content = onlineRoleCard(player);
+    else if (room.phase === "eyes-closed") content = `<div class="eyes-closed-screen"><div>🙈</div><h2>أغمضوا أعينكم جميعًا</h2><p>ضع هاتفك أمامك وانتظر تعليمات مدير اللعبة.</p></div>`;
+    else if (room.phase === "night-role" && room.activeRole === player.role) {
+      const targets = allowedTargets(room, player);
+      const selected = selectedTargetId(room, player);
+      const investigatorTarget = player.role === "investigator" && selected
+        ? room.players.find(item => item.id === selected)
+        : null;
+      const investigationResult = getInvestigationResult(investigatorTarget);
+      const kingRemaining = Number(player.royalPardonsRemaining || 0);
+      const kingFinalized = Boolean(room.nightActions?.kingPardonFinalized);
+      const kingMedals = player.role === "king"
+        ? `<div class="royal-pardon-panel"><span>أوسمة العفو المتبقية</span><div class="royal-pardon-medals">${[0,1,2].map(index => `<b class="${index < kingRemaining ? "available" : "used"}">🛡️</b>`).join("")}</div><strong>${kingRemaining} من 3</strong></div>`
+        : "";
+      const investigatorResultHTML = investigationResult
+        ? `<div class="investigation-result investigation-result--${investigationResult.role}"><small>نتيجة التحقيق</small><div>${investigationResult.icon}</div><h3>${investigationResult.label}</h3><p>${investigationResult.role === "citizen" ? "تظهر هذه الهوية أيضًا للملك والممرض حفاظًا على سريتهما." : "هذه هي الهوية التي كشفها التحقيق."}</p></div>`
+        : "";
+      content = `<div class="active-role-screen"><div class="role-symbol">${ROLE_ICONS[player.role]}</div><h2>استيقظ يا ${ROLE_LABELS[player.role]}</h2><p>${player.role === "nurse" ? "اختر لاعبًا لحمايته، ويمكنك حماية نفسك." : player.role === "king" ? "امنح لاعبًا عفوًا ملكيًا أو احتفظ بأوسمتك. لا يمكنك اختيار نفسك." : player.role === "thief" ? "اختر الضحية. لا يمكنك اختيار لص أو ضحية الليلة السابقة." : "اختر لاعبًا لكشف هويته. الملك والممرض يظهران كمواطنين."}</p>${kingMedals}<div class="night-target-grid">${targets.length ? targets.map(p=>`<button type="button" class="night-target ${selected===p.id?"selected":""}" data-target-id="${p.id}" ${kingFinalized ? "disabled" : ""}><img src="${p.avatar}" alt="${p.name}" /><span>${p.name}</span>${selected===p.id?"<b>✓ تم الاختيار</b>":""}</button>`).join("") : `<div class="online-empty small"><h3>${player.role === "king" && kingRemaining <= 0 ? "نفدت أوسمة العفو" : "لا يوجد اختيار متاح"}</h3><p>${player.role === "king" ? "يمكنك المتابعة دون منح عفو هذه الليلة." : "قد يكون هذا اللاعب هو اختيار الليلة السابقة."}</p></div>`}</div>${player.role === "king" ? `<button id="skipKingPardon" class="online-secondary-button king-skip-button" ${kingFinalized ? "disabled" : ""}>الاحتفاظ بالوسام وعدم اختيار أحد</button>` : ""}${investigatorResultHTML}<p class="night-choice-status">${kingFinalized ? "✅ تم اعتماد العفو لهذه الليلة ولا يمكن تغييره." : selected ? "✅ تم حفظ اختيارك ويمكنك تغييره قبل إيقاظ الدور التالي." : room.nightActions?.kingSkipped && player.role === "king" ? "تم اختيار عدم استخدام وسام هذه الليلة." : "لم يتم اختيار أحد بعد."}</p></div>`;
+    }
+    else if (room.phase === "night-role") content = `<div class="eyes-closed-screen"><div>🌙</div><h2>أبقِ عينيك مغمضتين</h2><p>الدور الحالي سري. انتظر حتى يوقظكم المدير.</p></div>`;
+    else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
+    app.innerHTML = pageShell(content, room.roomName);
+    attachBack(onBack);
+    document.querySelector("#revealMyRole")?.addEventListener("click", () => updateRoom(code, r => { const p=r.players.find(x=>x.id===playerId); if(p) p.roleKnown=true; return r; }));
+    document.querySelector("#hideMyRole")?.addEventListener("click", () => { app.innerHTML = pageShell(`<div class="role-hidden-confirmation"><div>✅</div><h2>تمت معرفة الدور</h2><p>بانتظار بقية اللاعبين ومدير اللعبة.</p></div>`, room.roomName); attachBack(onBack); });
+    document.querySelectorAll("[data-target-id]").forEach(button => button.addEventListener("click", () => {
+      const targetId = button.dataset.targetId;
+      const updated = saveNightTarget(code, playerId, targetId);
+      if (updated) showSuccessToast(player.role === "investigator" ? "تم كشف هوية اللاعب." : "تم حفظ اختيارك.", player.role === "investigator" ? "نتيجة التحقيق" : "اختيار مؤكد");
+    }));
+    document.querySelector("#skipKingPardon")?.addEventListener("click", () => {
+      skipKingPardon(code, playerId);
+      showInfoToast("تم الاحتفاظ بوسام العفو لهذه الليلة.", "لم يُستخدم العفو");
+    });
+    const card = document.querySelector("#onlineRoleCard");
+    if (card) {
+      requestAnimationFrame(() => card.classList.add("card-entered"));
+      setTimeout(() => { card.classList.add("card-flipped"); document.querySelector("#onlineRoleDetails")?.classList.add("details-visible"); }, 650);
+    }
+  };
+  draw();
+  const refresh = () => draw();
+  channel?.addEventListener("message", refresh, { once: true });
+  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+}
+
+export function openLiveRoom({ app, onBack, code }) {
+  const draw = () => {
+    const room = readRoom(code);
+    if (!room) return;
+    const alive = room.players.filter(p=>p.alive); const out = room.players.filter(p=>!p.alive);
+    app.innerHTML = pageShell(`<div class="live-dashboard"><section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية"}</p></section><div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div><section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}</div>`, "مركز المباراة المباشر");
+    attachBack(onBack);
+  };
+  draw();
+  const refresh=()=>draw(); channel?.addEventListener("message", refresh, {once:true}); window.addEventListener("mafia-rooms-updated", refresh, {once:true});
+}
+
+export function restoreOnlineRoute({ app, onBack }) {
+  const params = new URLSearchParams(location.search);
+  if (params.get("live")) { openLiveRoom({ app, onBack, code: params.get("live") }); return true; }
+  if (params.get("host")) { renderHostLobby({ app, onBack, code: params.get("host") }); return true; }
+  const code = params.get("room"); const playerId = params.get("player");
+  if (code && playerId) { renderPlayerRoom({ app, onBack, code, playerId }); return true; }
+  if (code && params.get("join") === "1") { renderJoinRoom({ app, onBack, code }); return true; }
+  return false;
+}

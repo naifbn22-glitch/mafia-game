@@ -1,0 +1,68 @@
+.online-page{position:relative;min-height:100vh;padding:24px;overflow:hidden;background:radial-gradient(circle at 80% 10%,rgba(120,63,255,.16),transparent 34%),radial-gradient(circle at 10% 90%,rgba(0,214,143,.12),transparent 34%),#070810}.online-atmosphere{position:fixed;inset:0;pointer-events:none;background:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,black,transparent)}.online-header,.online-content{position:relative;z-index:1}.online-header{max-width:1180px;margin:auto;display:grid;grid-template-columns:56px 1fr 58px;align-items:center;gap:16px}.online-header h1{font-size:clamp(22px,4vw,34px);margin-top:4px}.online-kicker{font-size:11px;letter-spacing:3px;color:#44e6ad}.online-logo{width:58px;height:58px;object-fit:contain}.online-back-button{width:48px;height:48px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-size:24px;cursor:pointer}.online-content{max-width:1180px;margin:36px auto}.online-portal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}.online-action-card,.online-form-card,.room-preview-card,.host-room-hero,.invite-panel,.players-panel,.host-controls,.live-hero,.live-stats,.live-player-section{border:1px solid rgba(255,255,255,.1);background:rgba(16,18,30,.8);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.35)}.online-action-card{border-radius:30px;padding:38px;min-height:360px;display:flex;flex-direction:column;align-items:flex-start}.online-action-card h2{font-size:28px;margin:22px 0 12px}.online-action-card p{color:#a9acbd;line-height:1.9;flex:1}.online-action-icon{width:76px;height:76px;border-radius:24px;display:grid;place-items:center;font-size:38px;background:linear-gradient(135deg,rgba(126,76,255,.28),rgba(0,214,143,.18))}.online-primary-button,.online-secondary-button,.night-action-button,.role-wake-button{border:0;border-radius:16px;padding:15px 22px;font-weight:800;cursor:pointer;color:#fff}.online-primary-button{background:linear-gradient(135deg,#7d4cff,#4b20d5);box-shadow:0 12px 32px rgba(103,57,255,.28)}.online-secondary-button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}button:disabled{opacity:.4;cursor:not-allowed}.online-primary-button.large{width:100%;font-size:18px;padding:18px}.online-notice{margin-top:18px;padding:14px 18px;border-radius:14px;background:rgba(255,188,71,.08);border:1px solid rgba(255,188,71,.18);color:#e8c98f}.online-form-card{max-width:720px;margin:auto;border-radius:28px;padding:32px}.compact-form-card{max-width:560px}.online-form-heading{display:flex;align-items:center;gap:16px;margin-bottom:24px}.online-form-heading>span{font-size:38px}.online-form-heading p,.panel-title p{color:#9ea2b7;margin-top:6px}.online-form{display:grid;gap:20px}.online-form label,.field-label{display:grid;gap:9px;font-weight:700}.online-form input,.online-form select{width:100%;padding:15px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#0d0f18;color:#fff;outline:none}.join-room-layout{display:grid;grid-template-columns:.8fr 1.2fr;gap:24px}.room-preview-card{border-radius:28px;padding:32px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.room-preview-card h2{font-size:32px;margin:16px 0}.room-preview-card p{color:#a4a8ba}.room-code-badge{font-size:32px;letter-spacing:8px;font-weight:900;margin:26px 0;padding:16px 22px;border-radius:16px;background:rgba(255,255,255,.06)}.live-dot,.live-status i,.connection-dot{width:10px;height:10px;border-radius:50%;background:#39e69d;box-shadow:0 0 14px #39e69d}.gender-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}.gender-options input{display:none}.gender-options span{display:block;text-align:center;padding:15px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.04)}.gender-options input:checked+span{border-color:#7d4cff;background:rgba(125,76,255,.16)}fieldset{border:0}.online-avatar-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}.online-avatar-option{aspect-ratio:1;border-radius:16px;padding:3px;border:2px solid transparent;background:rgba(255,255,255,.05);overflow:hidden}.online-avatar-option.selected{border-color:#42e0a7;transform:scale(1.05)}.online-avatar-option img{width:100%;height:100%;object-fit:cover;border-radius:12px}.host-dashboard{display:grid;gap:20px}.host-room-hero{border-radius:28px;padding:28px;display:flex;justify-content:space-between;align-items:center}.live-status{display:inline-flex;align-items:center;gap:9px;color:#55e8af;font-size:13px}.host-room-hero h2{font-size:34px;margin:12px 0 6px}.host-room-code{text-align:center;background:rgba(255,255,255,.06);padding:16px 24px;border-radius:18px}.host-room-code strong{display:block;font-size:28px;letter-spacing:5px;margin-top:6px}.invite-panel{border-radius:22px;padding:18px;display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:end}.invite-panel input{width:100%;padding:12px;border:0;background:transparent;color:#b8bccd}.dashboard-grid{display:grid;grid-template-columns:1.5fr .7fr;gap:20px}.players-panel,.host-controls{border-radius:26px;padding:24px}.panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.panel-title>strong{font-size:22px}.online-players-list{display:grid;gap:10px}.online-player-card{display:grid;grid-template-columns:54px 1fr 12px auto;align-items:center;gap:13px;padding:11px;border:1px solid rgba(255,255,255,.08);border-radius:17px;background:rgba(255,255,255,.035)}.online-player-card img{width:54px;height:54px;border-radius:15px;object-fit:cover}.online-player-card div{display:grid;gap:5px}.online-player-card span{font-size:12px;color:#9ca0b3}.remove-player-button{border:0;background:rgba(255,73,99,.12);color:#ff7d91;border-radius:10px;padding:8px 10px}.host-controls{display:grid;align-content:start;gap:14px}.control-stat{display:flex;justify-content:space-between;padding:14px;border-radius:14px;background:rgba(255,255,255,.04)}.night-action-button{background:linear-gradient(135deg,#162555,#291765)}.role-control-grid{display:grid;gap:9px}.role-wake-button{background:rgba(255,255,255,.07);text-align:right}.player-wait-screen,.role-envelope,.revealed-role,.eyes-closed-screen,.active-role-screen,.role-hidden-confirmation,.online-empty{max-width:680px;min-height:520px;margin:auto;border:1px solid rgba(255,255,255,.1);border-radius:32px;background:rgba(13,15,26,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:38px}.player-wait-screen>img{width:128px;height:128px;border-radius:34px;object-fit:cover;margin-bottom:22px}.player-wait-screen h2,.role-envelope h2,.revealed-role h2,.eyes-closed-screen h2,.active-role-screen h2{font-size:36px;margin:14px 0}.player-wait-screen p,.role-envelope p,.revealed-role p,.eyes-closed-screen p,.active-role-screen p{color:#a8acbd}.waiting-pulse{display:flex;gap:8px;margin:28px}.waiting-pulse b{width:10px;height:10px;border-radius:50%;background:#6c43e8;animation:pulseDot 1.2s infinite}.waiting-pulse b:nth-child(2){animation-delay:.2s}.waiting-pulse b:nth-child(3){animation-delay:.4s}.sealed-card,.role-symbol{width:130px;height:160px;border-radius:24px;display:grid;place-items:center;font-size:66px;background:linear-gradient(145deg,#261c50,#102d35);border:1px solid rgba(255,255,255,.16);box-shadow:0 24px 60px rgba(0,0,0,.4)}.role-symbol{width:140px;height:140px;border-radius:50%}.eyes-closed-screen>div:first-child{font-size:90px}.night-target-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;margin-top:24px}.night-target{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;border-radius:16px;padding:10px}.night-target img{width:58px;height:58px;border-radius:14px;object-fit:cover;display:block;margin:auto auto 8px}.live-dashboard{display:grid;gap:20px}.live-hero{border-radius:28px;padding:30px;text-align:center}.live-hero h2{font-size:42px;margin:12px}.live-stats{border-radius:24px;padding:18px;display:grid;grid-template-columns:repeat(3,1fr);text-align:center}.live-stats div{display:grid;gap:5px}.live-stats strong{font-size:30px}.live-stats span{color:#9fa3b5}.live-player-section{border-radius:26px;padding:24px}.live-player-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.online-player-card.eliminated{opacity:.42;filter:grayscale(1)}@keyframes pulseDot{50%{transform:translateY(-8px);opacity:.45}}@media(max-width:800px){.online-portal-grid,.join-room-layout,.dashboard-grid{grid-template-columns:1fr}.online-page{padding:16px}.online-action-card{min-height:280px}.online-avatar-grid{grid-template-columns:repeat(4,1fr)}.invite-panel{grid-template-columns:1fr 1fr}.invite-panel>div{grid-column:1/-1}.host-room-hero{align-items:flex-start;gap:16px}.live-player-grid{grid-template-columns:1fr}.night-target-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* بطاقات الأدوار في اللعب عبر الشبكة تستخدم نفس تصميم اللعب بجهاز واحد */
+.online-role-reveal-wrap {
+  width: min(100%, 460px);
+  margin: 0 auto;
+  text-align: center;
+}
+.online-role-reveal-wrap .role-card-details h2 { margin: 4px 0 8px; font-size: 30px; }
+.online-role-reveal-wrap .role-card-details p { color: rgba(255,255,255,.7); }
+.night-target { position: relative; cursor: pointer; }
+.night-target.selected {
+  border-color: #65f0c2;
+  box-shadow: 0 0 0 2px rgba(101,240,194,.25), 0 14px 35px rgba(0,0,0,.35);
+  transform: translateY(-3px);
+}
+.night-target b {
+  display: block;
+  margin-top: 5px;
+  color: #65f0c2;
+  font-size: 12px;
+}
+.night-choice-status {
+  margin-top: 18px;
+  color: rgba(255,255,255,.78);
+  text-align: center;
+}
+
+/* المحقق والعفو الملكي */
+.royal-pardon-panel {
+  width: min(100%, 520px);
+  margin: 18px auto 4px;
+  padding: 16px 20px;
+  border: 1px solid rgba(244, 196, 76, .28);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(244, 196, 76, .1), rgba(22, 70, 50, .16));
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.royal-pardon-panel > span { color: rgba(255,255,255,.72); font-size: 13px; }
+.royal-pardon-panel > strong { color: #f7d66b; }
+.royal-pardon-medals { display: flex; gap: 12px; font-size: 30px; }
+.royal-pardon-medals b { transition: opacity .2s ease, filter .2s ease, transform .2s ease; }
+.royal-pardon-medals b.available { filter: drop-shadow(0 0 10px rgba(247,214,107,.45)); }
+.royal-pardon-medals b.used { opacity: .18; filter: grayscale(1); transform: scale(.9); }
+.king-skip-button { margin-top: 16px; width: min(100%, 420px); }
+.investigation-result {
+  width: min(100%, 460px);
+  margin: 22px auto 0;
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.055);
+  box-shadow: 0 18px 45px rgba(0,0,0,.3);
+  animation: investigationReveal .32s ease both;
+}
+.investigation-result small { color: rgba(255,255,255,.62); }
+.investigation-result > div { font-size: 48px; margin: 8px 0; }
+.investigation-result h3 { margin: 0 0 7px; font-size: 28px; }
+.investigation-result p { margin: 0; font-size: 13px; line-height: 1.7; }
+.investigation-result--thief { border-color: rgba(255,87,103,.35); background: rgba(108,23,35,.24); }
+.investigation-result--citizen { border-color: rgba(71,188,255,.3); background: rgba(23,72,108,.2); }
+.investigation-result--investigator { border-color: rgba(64,222,157,.32); background: rgba(20,91,67,.2); }
+@keyframes investigationReveal {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
