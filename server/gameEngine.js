@@ -202,6 +202,50 @@ export function allowedTargets(room, player) {
   });
 }
 
+
+const ONLINE_NIGHT_ROLES = ["thief", "nurse", "king", "investigator"];
+
+export function canFinishNight(room) {
+  if (room?.status !== "playing" || room?.phase !== "night-role") return false;
+
+  const requiredActors = (room.players || []).filter(
+    player => player.alive && ONLINE_NIGHT_ROLES.includes(player.role),
+  );
+
+  if (!requiredActors.length) return false;
+
+  const confirmedActors = room.nightActions?.confirmedActors || {};
+  const completedSteps = new Set(room.completedSteps || []);
+
+  const everyRequiredRoleWasWoken = [...new Set(requiredActors.map(player => player.role))]
+    .every(role => completedSteps.has(`wake-${role}`));
+
+  const everyRequiredActorConfirmed = requiredActors.every(
+    player => Boolean(confirmedActors[player.id]),
+  );
+
+  return everyRequiredRoleWasWoken && everyRequiredActorConfirmed;
+}
+
+export function finishNight(room) {
+  if (!canFinishNight(room)) throw new Error("NIGHT_NOT_COMPLETE");
+
+  room.phase = "day";
+  room.activeRole = null;
+  room.completedSteps ||= [];
+  if (!room.completedSteps.includes("night-complete")) {
+    room.completedSteps.push("night-complete");
+  }
+
+  addTimeline(room, {
+    type: "day_started",
+    publicText: "استيقظوا جميعًا، بدأت مرحلة النهار",
+    hostText: "اكتملت جميع مهام الليل وتم الانتقال إلى مرحلة النهار",
+  });
+
+  touch(room);
+}
+
 export function selectNightTarget(room, player, targetId) {
   if (room.phase !== "night-role" || room.activeRole !== player.role || isConfirmed(room, player.id)) throw new Error("ACTION_NOT_ALLOWED");
   const target = allowedTargets(room, player).find(item => item.id === targetId);
@@ -263,6 +307,7 @@ export function publicProjection(room) {
 export function hostProjection(room) {
   const safe = structuredClone(room);
   safe._view = "host";
+  safe.nightReady = canFinishNight(room);
   delete safe.hostToken;
   safe.players = safe.players.map(p => { delete p.sessionToken; return p; });
   safe.timeline = (room.timeline || []).map(e => ({ ...e, text: e.hostText || e.publicText })).filter(e => e.text);

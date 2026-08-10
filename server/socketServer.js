@@ -2,7 +2,7 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import {
-  addTimeline, beginEyesClosed, confirmNightAction, createRoom, hostProjection, joinPlayer,
+  addTimeline, beginEyesClosed, confirmNightAction, createRoom, finishNight, hostProjection, joinPlayer,
   markRoleKnown, normalizeRoomCode, playerProjection, publicProjection, requireHost, requirePlayer,
   selectNightTarget, skipKingPardon, startGame, touch, wakeRole,
 } from "./gameEngine.js";
@@ -116,6 +116,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "skip-role-reveal") { room.roleRevealEndsAt = Date.now(); touch(room); }
         else if (action === "eyes-closed") beginEyesClosed(room);
         else if (action === "wake-role") wakeRole(room, payload.role);
+        else if (action === "finish-night") finishNight(room);
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room); await emitRoom(room);
         ack({ ok: true, room: hostProjection(room) });
