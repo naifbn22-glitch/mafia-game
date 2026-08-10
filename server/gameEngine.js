@@ -147,6 +147,8 @@ export function startGame(room) {
 }
 
 export function markRoleKnown(room, player) {
+  // العملية idempotent حتى تكون إعادة المحاولة آمنة إذا انقطع ACK بعد نجاح الحفظ.
+  if (player.roleKnown) return;
   player.roleKnown = true;
   addTimeline(room, { type: "role_seen", playerId: player.id, publicText: `${player.name} اطّلع على دوره`, hostText: `${player.name} اطّلع على دوره` });
   touch(room);

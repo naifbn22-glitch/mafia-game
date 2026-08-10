@@ -17,6 +17,8 @@ const socket = io(ONLINE_SERVER_URL, {
   timeout: 10000,
 });
 let hostRoleRevealIntervalId = null;
+// حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
+const roleRevealUiState = new Map();
 const roomViewSyncControllers = new Map();
 const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
@@ -128,6 +130,29 @@ async function playerCommand(code, playerId, action, payload = {}) {
   const response = await emitAck("player:command", { code, playerId, token: session.token, action, payload });
   cacheServerRoom(response.room);
   return response.room;
+}
+
+// تنفيذ مخصص وآمن لعملية "تمت مشاهدة الدور" فقط.
+// يعيد المحاولة عند انقطاع لحظي في Socket.IO بدون تغيير نظام الغرف أو الانضمام.
+async function markRoleKnownReliably(code, playerId) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (!socket.connected) {
+        socket.connect();
+        await new Promise(resolve => window.setTimeout(resolve, 350 + attempt * 250));
+      }
+      return await playerCommand(code, playerId, "role-known");
+    } catch (error) {
+      lastError = error;
+      // في حال نجح الأمر على الخادم وفقدنا ACK، نجلب حالة اللاعب قبل إعادة المحاولة.
+      const synced = await fetchRoomFromServer(code, "player", playerId);
+      const syncedPlayer = synced?.players?.find(item => item.id === playerId);
+      if (syncedPlayer?.roleKnown) return synced;
+      await new Promise(resolve => window.setTimeout(resolve, 300 + attempt * 300));
+    }
+  }
+  throw lastError || new Error("ROLE_KNOWN_FAILED");
 }
 
 async function subscribeRoom(code, mode = "public", playerId = null) {
@@ -913,7 +938,7 @@ function distributeRoles(count) {
 const ROLE_LABELS = { thief: "اللص", nurse: "الممرضة", king: "الملك", investigator: "المحقق", citizen: "المواطن" };
 const ROLE_ICONS = { thief: "🗡️", nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
 
-function onlineRoleCard(player) {
+function onlineRoleCard(player, { settled = false } = {}) {
   const image = getRoleCardImage(player.role, player.gender || "male");
   if (!image) return "";
   return `
@@ -921,7 +946,7 @@ function onlineRoleCard(player) {
       <p class="role-card-secret-label">دورك السري</p>
       <h2 class="role-card-player-name">${player.name}</h2>
       <div class="role-card-stage">
-        <div class="role-playing-card" id="onlineRoleCard">
+        <div class="role-playing-card${settled ? " card-entered card-flipped" : ""}" id="onlineRoleCard">
           <div class="role-card-inner">
             <div class="role-card-face role-card-back">
               <img class="role-card-back-logo" src="/logo.png" alt="" />
@@ -934,7 +959,7 @@ function onlineRoleCard(player) {
           </div>
         </div>
       </div>
-      <div class="role-card-details" id="onlineRoleDetails">
+      <div class="role-card-details${settled ? " details-visible" : ""}" id="onlineRoleDetails">
         <h2>${ROLE_LABELS[player.role]}</h2>
         <p>${({
           thief: "استيقظ مع اللصوص ليلًا واختروا ضحية واحدة.",
@@ -1095,7 +1120,19 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           كشف الدور
         </button>
       </div>`;
-    else if (room.phase === "role-reveal") content = onlineRoleCard(player);
+    else if (room.phase === "role-reveal") {
+      const revealKey = `${code}:${playerId}`;
+      const uiState = roleRevealUiState.get(revealKey) || "new";
+
+      // إذا كانت البطاقة مكشوفة بالفعل فلا نعيد بناء DOM كلما وصلت مزامنة الغرفة.
+      // هذا يمنع إعادة تشغيل دوران البطاقة بصورة مستمرة.
+      const existingCard = document.querySelector("#onlineRoleCard");
+      if (existingCard && app.contains(existingCard)) {
+        return;
+      }
+
+      content = onlineRoleCard(player, { settled: uiState === "settled" });
+    }
     else if (room.phase === "eyes-closed") content = `<div class="eyes-closed-screen"><div>🙈</div><h2>أغمضوا أعينكم جميعًا</h2><p>ضع هاتفك أمامك وانتظر تعليمات مدير اللعبة.</p></div>`;
     else if (
       room.phase === "night-role" &&
@@ -1358,7 +1395,31 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    document.querySelector("#revealMyRole")?.addEventListener("click", async () => { try { await playerCommand(code, playerId, "role-known"); } catch { showErrorToast("تعذر حفظ مشاهدة الدور.", "خطأ"); } });
+    document.querySelector("#revealMyRole")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      if (button?.disabled) return;
+      if (button) {
+        button.disabled = true;
+        button.dataset.originalText = button.innerHTML;
+        button.innerHTML = '<span class="role-reveal-button-icon">◉</span> جارٍ كشف الدور...';
+      }
+
+      try {
+        const revealKey = `${code}:${playerId}`;
+        roleRevealUiState.set(revealKey, "animating");
+        await markRoleKnownReliably(code, playerId);
+        // يرسم Snapshot الناتج البطاقة مرة واحدة. بعد نهاية الحركة نثبتها نهائيًا.
+        window.setTimeout(() => roleRevealUiState.set(revealKey, "settled"), 1900);
+      } catch (error) {
+        roleRevealUiState.delete(`${code}:${playerId}`);
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = button.dataset.originalText || "كشف الدور";
+        }
+        console.error("Role reveal save failed", error);
+        showErrorToast("تعذر حفظ مشاهدة الدور. تحقق من الاتصال وحاول مرة أخرى.", "خطأ");
+      }
+    });
     document.querySelector("#hideMyRole")?.addEventListener("click", () => { app.innerHTML = pageShell(`<div class="role-hidden-confirmation"><div>✅</div><h2>تمت معرفة الدور</h2><p>بانتظار بقية اللاعبين ومدير اللعبة.</p></div>`, room.roomName); attachBack(onBack); });
     document
       .querySelectorAll("[data-target-id]")
@@ -1409,9 +1470,14 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         }
       });
     const card = document.querySelector("#onlineRoleCard");
-    if (card) {
+    if (card && !card.classList.contains("card-flipped")) {
+      const revealKey = `${code}:${playerId}`;
       requestAnimationFrame(() => card.classList.add("card-entered"));
-      setTimeout(() => { card.classList.add("card-flipped"); document.querySelector("#onlineRoleDetails")?.classList.add("details-visible"); }, 650);
+      window.setTimeout(() => {
+        card.classList.add("card-flipped");
+        document.querySelector("#onlineRoleDetails")?.classList.add("details-visible");
+        roleRevealUiState.set(revealKey, "settled");
+      }, 650);
     }
   };
   draw();
