@@ -62,11 +62,11 @@ export class RoomStore {
     this.memory.set(room.code, cloned);
     if (this.redis) await this.redis.set(this.key(room.code), JSON.stringify(room), { EX: 60 * 60 * 12 });
     if (this.db) {
-      void this.db.query(
+      await this.db.query(
         `INSERT INTO mafia_rooms(code, state, updated_at) VALUES($1, $2::jsonb, NOW())
          ON CONFLICT(code) DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()`,
         [room.code, JSON.stringify(room)],
-      ).catch(error => console.error("Postgres persistence error", error));
+      );
     }
     return room;
   }

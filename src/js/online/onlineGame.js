@@ -562,7 +562,10 @@ function renderJoinCode({ app, onBack }) {
       );
     }
 
-    const room = readRoom(code) || await fetchRoomFromServer(code);
+    // عند الانضمام من جهاز جديد، الخادم هو المصدر الحقيقي للغرفة.
+    // لا نعتمد على sessionStorage هنا، لأن وجود نسخة محلية قد يخفي مشكلة
+    // التخزين على الخادم ويجعل الغرفة تبدو موجودة على جهاز المدير فقط.
+    const room = await fetchRoomFromServer(code);
 
     if (!room) {
       return showErrorToast(
