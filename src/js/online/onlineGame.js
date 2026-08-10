@@ -69,44 +69,6 @@ function playerSession(code, playerId) {
   } catch { return null; }
 }
 
-async function fetchRoomViaHttp(code, mode = "public", playerId = null) {
-  const normalizedCode = normalizeRoomCode(code);
-  if (!normalizedCode) return null;
-
-  const token =
-    mode === "host"
-      ? hostSession(normalizedCode)?.token
-      : mode === "player"
-        ? playerSession(normalizedCode, playerId)?.token
-        : undefined;
-
-  try {
-    const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-      },
-      cache: "no-store",
-      body: JSON.stringify({
-        code: normalizedCode,
-        mode,
-        playerId,
-        token,
-        nonce: Date.now(),
-      }),
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data?.ok || !data?.room) return null;
-    cacheServerRoom(data.room);
-    return data.room;
-  } catch {
-    return null;
-  }
-}
-
 async function fetchRoomFromServer(code, mode = "public", playerId = null) {
   const normalizedCode = normalizeRoomCode(code);
   if (!normalizedCode) return null;
@@ -209,113 +171,95 @@ function stopRoomViewSync(syncKey = null) {
   roomViewSyncControllers.clear();
 }
 
-function roomRenderSignature(room) {
-  if (!room) return "";
-
-  const players = Array.isArray(room.players)
-    ? room.players.map(player => [
-        player.id,
-        player.name,
-        player.avatar,
-        player.online,
-        player.alive,
-        player.roleKnown,
-        player.role,
-      ].join(":"))
-    : [];
-
-  const timeline = Array.isArray(room.timeline)
-    ? room.timeline.slice(-12).map(item => `${item.id}:${item.at}:${item.text || item.hostText || item.publicText || ""}`)
-    : [];
-
-  return JSON.stringify({
-    version: room.version,
-    updatedAt: room.updatedAt,
-    status: room.status,
-    phase: room.phase,
-    activeRole: room.activeRole,
-    players,
-    timeline,
-    completedSteps: room.completedSteps || [],
-  });
-}
-
-function startRoomViewSync({ code, mode = "public", playerId = null, draw, intervalMs = 650 }) {
+function startRoomViewSync({ code, mode = "public", playerId = null, draw, intervalMs = 500 }) {
   const normalizedCode = normalizeRoomCode(code);
   const syncKey = `${normalizedCode}:${mode}:${playerId || ""}`;
 
+  // لا نوقف مزامنة غرفة أخرى. نعيد تشغيل المزامنة لنفس العرض فقط.
   stopRoomViewSync(syncKey);
 
   let disposed = false;
   let requestInFlight = false;
   let timerId = null;
-  let lastSignature = roomRenderSignature(readRoom(normalizedCode));
+  let lastDrawSignature = "";
 
-  const redrawIfChanged = room => {
-    if (disposed || !room) return;
-    const signature = roomRenderSignature(room);
-    if (signature === lastSignature) return;
-    lastSignature = signature;
+  // لا نعتمد على version وحده. قائمة اللاعبين جزء من البصمة نفسها،
+  // لذلك أي لاعب جديد يظهر فور وصول snapshot أو نتيجة المزامنة الدورية.
+  const roomSignature = room => {
+    if (!room) return "";
+    const players = Array.isArray(room.players)
+      ? room.players.map(player => `${player.id}:${player.name}:${player.avatar || ""}:${player.online !== false ? 1 : 0}`).join("|")
+      : "";
+    return [
+      room.code,
+      room.version || 0,
+      room.updatedAt || 0,
+      room.status || "",
+      room.phase || "",
+      room.activeRole || "",
+      players,
+    ].join("::");
+  };
+
+  const redrawIfNeeded = (room = null, force = false) => {
+    if (disposed) return;
+    const currentRoom = room || readRoom(normalizedCode);
+    if (!currentRoom) return;
+
+    const signature = roomSignature(currentRoom);
+    if (!force && signature === lastDrawSignature) return;
+    lastDrawSignature = signature;
     draw();
   };
 
   const onRoomsUpdated = event => {
     const eventRoom = event?.detail?.room;
     if (eventRoom?.code && normalizeRoomCode(eventRoom.code) !== normalizedCode) return;
-    redrawIfChanged(eventRoom || readRoom(normalizedCode));
-  };
-
-  const syncNow = async () => {
-    if (disposed || requestInFlight) return;
-    requestInFlight = true;
-    try {
-      // HTTP is intentionally first here. It gives us a fresh snapshot even when a
-      // WebSocket subscription was silently dropped by a proxy/browser.
-      let room = await fetchRoomViaHttp(normalizedCode, mode, playerId);
-      if (!room) room = await fetchRoomFromServer(normalizedCode, mode, playerId);
-      redrawIfChanged(room);
-    } finally {
-      requestInFlight = false;
-    }
-  };
-
-  const schedule = () => {
-    if (disposed) return;
-    timerId = window.setTimeout(async () => {
-      await syncNow();
-      schedule();
-    }, Math.max(500, intervalMs));
+    redrawIfNeeded(eventRoom || null);
   };
 
   const onConnected = async () => {
     if (disposed) return;
     await subscribeRoom(normalizedCode, mode, playerId);
-    await syncNow();
+    const room = await fetchRoomFromServer(normalizedCode, mode, playerId);
+    redrawIfNeeded(room);
   };
 
-  const onVisibility = () => {
-    if (!document.hidden) syncNow();
+  const poll = async () => {
+    if (disposed) return;
+
+    if (!requestInFlight) {
+      requestInFlight = true;
+      try {
+        const room = await fetchRoomFromServer(normalizedCode, mode, playerId);
+        // نتيجة الخادم هي المرجع النهائي. نجبر الرسم بعد كل مزامنة ناجحة،
+        // بدون إعادة تحميل الصفحة أو تغيير مسار الغرفة.
+        if (room) redrawIfNeeded(room, true);
+      } finally {
+        requestInFlight = false;
+      }
+    }
+
+    if (!disposed) {
+      timerId = window.setTimeout(poll, Math.max(350, intervalMs));
+    }
   };
 
   window.addEventListener("mafia-rooms-updated", onRoomsUpdated);
   window.addEventListener("mafia-server-connected", onConnected);
-  document.addEventListener("visibilitychange", onVisibility);
-  window.addEventListener("focus", syncNow);
 
+  // ابدأ الاشتراك والجلب فورًا، ثم استمر بتحديث خلفي ثابت حتى لو ضاع حدث WebSocket.
   subscribeRoom(normalizedCode, mode, playerId);
-  syncNow();
-  schedule();
+  timerId = window.setTimeout(poll, 120);
 
   const stop = () => {
     disposed = true;
     if (timerId) window.clearTimeout(timerId);
     window.removeEventListener("mafia-rooms-updated", onRoomsUpdated);
     window.removeEventListener("mafia-server-connected", onConnected);
-    document.removeEventListener("visibilitychange", onVisibility);
-    window.removeEventListener("focus", syncNow);
   };
 
-  roomViewSyncControllers.set(syncKey, { stop, syncNow });
+  roomViewSyncControllers.set(syncKey, { stop });
 }
 
 const AVATARS = Array.from({ length: 12 }, (_, index) => ({
