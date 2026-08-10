@@ -1,70 +1,322 @@
+import { io } from "socket.io-client";
 import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
 import { getRoleCardImage } from "../ui/roleCards.js";
 
-const STORAGE_KEY = "mafia_online_rooms_v1";
-const PLAYER_SESSION_KEY = "mafia_online_player_session_v1";
+const STORAGE_KEY = "mafia_online_rooms_v2";
+const PLAYER_SESSION_KEY = "mafia_online_player_session_v2";
+const HOST_SESSION_KEY = "mafia_online_host_session_v2";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 const ONLINE_SERVER_URL = String(import.meta.env.VITE_SERVER_URL || window.location.origin).replace(/\/$/, "");
-const serverEvents = new EventSource(`${ONLINE_SERVER_URL}/api/events`);
+const socket = io(ONLINE_SERVER_URL, {
+  transports: ["websocket", "polling"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 400,
+  reconnectionDelayMax: 2500,
+  timeout: 10000,
+});
 let hostRoleRevealIntervalId = null;
-let remoteSaveTimerId = null;
+const roomViewSyncControllers = new Map();
+const activeSubscriptions = new Map();
+const desiredSubscriptions = new Map();
 
 function dispatchRoomsUpdated() {
   channel?.postMessage({ type: "rooms-updated" });
-  window.dispatchEvent(new CustomEvent("mafia-rooms-updated"));
+  window.dispatchEvent(new CustomEvent("mafia-rooms-updated", { detail: { room: null } }));
 }
 
 function cacheServerRoom(room) {
-  if (!room?.code) return;
+  if (!room?.code) return false;
   const rooms = loadRooms();
-  rooms[normalizeRoomCode(room.code)] = room;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
-  dispatchRoomsUpdated();
+  const code = normalizeRoomCode(room.code);
+  const current = rooms[code];
+  if (current && Number(current.version || 0) > Number(room.version || 0)) return false;
+
+  // لا نعيد رسم الواجهة إذا كانت نسخة الغرفة مطابقة تمامًا.
+  // هذا يجعل التحديث الدوري احتياطيًا وغير ملحوظ بصريًا.
+  if (current && JSON.stringify(current) === JSON.stringify(room)) return false;
+
+  rooms[code] = room;
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  channel?.postMessage({ type: "rooms-updated", code });
+  window.dispatchEvent(new CustomEvent("mafia-rooms-updated", { detail: { room } }));
+  return true;
 }
 
-async function fetchRoomFromServer(code) {
+function emitAck(eventName, payload) {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("SERVER_TIMEOUT")), 12000);
+    socket.emit(eventName, payload, response => {
+      window.clearTimeout(timer);
+      if (!response?.ok) reject(new Error(response?.error || "SERVER_ERROR"));
+      else resolve(response);
+    });
+  });
+}
+
+function hostSession(code) {
+  try {
+    const data = JSON.parse(localStorage.getItem(HOST_SESSION_KEY) || "{}");
+    return data?.code === normalizeRoomCode(code) ? data : null;
+  } catch { return null; }
+}
+
+function playerSession(code, playerId) {
+  try {
+    const data = JSON.parse(localStorage.getItem(PLAYER_SESSION_KEY) || "{}");
+    return data?.code === normalizeRoomCode(code) && (!playerId || data.playerId === playerId) ? data : null;
+  } catch { return null; }
+}
+
+async function fetchRoomViaHttp(code, mode = "public", playerId = null) {
   const normalizedCode = normalizeRoomCode(code);
   if (!normalizedCode) return null;
+
+  const token =
+    mode === "host"
+      ? hostSession(normalizedCode)?.token
+      : mode === "player"
+        ? playerSession(normalizedCode, playerId)?.token
+        : undefined;
+
   try {
-    const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/${normalizedCode}`, { cache: "no-store" });
+    const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        code: normalizedCode,
+        mode,
+        playerId,
+        token,
+        nonce: Date.now(),
+      }),
+    });
+
     if (!response.ok) return null;
-    const room = await response.json();
-    cacheServerRoom(room);
-    return room;
+    const data = await response.json();
+    if (!data?.ok || !data?.room) return null;
+    cacheServerRoom(data.room);
+    return data.room;
   } catch {
     return null;
   }
 }
 
-function queueRoomsForServer(rooms) {
-  clearTimeout(remoteSaveTimerId);
-  remoteSaveTimerId = window.setTimeout(async () => {
-    const entries = Object.values(rooms || {}).filter(room => room?.code);
-    await Promise.all(entries.map(async room => {
-      try {
-        await fetch(`${ONLINE_SERVER_URL}/api/rooms/${normalizeRoomCode(room.code)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(room),
-        });
-      } catch {
-        // تبقى النسخة المحلية محفوظة، وستتم المزامنة عند التعديل التالي.
-      }
-    }));
-  }, 80);
+async function fetchRoomFromServer(code, mode = "public", playerId = null) {
+  const normalizedCode = normalizeRoomCode(code);
+  if (!normalizedCode) return null;
+
+  const token =
+    mode === "host"
+      ? hostSession(normalizedCode)?.token
+      : mode === "player"
+        ? playerSession(normalizedCode, playerId)?.token
+        : undefined;
+
+  try {
+    const response = await emitAck("room:sync", {
+      code: normalizedCode,
+      mode,
+      playerId,
+      token,
+    });
+    cacheServerRoom(response.room);
+    return response.room;
+  } catch {
+    try {
+      const response = await emitAck("room:lookup", { code: normalizedCode });
+      cacheServerRoom(response.room);
+      return response.room;
+    } catch {
+      return null;
+    }
+  }
 }
 
-serverEvents.addEventListener("room-updated", event => {
+async function createRoomOnServer(hostName, roomName, maxPlayers) {
+  const response = await emitAck("room:create", { hostName, roomName, maxPlayers });
+  localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken }));
+  cacheServerRoom(response.room);
+  return response.room;
+}
+
+async function joinPlayerOnServer(code, player) {
+  const response = await emitAck("player:join", { code, ...player });
+  localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify({ code: normalizeRoomCode(code), playerId: response.player.id, token: response.player.sessionToken }));
+  cacheServerRoom(response.room);
+  return response;
+}
+
+async function hostCommand(code, action, payload = {}) {
+  const session = hostSession(code);
+  if (!session?.token) throw new Error("HOST_SESSION_MISSING");
+  const response = await emitAck("host:command", { code, token: session.token, action, payload });
+  cacheServerRoom(response.room);
+  return response.room;
+}
+
+async function playerCommand(code, playerId, action, payload = {}) {
+  const session = playerSession(code, playerId);
+  if (!session?.token) throw new Error("PLAYER_SESSION_MISSING");
+  const response = await emitAck("player:command", { code, playerId, token: session.token, action, payload });
+  cacheServerRoom(response.room);
+  return response.room;
+}
+
+async function subscribeRoom(code, mode = "public", playerId = null) {
+  const normalized = normalizeRoomCode(code);
+  const key = `${normalized}:${mode}:${playerId || ""}`;
+  desiredSubscriptions.set(key, { code: normalized, mode, playerId });
+  if (activeSubscriptions.has(key) && socket.connected) return;
+  const token = mode === "host" ? hostSession(normalized)?.token : mode === "player" ? playerSession(normalized, playerId)?.token : undefined;
   try {
-    cacheServerRoom(JSON.parse(event.data));
-  } catch {
-    // نتجاهل رسائل المزامنة غير الصالحة.
+    const response = await emitAck("room:subscribe", { code: normalized, mode, playerId, token });
+    activeSubscriptions.set(key, true);
+    cacheServerRoom(response.room);
+  } catch (error) {
+    console.warn("Room subscription failed", error.message);
   }
-});
-serverEvents.addEventListener("open", () => {
+}
+
+socket.on("room:snapshot", cacheServerRoom);
+socket.on("connect", () => {
+  activeSubscriptions.clear();
   window.dispatchEvent(new CustomEvent("mafia-server-connected"));
+  window.setTimeout(() => {
+    for (const subscription of desiredSubscriptions.values()) {
+      subscribeRoom(subscription.code, subscription.mode, subscription.playerId);
+    }
+  }, 50);
 });
+socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server-disconnected")));
+
+function stopRoomViewSync(syncKey = null) {
+  if (syncKey) {
+    const controller = roomViewSyncControllers.get(syncKey);
+    controller?.stop?.();
+    roomViewSyncControllers.delete(syncKey);
+    return;
+  }
+
+  for (const controller of roomViewSyncControllers.values()) {
+    controller?.stop?.();
+  }
+  roomViewSyncControllers.clear();
+}
+
+function roomRenderSignature(room) {
+  if (!room) return "";
+
+  const players = Array.isArray(room.players)
+    ? room.players.map(player => [
+        player.id,
+        player.name,
+        player.avatar,
+        player.online,
+        player.alive,
+        player.roleKnown,
+        player.role,
+      ].join(":"))
+    : [];
+
+  const timeline = Array.isArray(room.timeline)
+    ? room.timeline.slice(-12).map(item => `${item.id}:${item.at}:${item.text || item.hostText || item.publicText || ""}`)
+    : [];
+
+  return JSON.stringify({
+    version: room.version,
+    updatedAt: room.updatedAt,
+    status: room.status,
+    phase: room.phase,
+    activeRole: room.activeRole,
+    players,
+    timeline,
+    completedSteps: room.completedSteps || [],
+  });
+}
+
+function startRoomViewSync({ code, mode = "public", playerId = null, draw, intervalMs = 650 }) {
+  const normalizedCode = normalizeRoomCode(code);
+  const syncKey = `${normalizedCode}:${mode}:${playerId || ""}`;
+
+  stopRoomViewSync(syncKey);
+
+  let disposed = false;
+  let requestInFlight = false;
+  let timerId = null;
+  let lastSignature = roomRenderSignature(readRoom(normalizedCode));
+
+  const redrawIfChanged = room => {
+    if (disposed || !room) return;
+    const signature = roomRenderSignature(room);
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+    draw();
+  };
+
+  const onRoomsUpdated = event => {
+    const eventRoom = event?.detail?.room;
+    if (eventRoom?.code && normalizeRoomCode(eventRoom.code) !== normalizedCode) return;
+    redrawIfChanged(eventRoom || readRoom(normalizedCode));
+  };
+
+  const syncNow = async () => {
+    if (disposed || requestInFlight) return;
+    requestInFlight = true;
+    try {
+      // HTTP is intentionally first here. It gives us a fresh snapshot even when a
+      // WebSocket subscription was silently dropped by a proxy/browser.
+      let room = await fetchRoomViaHttp(normalizedCode, mode, playerId);
+      if (!room) room = await fetchRoomFromServer(normalizedCode, mode, playerId);
+      redrawIfChanged(room);
+    } finally {
+      requestInFlight = false;
+    }
+  };
+
+  const schedule = () => {
+    if (disposed) return;
+    timerId = window.setTimeout(async () => {
+      await syncNow();
+      schedule();
+    }, Math.max(500, intervalMs));
+  };
+
+  const onConnected = async () => {
+    if (disposed) return;
+    await subscribeRoom(normalizedCode, mode, playerId);
+    await syncNow();
+  };
+
+  const onVisibility = () => {
+    if (!document.hidden) syncNow();
+  };
+
+  window.addEventListener("mafia-rooms-updated", onRoomsUpdated);
+  window.addEventListener("mafia-server-connected", onConnected);
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener("focus", syncNow);
+
+  subscribeRoom(normalizedCode, mode, playerId);
+  syncNow();
+  schedule();
+
+  const stop = () => {
+    disposed = true;
+    if (timerId) window.clearTimeout(timerId);
+    window.removeEventListener("mafia-rooms-updated", onRoomsUpdated);
+    window.removeEventListener("mafia-server-connected", onConnected);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("focus", syncNow);
+  };
+
+  roomViewSyncControllers.set(syncKey, { stop, syncNow });
+}
 
 const AVATARS = Array.from({ length: 12 }, (_, index) => ({
   id: `avatar-${String(index + 1).padStart(2, "0")}`,
@@ -128,16 +380,15 @@ function extractRoomCode(value) {
 
 function loadRooms() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+    return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "{}") || {};
   } catch {
     return {};
   }
 }
 
 function saveRooms(rooms) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
   dispatchRoomsUpdated();
-  queueRoomsForServer(rooms);
 }
 
 function readRoom(code) {
@@ -282,6 +533,7 @@ function attachBack(onBack) {
 }
 
 export function openOnlinePortal({ app, onBack }) {
+  stopRoomViewSync();
   const params = new URLSearchParams(location.search);
   const linkedRoom = params.get("room");
   if (linkedRoom && params.get("join") === "1") {
@@ -324,16 +576,20 @@ function renderCreateRoom({ app, onBack }) {
     </div>
   `, "إنشاء غرفة");
   attachBack(() => openOnlinePortal({ app, onBack }));
-  document.querySelector("#createRoomForm")?.addEventListener("submit", event => {
+  document.querySelector("#createRoomForm")?.addEventListener("submit", async event => {
     event.preventDefault();
     const hostName = document.querySelector("#hostNameInput").value.trim();
     const roomName = document.querySelector("#roomNameInput").value.trim();
     const maxPlayers = Number(document.querySelector("#maxPlayersInput").value);
     if (!hostName || !roomName) return showErrorToast("أكمل اسم المدير واسم الغرفة.", "بيانات ناقصة");
-    const room = createRoomRecord(hostName, roomName, maxPlayers);
-    history.replaceState({}, "", `?host=${room.code}`);
-    showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
-    renderHostLobby({ app, onBack, code: room.code });
+    try {
+      const room = await createRoomOnServer(hostName, roomName, maxPlayers);
+      history.replaceState({}, "", `?host=${room.code}`);
+      showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
+      renderHostLobby({ app, onBack, code: room.code });
+    } catch (error) {
+      showErrorToast("تعذر إنشاء الغرفة. تحقق من اتصال الخادم.", "خطأ في الخادم");
+    }
   });
 }
 
@@ -381,6 +637,7 @@ function avatarPicker() {
 }
 
 function renderJoinRoom({ app, onBack, code }) {
+  subscribeRoom(code, "public");
   const room = readRoom(code);
   if (!room) {
     app.innerHTML = pageShell(`<div class="online-empty"><div>⏳</div><h2>جارٍ البحث عن الغرفة</h2><p>يتم الاتصال بالخادم الآن.</p></div>`);
@@ -418,18 +675,26 @@ function renderJoinRoom({ app, onBack, code }) {
     button.classList.add("selected");
     document.querySelector("#selectedAvatar").value = button.dataset.avatar;
   }));
-  document.querySelector("#playerJoinForm")?.addEventListener("submit", event => {
+  document.querySelector("#playerJoinForm")?.addEventListener("submit", async event => {
     event.preventDefault();
     const current = readRoom(code);
     if (!current || current.status !== "waiting") return showErrorToast("الغرفة مغلقة الآن.", "تعذر الانضمام");
     if (current.players.length >= current.maxPlayers) return showErrorToast("اكتمل عدد اللاعبين.", "الغرفة ممتلئة");
     const name = document.querySelector("#playerNameInput").value.trim();
     if (current.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return showErrorToast("هذا الاسم مستخدم داخل الغرفة.", "اختر اسمًا آخر");
-    const player = { id: uid("player"), name, gender: document.querySelector('input[name="gender"]:checked').value, avatar: document.querySelector("#selectedAvatar").value, online: true, alive: true, role: null, roleKnown: false, joinedAt: Date.now() };
-    updateRoom(code, r => { r.players.push(player); return r; });
-    localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify({ code, playerId: player.id }));
-    history.replaceState({}, "", `?room=${code}&player=${player.id}`);
-    renderPlayerRoom({ app, onBack, code, playerId: player.id });
+    try {
+      const response = await joinPlayerOnServer(code, {
+        name,
+        gender: document.querySelector('input[name="gender"]:checked').value,
+        avatar: document.querySelector("#selectedAvatar").value,
+      });
+      const playerId = response.player.id;
+      history.replaceState({}, "", `?room=${code}&player=${playerId}`);
+      renderPlayerRoom({ app, onBack, code, playerId });
+    } catch (error) {
+      const messages = { ROOM_FULL: "اكتمل عدد اللاعبين.", NAME_TAKEN: "هذا الاسم مستخدم داخل الغرفة.", ROOM_CLOSED: "الغرفة مغلقة الآن." };
+      showErrorToast(messages[error.message] || "تعذر الانضمام إلى الغرفة.", "تعذر الانضمام");
+    }
   });
 }
 
@@ -566,7 +831,14 @@ function bindHostRoleRevealCountdown(code, room) {
   hostRoleRevealIntervalId = window.setInterval(updateDisplay, 250);
 }
 
+function renderOnlineTimeline(room, limit = 8) {
+  const items = Array.isArray(room?.timeline) ? room.timeline.slice(-limit).reverse() : [];
+  if (!items.length) return `<div class="online-timeline-empty">لا توجد أحداث مسجلة بعد.</div>`;
+  return `<div class="online-timeline">${items.map(item => `<article class="online-timeline-item"><span class="online-timeline-dot"></span><div><strong>${item.text || item.hostText || item.publicText || "تم تحديث المباراة"}</strong><small>${new Date(item.at || Date.now()).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div></article>`).join("")}</div>`;
+}
+
 function renderHostLobby({ app, onBack, code }) {
+  subscribeRoom(code, "host");
   const draw = () => {
     const room = readRoom(code);
     if (!room) {
@@ -594,14 +866,15 @@ function renderHostLobby({ app, onBack, code }) {
             ${room.status === "playing" && room.phase === "role-reveal" ? renderHostRoleRevealCountdown(room) : ""}
             ${room.status === "playing" && room.phase === "eyes-closed" ? `
               <div class="role-control-grid">
-                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
+                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
               </div>
             ` : ""}
             ${room.status === "playing" && room.phase === "night-role" ? `
               <div class="role-control-grid">
-                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button ${room.activeRole === role ? "active" : ""}" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
+                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button ${room.activeRole === role ? "active" : ""} ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
               </div>
             ` : ""}
+            <section class="host-live-timeline"><h3>سجل الأحداث المباشر</h3>${renderOnlineTimeline(room, 10)}</section>
           </aside>
         </div>
       </div>
@@ -650,58 +923,30 @@ function renderHostLobby({ app, onBack, code }) {
           );
         }
       });
-    document.querySelectorAll("[data-remove-player]").forEach(btn => btn.addEventListener("click", () => updateRoom(code, r => { r.players = r.players.filter(p => p.id !== btn.dataset.removePlayer); return r; })));
-    document.querySelector("#startOnlineGame")?.addEventListener("click", () => {
-      updateRoom(code, r => {
-        const roles = distributeRoles(r.players.length);
-        r.players = shuffle(r.players).map((p, i) => ({ ...p, role: roles[i], roleKnown: false, royalPardonsRemaining: roles[i] === "king" ? 3 : 0 }));
-        r.status = "playing";
-        r.phase = "role-reveal";
-        r.activeRole = null;
-        r.roleRevealStartedAt = Date.now();
-        r.roleRevealEndsAt = Date.now() + 30000;
-        return r;
-      });
-      showSuccessToast("تم توزيع الأدوار وإرسالها للاعبين.", "بدأت المباراة");
+    document.querySelectorAll("[data-remove-player]").forEach(btn => btn.addEventListener("click", async () => { try { await hostCommand(code, "remove-player", { playerId: btn.dataset.removePlayer }); } catch { showErrorToast("تعذر حذف اللاعب.", "خطأ"); } }));
+    document.querySelector("#startOnlineGame")?.addEventListener("click", async () => {
+      try {
+        await hostCommand(code, "start-game");
+        showSuccessToast("تم توزيع الأدوار وإرسالها للاعبين.", "بدأت المباراة");
+      } catch { showErrorToast("تعذر بدء المباراة.", "خطأ في الخادم"); }
     });
     document.querySelector("#openLiveView")?.addEventListener("click", () => window.open(`${location.pathname}?live=${code}`, "_blank"));
 
     bindHostRoleRevealCountdown(code, room);
 
-    document.querySelector("#skipRoleRevealWait")?.addEventListener("click", () => {
-      updateRoom(code, r => {
-        r.roleRevealEndsAt = Date.now();
-        return r;
-      });
+    document.querySelector("#skipRoleRevealWait")?.addEventListener("click", async () => {
+      try { await hostCommand(code, "skip-role-reveal"); } catch { showErrorToast("تعذر تخطي الانتظار.", "خطأ"); }
     });
 
-    document.querySelector("#nightModeButton")?.addEventListener("click", () => updateRoom(code, r => {
-      if (getRoleRevealRemainingSeconds(r) > 0) return r;
-      r.phase = "eyes-closed";
-      r.activeRole = null;
-      r.nightNumber = (r.nightNumber || 0) + 1;
-      r.nightActions = {
-        thiefVotes: {},
-        nurseTargetId: null,
-        kingTargetId: null,
-        kingSkipped: false,
-        kingPardonFinalized: false,
-        investigatorTargetId: null,
-        confirmedActors: {},
-      };
-      return r;
+    document.querySelector("#nightModeButton")?.addEventListener("click", async () => {
+      try { await hostCommand(code, "eyes-closed"); } catch { showErrorToast("تعذر بدء مرحلة الليل.", "خطأ"); }
+    });
+    document.querySelectorAll("[data-role]").forEach(btn => btn.addEventListener("click", async () => {
+      try { await hostCommand(code, "wake-role", { role: btn.dataset.role }); } catch { showErrorToast("تعذر إيقاظ الدور.", "خطأ"); }
     }));
-    document.querySelectorAll("[data-role]").forEach(btn => btn.addEventListener("click", () => updateRoom(code, r => {
-      finalizeActiveNightRole(r);
-      r.phase = "night-role";
-      r.activeRole = btn.dataset.role;
-      return r;
-    })));
   };
   draw();
-  const refresh = () => draw();
-  channel?.addEventListener("message", refresh, { once: true });
-  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+  startRoomViewSync({ code, mode: "host", draw, intervalMs: 450 });
 }
 
 function finalizeActiveNightRole(room) {
@@ -828,142 +1073,31 @@ function selectedTargetId(room, player) {
   return null;
 }
 
-function saveNightTarget(code, playerId, targetId) {
-  return updateRoom(code, room => {
-    const player = room.players.find(
-      item => item.id === playerId,
-    );
-
-    const target = room.players.find(
-      item => item.id === targetId,
-    );
-
-    if (
-      !player ||
-      !target ||
-      room.phase !== "night-role" ||
-      room.activeRole !== player.role ||
-      isNightActionConfirmed(room, playerId)
-    ) {
-      return room;
-    }
-
-    const valid = allowedTargets(room, player).some(
-      item => item.id === targetId,
-    );
-
-    if (!valid) return room;
-
-    room.nightActions ||= {
-      thiefVotes: {},
-      nurseTargetId: null,
-      kingTargetId: null,
-      kingSkipped: false,
-      kingPardonFinalized: false,
-      investigatorTargetId: null,
-      confirmedActors: {},
-    };
-
-    room.nightActions.confirmedActors ||= {};
-
-    if (player.role === "thief") {
-      room.nightActions.thiefVotes[player.id] = targetId;
-    }
-
-    if (player.role === "nurse") {
-      room.nightActions.nurseTargetId = targetId;
-    }
-
-    if (player.role === "king") {
-      room.nightActions.kingTargetId = targetId;
-      room.nightActions.kingSkipped = false;
-    }
-
-    if (player.role === "investigator") {
-      room.nightActions.investigatorTargetId = targetId;
-    }
-
-    return room;
-  });
+async function saveNightTarget(code, playerId, targetId) {
+  try {
+    return await playerCommand(code, playerId, "select-night-target", { targetId });
+  } catch (error) {
+    showErrorToast("تعذر حفظ الاختيار. حاول مرة أخرى.", "خطأ في الاتصال");
+    return null;
+  }
 }
 
-function confirmNightAction(code, playerId) {
-  return updateRoom(code, room => {
-    const player = room.players.find(
-      item => item.id === playerId,
-    );
-
-    if (
-      !player ||
-      room.phase !== "night-role" ||
-      room.activeRole !== player.role ||
-      isNightActionConfirmed(room, playerId)
-    ) {
-      return room;
-    }
-
-    room.nightActions ||= {};
-    room.nightActions.confirmedActors ||= {};
-
-    const selected = selectedTargetId(room, player);
-    const kingSkipped = Boolean(
-      room.nightActions.kingSkipped,
-    );
-
-    if (player.role === "king") {
-      if (!selected && !kingSkipped) return room;
-
-      if (selected) {
-        const remaining = Number(
-          player.royalPardonsRemaining || 0,
-        );
-
-        if (remaining <= 0) return room;
-
-        player.royalPardonsRemaining = Math.max(
-          0,
-          remaining - 1,
-        );
-
-        room.nightActions.kingPardonFinalized = true;
-      }
-    } else if (!selected) {
-      return room;
-    }
-
-    room.nightActions.confirmedActors[playerId] = {
-      role: player.role,
-      targetId: selected,
-      skipped: player.role === "king" && kingSkipped,
-      confirmedAt: new Date().toISOString(),
-    };
-
-    return room;
-  });
+async function confirmNightAction(code, playerId) {
+  try {
+    return await playerCommand(code, playerId, "confirm-night-action");
+  } catch (error) {
+    showErrorToast("تعذر تأكيد المهمة. تحقق من اختيارك واتصالك.", "تعذر التأكيد");
+    return null;
+  }
 }
 
-function skipKingPardon(code, playerId) {
-  return updateRoom(code, room => {
-    const player = room.players.find(
-      item => item.id === playerId,
-    );
-
-    if (
-      !player ||
-      player.role !== "king" ||
-      room.activeRole !== "king" ||
-      room.phase !== "night-role" ||
-      isNightActionConfirmed(room, playerId)
-    ) {
-      return room;
-    }
-
-    room.nightActions ||= {};
-    room.nightActions.kingTargetId = null;
-    room.nightActions.kingSkipped = true;
-
-    return room;
-  });
+async function skipKingPardon(code, playerId) {
+  try {
+    return await playerCommand(code, playerId, "skip-king-pardon");
+  } catch (error) {
+    showErrorToast("تعذر حفظ قرار الاحتفاظ بالوسام.", "خطأ في الاتصال");
+    return null;
+  }
 }
 
 function getInvestigationResult(target) {
@@ -981,6 +1115,7 @@ function getInvestigationResult(target) {
 }
 
 function renderPlayerRoom({ app, onBack, code, playerId }) {
+  subscribeRoom(code, "player", playerId);
   const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
     if (!room || !player) return renderJoinRoom({ app, onBack, code });
@@ -1041,7 +1176,11 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
 
       const investigationResult =
         player.role === "investigator" && confirmed
-          ? getInvestigationResult(selectedPlayer)
+          ? getInvestigationResult(
+              room.investigationResult?.targetId === selected
+                ? { ...selectedPlayer, role: room.investigationResult.actualRole }
+                : selectedPlayer,
+            )
           : null;
 
       const kingRemaining = Number(
@@ -1272,14 +1411,14 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    document.querySelector("#revealMyRole")?.addEventListener("click", () => updateRoom(code, r => { const p=r.players.find(x=>x.id===playerId); if(p) p.roleKnown=true; return r; }));
+    document.querySelector("#revealMyRole")?.addEventListener("click", async () => { try { await playerCommand(code, playerId, "role-known"); } catch { showErrorToast("تعذر حفظ مشاهدة الدور.", "خطأ"); } });
     document.querySelector("#hideMyRole")?.addEventListener("click", () => { app.innerHTML = pageShell(`<div class="role-hidden-confirmation"><div>✅</div><h2>تمت معرفة الدور</h2><p>بانتظار بقية اللاعبين ومدير اللعبة.</p></div>`, room.roomName); attachBack(onBack); });
     document
       .querySelectorAll("[data-target-id]")
       .forEach(button =>
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const targetId = button.dataset.targetId;
-          const updated = saveNightTarget(
+          const updated = await saveNightTarget(
             code,
             playerId,
             targetId,
@@ -1296,8 +1435,8 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
 
     document
       .querySelector("#skipKingPardon")
-      ?.addEventListener("click", () => {
-        skipKingPardon(code, playerId);
+      ?.addEventListener("click", async () => {
+        await skipKingPardon(code, playerId);
 
         showInfoToast(
           "تم اختيار الاحتفاظ بوسام العفو. اضغط اعتماد القرار.",
@@ -1307,8 +1446,8 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
 
     document
       .querySelector("#confirmOnlineNightAction")
-      ?.addEventListener("click", () => {
-        const updated = confirmNightAction(
+      ?.addEventListener("click", async () => {
+        const updated = await confirmNightAction(
           code,
           playerId,
         );
@@ -1329,12 +1468,11 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     }
   };
   draw();
-  const refresh = () => draw();
-  channel?.addEventListener("message", refresh, { once: true });
-  window.addEventListener("mafia-rooms-updated", refresh, { once: true });
+  startRoomViewSync({ code, mode: "player", playerId, draw, intervalMs: 700 });
 }
 
 export function openLiveRoom({ app, onBack, code }) {
+  subscribeRoom(code, "public");
   const draw = () => {
     const room = readRoom(code);
     if (!room) {
@@ -1342,11 +1480,11 @@ export function openLiveRoom({ app, onBack, code }) {
       return;
     }
     const alive = room.players.filter(p=>p.alive); const out = room.players.filter(p=>!p.alive);
-    app.innerHTML = pageShell(`<div class="live-dashboard"><section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية"}</p></section><div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div><section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}</div>`, "مركز المباراة المباشر");
+    app.innerHTML = pageShell(`<div class="live-dashboard"><section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية"}</p></section><div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div><section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}<section class="live-player-section"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section></div>`, "مركز المباراة المباشر");
     attachBack(onBack);
   };
   draw();
-  const refresh=()=>draw(); channel?.addEventListener("message", refresh, {once:true}); window.addEventListener("mafia-rooms-updated", refresh, {once:true});
+  startRoomViewSync({ code, mode: "public", draw, intervalMs: 450 });
 }
 
 export function restoreOnlineRoute({ app, onBack }) {

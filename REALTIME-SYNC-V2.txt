@@ -1,0 +1,7 @@
+Realtime Sync V2
+- Persistent Socket.IO subscription per room/view.
+- Added room:sync authenticated snapshots for host/player/public views.
+- Added independent recursive background sync every 450ms for host/live views.
+- Polling no longer stops after first redraw.
+- Socket.IO remains primary path; background sync is fallback.
+- Cache events include room detail and version-aware redraw.

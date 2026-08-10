@@ -96,7 +96,7 @@
       "thief": null,
       "nurse": null
     },
-    "serverUpdatedAt": 1786182752386,
+    "serverUpdatedAt": 1786180675047,
     "roleRevealStartedAt": 1786039111001,
     "roleRevealEndsAt": 1786039141001
   },
@@ -158,107 +158,6 @@
       "thief": null,
       "nurse": null
     },
-    "serverUpdatedAt": 1786182752415
-  },
-  "NLU2Q5": {
-    "code": "NLU2Q5",
-    "roomName": "Naif-Game",
-    "hostName": "naif",
-    "maxPlayers": 6,
-    "status": "playing",
-    "phase": "role-reveal",
-    "activeRole": null,
-    "createdAt": 1786182281088,
-    "players": [
-      {
-        "id": "player_msk6unqe_v7m7cd",
-        "name": "نايف",
-        "gender": "male",
-        "avatar": "/avatars/avatar-01.png",
-        "online": true,
-        "alive": true,
-        "role": "nurse",
-        "roleKnown": false,
-        "joinedAt": 1786182347174,
-        "royalPardonsRemaining": 0
-      },
-      {
-        "id": "player_msk6xk8c_r9guu2",
-        "name": "سارة",
-        "gender": "female",
-        "avatar": "/avatars/avatar-06.png",
-        "online": true,
-        "alive": true,
-        "role": "thief",
-        "roleKnown": false,
-        "joinedAt": 1786182482604,
-        "royalPardonsRemaining": 0
-      },
-      {
-        "id": "player_msk6wj44_3f7jmn",
-        "name": "هبة",
-        "gender": "female",
-        "avatar": "/avatars/avatar-02.png",
-        "online": true,
-        "alive": true,
-        "role": "citizen",
-        "roleKnown": false,
-        "joinedAt": 1786182434500,
-        "royalPardonsRemaining": 0
-      },
-      {
-        "id": "player_msk6yli1_y9ngc4",
-        "name": "ليلى",
-        "gender": "female",
-        "avatar": "/avatars/avatar-08.png",
-        "online": true,
-        "alive": true,
-        "role": "citizen",
-        "roleKnown": true,
-        "joinedAt": 1786182530905,
-        "royalPardonsRemaining": 0
-      },
-      {
-        "id": "player_msk70e2i_k5klbm",
-        "name": "ليالي",
-        "gender": "female",
-        "avatar": "/avatars/avatar-04.png",
-        "online": true,
-        "alive": true,
-        "role": "investigator",
-        "roleKnown": true,
-        "joinedAt": 1786182614586,
-        "royalPardonsRemaining": 0
-      },
-      {
-        "id": "player_msk6zpxy_9b583x",
-        "name": "جميلة",
-        "gender": "female",
-        "avatar": "/avatars/avatar-12.png",
-        "online": true,
-        "alive": true,
-        "role": "king",
-        "roleKnown": true,
-        "joinedAt": 1786182583318,
-        "royalPardonsRemaining": 3
-      }
-    ],
-    "nightNumber": 0,
-    "nightActions": {
-      "thiefVotes": {},
-      "nurseTargetId": null,
-      "kingTargetId": null,
-      "kingSkipped": false,
-      "kingPardonFinalized": false,
-      "investigatorTargetId": null,
-      "confirmedActors": {}
-    },
-    "lastTargets": {
-      "thief": null,
-      "nurse": null
-    },
-    "serverUpdatedAt": 1786182753523,
-    "roleRevealStartedAt": 1786182629176,
-    "roleRevealEndsAt": 1786182659176
+    "serverUpdatedAt": 1786180675051
   }
 }
