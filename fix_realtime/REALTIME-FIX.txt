@@ -1,0 +1,13 @@
+Realtime fix applied:
+- Root server is Express + Socket.IO.
+- Room/player/host state is server-authoritative.
+- Redis room store + Socket.IO Redis adapter enabled via REDIS_URL.
+- PostgreSQL persistence enabled via DATABASE_URL.
+- Host/player/live pages subscribe to room:snapshot over Socket.IO.
+- LocalStorage-based cross-device room mutation removed from active online flow.
+
+Render build command:
+npm install --include=dev && npm run build
+
+Render start command:
+npm start

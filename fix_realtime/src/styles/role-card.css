@@ -1,0 +1,353 @@
+.role-card-stage {
+  position: relative;
+
+  display: grid;
+  place-items: center;
+
+  width: min(100%, 390px);
+  margin: 12px auto 26px;
+
+  perspective: 1400px;
+}
+
+.role-playing-card {
+  position: relative;
+
+  width: min(78vw, 330px);
+  aspect-ratio: 2 / 3;
+
+  opacity: 0;
+  transform:
+    translateY(70px)
+    scale(0.84)
+    rotateX(14deg);
+
+  transition:
+    opacity 700ms ease,
+    transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  filter:
+    drop-shadow(0 30px 35px rgba(0, 0, 0, 0.55));
+}
+
+.role-playing-card.card-entered {
+  opacity: 1;
+
+  transform:
+    translateY(0)
+    scale(1)
+    rotateX(0);
+}
+
+.role-card-inner {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  border-radius: 25px;
+
+  transform-style: preserve-3d;
+
+  transition:
+    transform 1100ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.role-playing-card.card-flipped .role-card-inner {
+  transform: rotateY(180deg);
+}
+
+.role-card-face {
+  position: absolute;
+  inset: 0;
+
+  overflow: hidden;
+
+  border-radius: 25px;
+
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.role-card-back {
+  display: grid;
+  place-items: center;
+
+  padding: 18px;
+
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(115, 64, 190, 0.35),
+      transparent 43%
+    ),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 13px,
+      rgba(255, 255, 255, 0.025) 13px 14px
+    ),
+    linear-gradient(
+      145deg,
+      #17101f,
+      #09070d 60%,
+      #15101c
+    );
+
+  border: 3px solid #b99455;
+
+  box-shadow:
+    inset 0 0 0 6px rgba(12, 8, 17, 0.88),
+    inset 0 0 0 8px rgba(198, 159, 87, 0.45),
+    inset 0 0 45px rgba(0, 0, 0, 0.75);
+}
+
+.role-card-back::before {
+  content: "";
+
+  position: absolute;
+  inset: 22px;
+
+  border: 1px solid rgba(220, 180, 104, 0.65);
+  border-radius: 18px;
+}
+
+.role-card-back::after {
+  content: "";
+
+  position: absolute;
+  inset: 38px;
+
+  border: 1px dashed rgba(220, 180, 104, 0.25);
+  border-radius: 14px;
+}
+
+.role-card-back-logo {
+  position: relative;
+  z-index: 2;
+
+  width: 46%;
+  max-width: 150px;
+
+  filter:
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55));
+}
+
+.role-card-back-title {
+  position: absolute;
+  right: 0;
+  bottom: 12%;
+  left: 0;
+  z-index: 2;
+
+  margin: 0;
+
+  color: #d8b36d;
+
+  font-size: clamp(20px, 6vw, 30px);
+  font-weight: 800;
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.role-card-front {
+  background: #070707;
+
+  border: 2px solid rgba(211, 172, 99, 0.75);
+
+  transform: rotateY(180deg);
+
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.75);
+}
+
+.role-card-front-image {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.role-card-shine {
+  position: absolute;
+  inset: -40%;
+
+  z-index: 4;
+
+  background:
+    linear-gradient(
+      115deg,
+      transparent 37%,
+      rgba(255, 255, 255, 0.2) 47%,
+      rgba(255, 225, 166, 0.27) 50%,
+      rgba(255, 255, 255, 0.12) 53%,
+      transparent 63%
+    );
+
+  opacity: 0;
+  transform: translateX(-70%) rotate(6deg);
+
+  pointer-events: none;
+}
+
+.role-playing-card.card-flipped .role-card-shine {
+  animation: role-card-shine 1200ms ease 650ms forwards;
+}
+
+.role-card-secret-label {
+  margin: 0 0 8px;
+
+  color: rgba(255, 255, 255, 0.65);
+
+  font-size: 13px;
+}
+
+.role-card-player-name {
+  margin: 0;
+
+  color: #ffffff;
+
+  font-size: clamp(21px, 6vw, 30px);
+  text-align: center;
+}
+
+.role-card-details {
+  opacity: 0;
+  transform: translateY(16px);
+
+  transition:
+    opacity 450ms ease,
+    transform 450ms ease;
+}
+
+.role-card-details.details-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.role-card-action-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.role-card-action-visible {
+  visibility: visible;
+  opacity: 1;
+
+  transition: opacity 350ms ease;
+}
+
+@keyframes role-card-shine {
+  0% {
+    opacity: 0;
+    transform: translateX(-70%) rotate(6deg);
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(70%) rotate(6deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .role-playing-card {
+    width: min(76vw, 300px);
+  }
+
+  .role-card-stage {
+    margin-bottom: 20px;
+  }
+
+  .role-card-face {
+    border-radius: 21px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .role-playing-card,
+  .role-card-inner,
+  .role-card-details {
+    transition-duration: 1ms;
+  }
+
+  .role-card-shine {
+    display: none;
+  }
+}
+.gender-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  width: 100%;
+}
+
+.gender-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.gender-option input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gender-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 48px;
+  padding: 10px 14px;
+
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.045);
+
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.gender-option input:checked + span {
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(122, 73, 200, 0.34),
+      rgba(40, 177, 127, 0.18)
+    );
+
+  border-color: rgba(190, 151, 255, 0.72);
+}
+
+.player-name-and-gender {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.player-name-and-gender small {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}

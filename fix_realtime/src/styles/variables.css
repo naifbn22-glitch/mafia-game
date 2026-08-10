@@ -1,0 +1,30 @@
+:root {
+  --font-display: "beIN Black", "beIN Normal", Tahoma, Arial, sans-serif;
+  --font-body: "beIN Normal", Tahoma, Arial, sans-serif;
+  --background-dark: #060b0a;
+  --background-panel: rgba(13, 20, 18, 0.78);
+
+  --purple: #7647ff;
+  --purple-dark: #3c1d82;
+  --purple-light: #a58aff;
+
+  --green: #176b46;
+  --green-dark: #073923;
+  --green-light: #31a56f;
+
+  --white: #ffffff;
+  --text: #f5f2ff;
+  --muted: #aaa6b7;
+
+  --border: rgba(255, 255, 255, 0.11);
+
+  --radius-small: 14px;
+  --radius-medium: 22px;
+  --radius-large: 34px;
+
+  --shadow-card: 0 30px 90px rgba(0, 0, 0, 0.45);
+  --shadow-purple: 0 18px 45px rgba(118, 71, 255, 0.35);
+  --shadow-green: 0 18px 45px rgba(49, 165, 111, 0.3);
+
+  --transition: 220ms ease;
+}
