@@ -4,6 +4,7 @@ import "./styles/home.css";
 import "./styles/toast.css";
 import "./styles/role-card.css";
 import "./styles/online.css";
+import "./styles/native-app.css";
 
 import "./js/app.js";
 async function initializeNativeApp() {
@@ -16,6 +17,10 @@ async function initializeNativeApp() {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
+
+    const platform = Capacitor.getPlatform();
+    document.documentElement.classList.add("native-app", `native-app--${platform}`);
+    document.body.classList.add("native-app", `native-app--${platform}`);
 
     await StatusBar.setStyle({ style: Style.Dark });
     await StatusBar.setBackgroundColor({ color: "#050912" });

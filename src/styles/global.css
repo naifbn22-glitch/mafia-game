@@ -122,3 +122,27 @@ select,
 button {
   letter-spacing: 0;
 }
+
+/* ثبات حجم صفحات الموقع على الهواتف ومنع تكبير حقول الإدخال تلقائياً في iOS */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 800px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}

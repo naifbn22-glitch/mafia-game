@@ -19,6 +19,7 @@ const socket = io(ONLINE_SERVER_URL, {
 let hostRoleRevealIntervalId = null;
 // حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
 const roleRevealUiState = new Map();
+const pendingRoleKnownSaves = new Map();
 const roomViewSyncControllers = new Map();
 const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
@@ -64,11 +65,62 @@ function hostSession(code) {
   } catch { return null; }
 }
 
-function playerSession(code, playerId) {
+function loadPlayerSessions() {
   try {
-    const data = JSON.parse(localStorage.getItem(PLAYER_SESSION_KEY) || "{}");
-    return data?.code === normalizeRoomCode(code) && (!playerId || data.playerId === playerId) ? data : null;
-  } catch { return null; }
+    const raw = JSON.parse(localStorage.getItem(PLAYER_SESSION_KEY) || "{}");
+
+    if (raw?.code && raw?.playerId && raw?.token) {
+      const legacyCode = normalizeRoomCode(raw.code);
+      return {
+        [`${legacyCode}:${raw.playerId}`]: {
+          code: legacyCode,
+          playerId: raw.playerId,
+          token: raw.token,
+          savedAt: Date.now(),
+        },
+      };
+    }
+
+    if (raw?.sessions && typeof raw.sessions === "object") {
+      return raw.sessions;
+    }
+
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function savePlayerSession(code, playerId, token) {
+  const normalizedCode = normalizeRoomCode(code);
+  const sessions = loadPlayerSessions();
+  sessions[`${normalizedCode}:${playerId}`] = {
+    code: normalizedCode,
+    playerId,
+    token,
+    savedAt: Date.now(),
+  };
+
+  localStorage.setItem(
+    PLAYER_SESSION_KEY,
+    JSON.stringify({ version: 2, sessions }),
+  );
+}
+
+function playerSession(code, playerId) {
+  const normalizedCode = normalizeRoomCode(code);
+  const sessions = loadPlayerSessions();
+
+  if (playerId) {
+    return sessions[`${normalizedCode}:${playerId}`] || null;
+  }
+
+  return (
+    Object.values(sessions)
+      .filter(session => session?.code === normalizedCode)
+      .sort((a, b) => Number(b?.savedAt || 0) - Number(a?.savedAt || 0))[0] ||
+    null
+  );
 }
 
 async function fetchRoomFromServer(code, mode = "public", playerId = null) {
@@ -111,7 +163,7 @@ async function createRoomOnServer(hostName, roomName, maxPlayers) {
 
 async function joinPlayerOnServer(code, player) {
   const response = await emitAck("player:join", { code, ...player });
-  localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify({ code: normalizeRoomCode(code), playerId: response.player.id, token: response.player.sessionToken }));
+  savePlayerSession(code, response.player.id, response.player.sessionToken);
   cacheServerRoom(response.room);
   return response;
 }
@@ -153,6 +205,36 @@ async function markRoleKnownReliably(code, playerId) {
     }
   }
   throw lastError || new Error("ROLE_KNOWN_FAILED");
+}
+
+function queueRoleKnownSave(code, playerId) {
+  const key = `${normalizeRoomCode(code)}:${playerId}`;
+  if (pendingRoleKnownSaves.has(key)) return pendingRoleKnownSaves.get(key);
+
+  const task = (async () => {
+    let lastError = null;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      try {
+        const room = await markRoleKnownReliably(code, playerId);
+        pendingRoleKnownSaves.delete(key);
+        return room;
+      } catch (error) {
+        lastError = error;
+        if (error?.message === "PLAYER_SESSION_MISSING") {
+          pendingRoleKnownSaves.delete(key);
+          throw error;
+        }
+        await new Promise(resolve =>
+          window.setTimeout(resolve, Math.min(4500, 700 + attempt * 350)),
+        );
+      }
+    }
+    pendingRoleKnownSaves.delete(key);
+    throw lastError || new Error("ROLE_KNOWN_FAILED");
+  })();
+
+  pendingRoleKnownSaves.set(key, task);
+  return task;
 }
 
 async function subscribeRoom(code, mode = "public", playerId = null) {
@@ -1091,9 +1173,12 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
   const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
     if (!room || !player) return renderJoinRoom({ app, onBack, code });
+    const revealKey = `${code}:${playerId}`;
+    const revealUiState = roleRevealUiState.get(revealKey) || "new";
+    const revealStartedLocally = revealUiState === "animating" || revealUiState === "settled";
     let content = "";
     if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
-    else if (room.phase === "role-reveal" && !player.roleKnown) content = `
+    else if (room.phase === "role-reveal" && !player.roleKnown && !revealStartedLocally) content = `
       <div class="role-envelope role-envelope--branded">
         <div class="role-reveal-emblem" aria-hidden="true">
           <span class="role-reveal-emblem-ring"></span>
@@ -1121,17 +1206,20 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         </button>
       </div>`;
     else if (room.phase === "role-reveal") {
-      const revealKey = `${code}:${playerId}`;
-      const uiState = roleRevealUiState.get(revealKey) || "new";
+      // إذا أخفى اللاعب بطاقته، أبقِ شاشة التأكيد ظاهرة طوال مرحلة كشف الأدوار.
+      // مزامنة الغرفة لا تعيد إظهار البطاقة بعد إخفائها.
+      if (revealUiState === "hidden") {
+        content = `<div class="role-hidden-confirmation"><div>✅</div><h2>تمت معرفة الدور</h2><p>بانتظار بقية اللاعبين ومدير اللعبة.</p></div>`;
+      } else {
+        // إذا كانت البطاقة مكشوفة بالفعل فلا نعيد بناء DOM كلما وصلت مزامنة الغرفة.
+        // هذا يمنع إعادة تشغيل دوران البطاقة بصورة مستمرة.
+        const existingCard = document.querySelector("#onlineRoleCard");
+        if (existingCard && app.contains(existingCard)) {
+          return;
+        }
 
-      // إذا كانت البطاقة مكشوفة بالفعل فلا نعيد بناء DOM كلما وصلت مزامنة الغرفة.
-      // هذا يمنع إعادة تشغيل دوران البطاقة بصورة مستمرة.
-      const existingCard = document.querySelector("#onlineRoleCard");
-      if (existingCard && app.contains(existingCard)) {
-        return;
+        content = onlineRoleCard(player, { settled: revealUiState === "settled" });
       }
-
-      content = onlineRoleCard(player, { settled: uiState === "settled" });
     }
     else if (room.phase === "eyes-closed") content = `<div class="eyes-closed-screen"><div>🙈</div><h2>أغمضوا أعينكم جميعًا</h2><p>ضع هاتفك أمامك وانتظر تعليمات مدير اللعبة.</p></div>`;
     else if (
@@ -1395,32 +1483,50 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    document.querySelector("#revealMyRole")?.addEventListener("click", async event => {
+    document.querySelector("#revealMyRole")?.addEventListener("click", event => {
       const button = event.currentTarget;
       if (button?.disabled) return;
-      if (button) {
-        button.disabled = true;
-        button.dataset.originalText = button.innerHTML;
-        button.innerHTML = '<span class="role-reveal-button-icon">◉</span> جارٍ كشف الدور...';
+
+      const revealKey = `${code}:${playerId}`;
+      const session = playerSession(code, playerId);
+
+      // نظهر الدور فورًا من Player Projection الخاص بهذا اللاعب، ثم نحفظ
+      // حالة المشاهدة في الخلفية. لا نربط كشف البطاقة بزمن ACK من الخادم.
+      roleRevealUiState.set(revealKey, "animating");
+      draw();
+
+      window.setTimeout(() => {
+        roleRevealUiState.set(revealKey, "settled");
+        const card = document.querySelector("#onlineRoleCard");
+        card?.classList.add("card-entered", "card-flipped");
+        document.querySelector("#onlineRoleDetails")?.classList.add("details-visible");
+      }, 650);
+
+      if (!session?.token) {
+        console.error("Role reveal session missing", {
+          code: normalizeRoomCode(code),
+          playerId,
+        });
+        showErrorToast(
+          "تم كشف الدور، لكن جلسة هذا اللاعب غير محفوظة في هذا المتصفح. أعد دخول هذا اللاعب إلى الغرفة مرة واحدة.",
+          "تعذر تحديث حالة المشاهدة",
+        );
+        return;
       }
 
-      try {
-        const revealKey = `${code}:${playerId}`;
-        roleRevealUiState.set(revealKey, "animating");
-        await markRoleKnownReliably(code, playerId);
-        // يرسم Snapshot الناتج البطاقة مرة واحدة. بعد نهاية الحركة نثبتها نهائيًا.
-        window.setTimeout(() => roleRevealUiState.set(revealKey, "settled"), 1900);
-      } catch (error) {
-        roleRevealUiState.delete(`${code}:${playerId}`);
-        if (button) {
-          button.disabled = false;
-          button.innerHTML = button.dataset.originalText || "كشف الدور";
-        }
+      queueRoleKnownSave(code, playerId).catch(error => {
         console.error("Role reveal save failed", error);
-        showErrorToast("تعذر حفظ مشاهدة الدور. تحقق من الاتصال وحاول مرة أخرى.", "خطأ");
-      }
+        showInfoToast(
+          "تم كشف الدور، وسيواصل النظام تحديث حالة المشاهدة تلقائيًا عند عودة الاتصال.",
+          "الدور مكشوف",
+        );
+      });
     });
-    document.querySelector("#hideMyRole")?.addEventListener("click", () => { app.innerHTML = pageShell(`<div class="role-hidden-confirmation"><div>✅</div><h2>تمت معرفة الدور</h2><p>بانتظار بقية اللاعبين ومدير اللعبة.</p></div>`, room.roomName); attachBack(onBack); });
+    document.querySelector("#hideMyRole")?.addEventListener("click", () => {
+      const revealKey = `${code}:${playerId}`;
+      roleRevealUiState.set(revealKey, "hidden");
+      draw();
+    });
     document
       .querySelectorAll("[data-target-id]")
       .forEach(button =>
