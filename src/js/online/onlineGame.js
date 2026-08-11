@@ -20,6 +20,8 @@ let hostRoleRevealIntervalId = null;
 // حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
 const roleRevealUiState = new Map();
 const pendingRoleKnownSaves = new Map();
+// اختيار التصويت المبدئي يبقى محليًا لكل لاعب حتى لا يختفي عند إعادة رسم الواجهة اللحظية.
+const voteSelectionUiState = new Map();
 const roomViewSyncControllers = new Map();
 const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
@@ -580,7 +582,12 @@ function pageShell(content, title = "اللعب عبر الشبكة") {
 }
 
 function attachBack(onBack) {
-  document.querySelector("#onlineBackButton")?.addEventListener("click", onBack);
+  document.querySelector("#onlineBackButton")?.addEventListener("click", () => {
+    // أوقف مزامنة الصفحة الحالية قبل الرجوع. وإلا قد تعيد المزامنة رسم الصفحة
+    // التي غادرها المستخدم فتبدو وكأن زر الرجوع لم يعمل.
+    stopRoomViewSync();
+    onBack?.();
+  });
 }
 
 export function openOnlinePortal({ app, onBack }) {
@@ -607,7 +614,6 @@ export function openOnlinePortal({ app, onBack }) {
         <button id="joinRoomChoice" class="online-secondary-button" type="button">إدخال رابط أو رمز</button>
       </article>
     </div>
-    <div class="online-notice">الاتصال بالخادم مفعّل. الغرف تتزامن لحظيًا بين الهواتف وأجهزة الكمبيوتر عبر الإنترنت.</div>
   `);
   attachBack(onBack);
   document.querySelector("#createRoomChoice")?.addEventListener("click", () => renderCreateRoom({ app, onBack }));
@@ -926,6 +932,24 @@ function renderOnlineDayTimer(room, { compact = false } = {}) {
   `;
 }
 
+function renderAssassinationScene({ name, avatar }) {
+  return `
+    <section class="assassination-scene" aria-label="تم اغتيال اللاعب">
+      <div class="assassination-blood" aria-hidden="true"></div>
+      <div class="assassination-knife" aria-hidden="true">🗡️</div>
+      <div class="assassination-portrait-frame">
+        <img src="${avatar || "/logo.png"}" alt="${name || "اللاعب"}" />
+        <span class="assassination-crack crack-a"></span>
+        <span class="assassination-crack crack-b"></span>
+        <span class="assassination-mourning-ribbon">تم الاغتيال</span>
+      </div>
+      <small>ضحية اللصوص</small>
+      <h2>${name || "أحد اللاعبين"}</h2>
+      <p>تم اغتياله خلال الليل وخرج من اللعبة دون كشف دوره.</p>
+    </section>
+  `;
+}
+
 function renderOnlineNightSummary(room) {
   const summary = room?.daySummary;
   if (!summary) return "";
@@ -935,8 +959,22 @@ function renderOnlineNightSummary(room) {
     icon = "🛡️";
     main = `نجحت الممرضة في حماية ${summary.victimName || "هدف اللصوص"}، ولم يخرج أحد هذه الليلة.`;
   } else if (summary.outcome === "eliminated") {
-    icon = "🕯️";
-    main = `خرج ${summary.victimName || "أحد اللاعبين"} من اللعبة خلال الليل، دون كشف دوره.`;
+    const victim = (room.players || []).find(player => player.id === summary.victimId) || null;
+    return `
+      ${renderAssassinationScene({
+        name: summary.victimName || victim?.name || "أحد اللاعبين",
+        avatar: victim?.avatar || "",
+      })}
+      <section class="online-night-summary online-night-summary--after-assassination">
+        <div class="online-night-summary-icon">🕯️</div>
+        <div>
+          <small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small>
+          <h3>خرج ${summary.victimName || victim?.name || "أحد اللاعبين"} من اللعبة خلال الليل، دون كشف دوره.</h3>
+          <p>${summary.kingPardonGranted ? "👑 تم منح وسام عفو ملكي لأحد اللاعبين لهذه الجولة." : "👑 لم يتم منح وسام عفو ملكي في هذه الجولة."}</p>
+          ${summary.investigatorCompleted ? "<p>🕵️ أكمل المحقق تحقيقه بسرية.</p>" : ""}
+        </div>
+      </section>
+    `;
   }
   return `
     <section class="online-night-summary">
@@ -1653,15 +1691,17 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         content = `<div class="online-vote-confirmed-screen"><div>✅</div><h2>تم تسجيل تصويتك</h2><p>${room.myVote === "abstain" ? "اخترت الامتناع عن التصويت." : "تم حفظ اختيارك بصورة سرية."}</p><small>بانتظار بقية اللاعبين...</small></div>`;
       } else {
         const eligible = room.players.filter(item => item.alive && item.id !== player.id);
+        const voteSelectionKey = `${code}:${playerId}`;
+        const savedVoteSelection = voteSelectionUiState.get(voteSelectionKey) || null;
         content = `
           <div class="online-voting-player-screen">
             <div class="online-voting-player-heading"><span>🗳️</span><div><small>تصويت سري</small><h2>من تعتقد أنه اللص؟</h2><p>اختر لاعبًا واحدًا أو امتنع عن التصويت. لا يمكنك التصويت لنفسك.</p></div></div>
             <div class="online-vote-options">
-              ${eligible.map(item => `<button type="button" class="online-vote-option" data-online-vote-target="${item.id}"><img src="${item.avatar}" alt="${item.name}"/><strong>${item.name}</strong><small>اختيار هذا اللاعب</small></button>`).join("")}
-              <button type="button" class="online-vote-option abstain" data-online-vote-target="abstain"><span>✋</span><strong>الامتناع</strong><small>عدم اختيار أي لاعب</small></button>
+              ${eligible.map(item => `<button type="button" class="online-vote-option ${savedVoteSelection === item.id ? "selected" : ""}" data-online-vote-target="${item.id}"><img src="${item.avatar}" alt="${item.name}"/><strong>${item.name}</strong><small>${savedVoteSelection === item.id ? "✓ تم حفظ الاختيار المبدئي" : "اختيار هذا اللاعب"}</small></button>`).join("")}
+              <button type="button" class="online-vote-option abstain ${savedVoteSelection === "abstain" ? "selected" : ""}" data-online-vote-target="abstain"><span>✋</span><strong>الامتناع</strong><small>${savedVoteSelection === "abstain" ? "✓ تم حفظ الاختيار المبدئي" : "عدم اختيار أي لاعب"}</small></button>
             </div>
-            <p id="onlineVoteSelectionMessage" class="night-choice-status">اختر خيارًا ثم أكد التصويت.</p>
-            <button id="confirmOnlineVote" class="online-primary-button large" type="button" disabled>تأكيد التصويت</button>
+            <p id="onlineVoteSelectionMessage" class="night-choice-status">${savedVoteSelection ? (savedVoteSelection === "abstain" ? "تم حفظ اختيار الامتناع مبدئيًا. اضغط تأكيد التصويت." : "تم حفظ اختيار اللاعب مبدئيًا. اضغط تأكيد التصويت.") : "اختر خيارًا ثم أكد التصويت."}</p>
+            <button id="confirmOnlineVote" class="online-primary-button large" type="button" ${savedVoteSelection ? "" : "disabled"}>تأكيد التصويت</button>
           </div>`;
       }
     }
@@ -1669,15 +1709,17 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    document.querySelector("#revealMyRole")?.addEventListener("click", event => {
-      const button = event.currentTarget;
-      if (button?.disabled) return;
-
+    const revealButton = document.querySelector("#revealMyRole");
+    const handleReveal = event => {
+      const button = revealButton;
+      if (!button || button.disabled) return;
       const revealKey = `${code}:${playerId}`;
-      const session = playerSession(code, playerId);
+      if ((roleRevealUiState.get(revealKey) || "new") !== "new") return;
 
-      // نظهر الدور فورًا من Player Projection الخاص بهذا اللاعب، ثم نحفظ
-      // حالة المشاهدة في الخلفية. لا نربط كشف البطاقة بزمن ACK من الخادم.
+      // pointerdown يستجيب للمسة الأولى قبل أي إعادة رسم دورية قد تستبدل الزر.
+      event?.preventDefault?.();
+      button.disabled = true;
+      const session = playerSession(code, playerId);
       roleRevealUiState.set(revealKey, "animating");
       draw();
 
@@ -1686,28 +1728,21 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         const card = document.querySelector("#onlineRoleCard");
         card?.classList.add("card-entered", "card-flipped");
         document.querySelector("#onlineRoleDetails")?.classList.add("details-visible");
-      }, 650);
+      }, 180);
 
       if (!session?.token) {
-        console.error("Role reveal session missing", {
-          code: normalizeRoomCode(code),
-          playerId,
-        });
-        showErrorToast(
-          "تم كشف الدور، لكن جلسة هذا اللاعب غير محفوظة في هذا المتصفح. أعد دخول هذا اللاعب إلى الغرفة مرة واحدة.",
-          "تعذر تحديث حالة المشاهدة",
-        );
+        console.error("Role reveal session missing", { code: normalizeRoomCode(code), playerId });
+        showInfoToast("تم كشف الدور. ستتم مزامنة حالة المشاهدة بعد استعادة جلسة اللاعب.", "الدور مكشوف");
         return;
       }
 
       queueRoleKnownSave(code, playerId).catch(error => {
         console.error("Role reveal save failed", error);
-        showInfoToast(
-          "تم كشف الدور، وسيواصل النظام تحديث حالة المشاهدة تلقائيًا عند عودة الاتصال.",
-          "الدور مكشوف",
-        );
+        showInfoToast("تم كشف الدور، وسيواصل النظام تحديث حالة المشاهدة تلقائيًا عند عودة الاتصال.", "الدور مكشوف");
       });
-    });
+    };
+    revealButton?.addEventListener("pointerdown", handleReveal, { once: true });
+    revealButton?.addEventListener("click", handleReveal, { once: true });
     document.querySelector("#hideMyRole")?.addEventListener("click", () => {
       const revealKey = `${code}:${playerId}`;
       roleRevealUiState.set(revealKey, "hidden");
@@ -1761,24 +1796,34 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           );
         }
       });
-    let selectedOnlineVoteTarget = null;
+    const voteSelectionKey = `${code}:${playerId}`;
     document.querySelectorAll("[data-online-vote-target]").forEach(button => {
       button.addEventListener("click", () => {
-        selectedOnlineVoteTarget = button.dataset.onlineVoteTarget || null;
-        document.querySelectorAll("[data-online-vote-target]").forEach(item => item.classList.remove("selected"));
-        button.classList.add("selected");
+        const selectedOnlineVoteTarget = button.dataset.onlineVoteTarget || null;
+        if (!selectedOnlineVoteTarget) return;
+
+        // نحفظ الاختيار محليًا فور النقرة حتى يبقى محددًا أثناء تحديثات Socket.IO
+        // وإعادة الرسم. لا يُحتسب الصوت فعليًا إلا بعد الضغط على تأكيد التصويت.
+        voteSelectionUiState.set(voteSelectionKey, selectedOnlineVoteTarget);
+        document.querySelectorAll("[data-online-vote-target]").forEach(item => {
+          item.classList.toggle("selected", item === button);
+          const small = item.querySelector("small");
+          if (small) small.textContent = item === button ? "✓ تم حفظ الاختيار المبدئي" : (item.dataset.onlineVoteTarget === "abstain" ? "عدم اختيار أي لاعب" : "اختيار هذا اللاعب");
+        });
         const confirmVoteButton = document.querySelector("#confirmOnlineVote");
-        if (confirmVoteButton) confirmVoteButton.disabled = !selectedOnlineVoteTarget;
+        if (confirmVoteButton) confirmVoteButton.disabled = false;
         const message = document.querySelector("#onlineVoteSelectionMessage");
-        if (message) message.textContent = selectedOnlineVoteTarget === "abstain" ? "تم اختيار الامتناع. اضغط تأكيد التصويت." : "تم تحديد اللاعب. اضغط تأكيد التصويت.";
+        if (message) message.textContent = selectedOnlineVoteTarget === "abstain" ? "تم حفظ اختيار الامتناع مبدئيًا. اضغط تأكيد التصويت." : "تم حفظ اختيار اللاعب مبدئيًا. اضغط تأكيد التصويت.";
       });
     });
     document.querySelector("#confirmOnlineVote")?.addEventListener("click", async event => {
+      const selectedOnlineVoteTarget = voteSelectionUiState.get(voteSelectionKey) || null;
       if (!selectedOnlineVoteTarget) return;
       event.currentTarget.disabled = true;
       try {
         await playerCommand(code, playerId, "cast-vote", { targetId: selectedOnlineVoteTarget });
-        showSuccessToast("تم تسجيل تصويتك بصورة سرية.", "تم التصويت");
+        voteSelectionUiState.delete(voteSelectionKey);
+        showSuccessToast("تم تسجيل تصويتك بصورة سرية وحفظه داخل بيانات المباراة.", "تم التصويت");
       } catch {
         event.currentTarget.disabled = false;
         showErrorToast("تعذر حفظ التصويت. حاول مرة أخرى.", "خطأ في التصويت");

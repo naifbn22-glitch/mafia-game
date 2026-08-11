@@ -4367,25 +4367,19 @@ function renderNightResultPage(
     `;
   } else {
     resultContent = `
-      <div class="night-result-icon">
-        🕯️
-      </div>
-
-      <h1>
-        خرج لاعب من اللعبة
-      </h1>
-
-      <p class="night-victim-name">
-        ${escapeHtml(
-          victim.name,
-        )}
-      </p>
-
-      <p class="night-description">
-        تم اغتياله أثناء الليل.
-        لا يتم كشف شخصيته لبقية
-        اللاعبين.
-      </p>
+      <section class="assassination-scene assassination-scene--offline" aria-label="تم اغتيال اللاعب">
+        <div class="assassination-blood" aria-hidden="true"></div>
+        <div class="assassination-knife" aria-hidden="true">🗡️</div>
+        <div class="assassination-portrait-frame">
+          <img src="${escapeHtml(victim.avatar || "/logo.png")}" alt="${escapeHtml(victim.name)}" />
+          <span class="assassination-crack crack-a"></span>
+          <span class="assassination-crack crack-b"></span>
+          <span class="assassination-mourning-ribbon">تم الاغتيال</span>
+        </div>
+        <small>ضحية اللصوص</small>
+        <h2>${escapeHtml(victim.name)}</h2>
+        <p>تم اغتياله أثناء الليل وخرج من اللعبة دون كشف دوره.</p>
+      </section>
     `;
   }
 
