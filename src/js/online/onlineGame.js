@@ -5,6 +5,7 @@ import { getRoleCardImage } from "../ui/roleCards.js";
 const STORAGE_KEY = "mafia_online_rooms_v2";
 const PLAYER_SESSION_KEY = "mafia_online_player_session_v2";
 const HOST_SESSION_KEY = "mafia_online_host_session_v2";
+const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 const ONLINE_SERVER_URL = String(import.meta.env.VITE_SERVER_URL || window.location.origin).replace(/\/$/, "");
@@ -125,6 +126,104 @@ function playerSession(code, playerId) {
   );
 }
 
+
+function saveOnlineResumeMarker(marker) {
+  if (!marker?.code || !marker?.mode) return;
+  localStorage.setItem(
+    ONLINE_RESUME_KEY,
+    JSON.stringify({
+      ...marker,
+      code: normalizeRoomCode(marker.code),
+      savedAt: Date.now(),
+    }),
+  );
+}
+
+function readOnlineResumeMarker() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ONLINE_RESUME_KEY) || "null");
+    if (saved?.code && (saved.mode === "host" || saved.mode === "player")) {
+      return saved;
+    }
+  } catch {}
+
+  const host = (() => {
+    try { return JSON.parse(localStorage.getItem(HOST_SESSION_KEY) || "null"); }
+    catch { return null; }
+  })();
+  if (host?.code && host?.token) {
+    return { mode: "host", code: normalizeRoomCode(host.code), savedAt: Number(host.savedAt || 0) };
+  }
+
+  const latestPlayer = Object.values(loadPlayerSessions())
+    .filter(session => session?.code && session?.playerId && session?.token)
+    .sort((a, b) => Number(b?.savedAt || 0) - Number(a?.savedAt || 0))[0];
+  if (latestPlayer) {
+    return {
+      mode: "player",
+      code: normalizeRoomCode(latestPlayer.code),
+      playerId: latestPlayer.playerId,
+      savedAt: Number(latestPlayer.savedAt || 0),
+    };
+  }
+  return null;
+}
+
+export function getSavedOnlineGame() {
+  return readOnlineResumeMarker();
+}
+
+export function deleteSavedOnlineGame() {
+  const marker = readOnlineResumeMarker();
+  localStorage.removeItem(ONLINE_RESUME_KEY);
+
+  if (marker?.mode === "host") {
+    const session = hostSession(marker.code);
+    if (session?.code === normalizeRoomCode(marker.code)) {
+      localStorage.removeItem(HOST_SESSION_KEY);
+    }
+  }
+
+  if (marker?.mode === "player" && marker.playerId) {
+    const sessions = loadPlayerSessions();
+    delete sessions[`${normalizeRoomCode(marker.code)}:${marker.playerId}`];
+    localStorage.setItem(
+      PLAYER_SESSION_KEY,
+      JSON.stringify({ version: 2, sessions }),
+    );
+  }
+}
+
+export async function resumeSavedOnlineGame({ app, onBack }) {
+  const marker = readOnlineResumeMarker();
+  if (!marker) return false;
+
+  const mode = marker.mode === "host" ? "host" : "player";
+  const room = await fetchRoomFromServer(marker.code, mode, marker.playerId || null);
+  if (!room || room.winner) {
+    deleteSavedOnlineGame();
+    return false;
+  }
+
+  if (marker.mode === "host") {
+    history.replaceState({}, "", `?host=${room.code}`);
+    saveOnlineResumeMarker({ mode: "host", code: room.code });
+    renderHostLobby({ app, onBack, code: room.code });
+    return true;
+  }
+
+  const player = room.players?.find(item => item.id === marker.playerId);
+  if (!player) {
+    deleteSavedOnlineGame();
+    return false;
+  }
+
+  history.replaceState({}, "", `?room=${room.code}&player=${marker.playerId}`);
+  saveOnlineResumeMarker({ mode: "player", code: room.code, playerId: marker.playerId });
+  renderPlayerRoom({ app, onBack, code: room.code, playerId: marker.playerId });
+  return true;
+}
+
 async function fetchRoomFromServer(code, mode = "public", playerId = null) {
   const normalizedCode = normalizeRoomCode(code);
   if (!normalizedCode) return null;
@@ -158,7 +257,7 @@ async function fetchRoomFromServer(code, mode = "public", playerId = null) {
 
 async function createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds) {
   const response = await emitAck("room:create", { hostName, roomName, maxPlayers, discussionDurationSeconds });
-  localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken }));
+  localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken, savedAt: Date.now() }));
   cacheServerRoom(response.room);
   return response.room;
 }
@@ -1067,6 +1166,7 @@ function renderHostNightControls(room) {
 }
 
 function renderHostLobby({ app, onBack, code }) {
+  saveOnlineResumeMarker({ mode: "host", code });
   subscribeRoom(code, "host");
   const draw = () => {
     const room = readRoom(code);
@@ -1397,6 +1497,7 @@ function getInvestigationResult(target) {
 }
 
 function renderPlayerRoom({ app, onBack, code, playerId }) {
+  saveOnlineResumeMarker({ mode: "player", code, playerId });
   subscribeRoom(code, "player", playerId);
   const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);

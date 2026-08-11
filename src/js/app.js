@@ -58,6 +58,9 @@ import {
 import {
   openOnlinePortal,
   restoreOnlineRoute,
+  getSavedOnlineGame,
+  resumeSavedOnlineGame,
+  deleteSavedOnlineGame,
 } from "./online/onlineGame.js";
 
 const DEFAULT_AVATARS = [
@@ -222,6 +225,7 @@ function getRolesDistribution(playerCount) {
 
 
 function renderHomePage() {
+  const savedOnlineGame = getSavedOnlineGame();
   app.innerHTML = `
     <main class="home-page">
       <div
@@ -398,6 +402,41 @@ function renderHomePage() {
 
                     <button
                       id="deleteSavedGameButton"
+                      type="button"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              `
+              : ""
+          }
+
+          ${
+            savedOnlineGame
+              ? `
+                <div class="saved-game-panel online-saved-game-panel">
+                  <div>
+                    <strong>
+                      توجد لعبة عبر الشبكة محفوظة
+                    </strong>
+
+                    <span>
+                      ${savedOnlineGame.mode === "host" ? "أنت مدير الغرفة" : "أنت أحد المتسابقين"}
+                      · ${savedOnlineGame.code}
+                    </span>
+                  </div>
+
+                  <div class="saved-game-actions">
+                    <button
+                      id="resumeOnlineGameButton"
+                      type="button"
+                    >
+                      إكمال
+                    </button>
+
+                    <button
+                      id="deleteSavedOnlineGameButton"
                       type="button"
                     >
                       حذف
@@ -682,6 +721,16 @@ function renderHomePage() {
       "#deleteSavedGameButton",
     );
 
+  const resumeOnlineGameButton =
+    document.querySelector(
+      "#resumeOnlineGameButton",
+    );
+
+  const deleteSavedOnlineGameButton =
+    document.querySelector(
+      "#deleteSavedOnlineGameButton",
+    );
+
   const offlineButton =
     document.querySelector(
       "#offlineButton",
@@ -715,6 +764,42 @@ function renderHomePage() {
 
       deleteSavedGame();
       resetCompleteGame();
+      renderHomePage();
+    },
+  );
+
+  resumeOnlineGameButton?.addEventListener(
+    "click",
+    async () => {
+      resumeOnlineGameButton.disabled = true;
+      resumeOnlineGameButton.textContent = "جارٍ الاستعادة...";
+
+      const restored = await resumeSavedOnlineGame({
+        app,
+        onBack: () => {
+          history.replaceState({}, "", location.pathname);
+          renderHomePage();
+        },
+      });
+
+      if (!restored) {
+        showWarningToast("لم تعد الغرفة متاحة أو انتهت المباراة.", "تعذر استعادة اللعبة");
+        history.replaceState({}, "", location.pathname);
+        renderHomePage();
+      }
+    },
+  );
+
+  deleteSavedOnlineGameButton?.addEventListener(
+    "click",
+    () => {
+      const confirmed = window.confirm(
+        "هل تريد حذف حفظ اللعبة عبر الشبكة من هذا الجهاز؟",
+      );
+
+      if (!confirmed) return;
+      deleteSavedOnlineGame();
+      history.replaceState({}, "", location.pathname);
       renderHomePage();
     },
   );
