@@ -480,12 +480,29 @@ export function confirmNightAction(room, player) {
   room.nightActions.confirmedActors[player.id] = { role: player.role, targetId: selected, skipped: player.role === "king" && kingSkipped, confirmedAt: new Date().toISOString() };
   const target = selected ? room.players.find(p => p.id === selected) : null;
   const roleText = roleLabel(player.role);
+  const publicText = player.role === "thief"
+    ? "اختار اللصوص ضحيتهم"
+    : player.role === "nurse"
+      ? "اختارت الممرضة الشخص الذي ستحميه"
+      : player.role === "king"
+        ? (kingSkipped ? "احتفظ الملك بوسام العفو" : "منح الملك عفوًا ملكيًا")
+        : "أنهى المحقق تحقيقه";
+  const chatText = player.role === "thief"
+    ? "لقد قمت باختيار ضحيتي بعناية فائقة."
+    : player.role === "nurse"
+      ? "لقد قدمت كل ما لدي لإنقاذ أرواحكم، وأتمنى أن تنجح محاولتي."
+      : player.role === "king"
+        ? (kingSkipped
+          ? "لا يوجد عفو هذه الليلة، وعلى الجميع تحمل مسؤوليته."
+          : "لقد عفوت عن أحد الأشخاص، وأتمنى ألا يكون اللص.")
+        : "قمت بكشف أحد الأشخاص، وسنقوم بإعلان نتائج التحقيق لاحقًا.";
   addTimeline(room, {
     type: "night_action_confirmed",
     role: player.role,
     playerId: player.id,
     targetId: selected,
-    publicText: player.role === "thief" ? "اختار اللصوص ضحيتهم" : player.role === "nurse" ? "اختار الممرض الشخص الذي سيحميه" : player.role === "king" ? (kingSkipped ? "احتفظ الملك بوسام العفو" : "منح الملك عفوًا ملكيًا") : "أنهى المحقق تحقيقه",
+    publicText,
+    chatText,
     hostText: `${player.name} (${roleText}) ${kingSkipped ? "احتفظ بوسام العفو" : target ? `أكد اختياره: ${target.name}` : "أكد قراره"}`,
   });
   touch(room);
@@ -502,7 +519,7 @@ export function publicProjection(room) {
     daySummary: room.daySummary || null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult || null, winner: room.winner || null,
     votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
-    timeline: (room.timeline || []).map(e => ({ id: e.id, at: e.at, type: e.type, text: e.publicText })).filter(e => e.text),
+    timeline: (room.timeline || []).map(e => ({ id: e.id, at: e.at, type: e.type, role: e.role || null, chatText: e.chatText || null, text: e.publicText })).filter(e => e.text || e.chatText),
   };
 }
 

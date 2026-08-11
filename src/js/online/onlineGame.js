@@ -1009,6 +1009,61 @@ function renderOnlineTimeline(room, limit = 8) {
   return `<div class="online-timeline">${items.map(item => `<article class="online-timeline-item"><span class="online-timeline-dot"></span><div><strong>${item.text || item.hostText || item.publicText || "تم تحديث المباراة"}</strong><small>${new Date(item.at || Date.now()).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div></article>`).join("")}</div>`;
 }
 
+const LIVE_ROLE_CHAT_META = {
+  thief: { label: "اللص", icon: "🗡️", className: "thief" },
+  nurse: { label: "الممرضة", icon: "⚕️", className: "nurse" },
+  king: { label: "الملك", icon: "♚", className: "king" },
+  investigator: { label: "المحقق", icon: "🔎", className: "investigator" },
+  citizen: { label: "المواطنون", icon: "🏙️", className: "citizen" },
+};
+
+const LIVE_CITIZEN_CHAT_LINES = [
+  "نتمنى من السلطات إلقاء القبض على اللصوص قبل فوات الأوان.",
+  "علينا مراقبة التصرفات جيدًا، فاللص قد يكون أقرب مما نتوقع.",
+  "لن نتسرع في الاتهام، وسنناقش كل ما حدث قبل التصويت.",
+];
+
+function renderLiveRoleChat(room, limit = 12) {
+  const timeline = Array.isArray(room?.timeline) ? room.timeline : [];
+  const roleMessages = timeline
+    .filter(item => item?.type === "night_action_confirmed" && (item.chatText || item.text))
+    .slice(-Math.max(1, limit));
+
+  if (!roleMessages.length) {
+    return `<div class="live-role-chat-empty"><span>💬</span><p>ستظهر رسائل الأدوار هنا فور تنفيذ مهام الليل.</p></div>`;
+  }
+
+  const bubbles = roleMessages.map(item => {
+    const meta = LIVE_ROLE_CHAT_META[item.role] || LIVE_ROLE_CHAT_META.citizen;
+    return `
+      <article class="live-chat-message live-chat-message--${meta.className}">
+        <div class="live-chat-avatar" aria-hidden="true">${meta.icon}</div>
+        <div class="live-chat-bubble">
+          <strong>${meta.label}</strong>
+          <p>${item.chatText || item.text}</p>
+        </div>
+      </article>
+    `;
+  });
+
+  const citizenSeed = Math.max(1, Number(room?.nightNumber || room?.roundNumber || 1));
+  const citizenMessages = LIVE_CITIZEN_CHAT_LINES.map((line, index) => {
+    const shifted = LIVE_CITIZEN_CHAT_LINES[(index + citizenSeed - 1) % LIVE_CITIZEN_CHAT_LINES.length];
+    const meta = LIVE_ROLE_CHAT_META.citizen;
+    return `
+      <article class="live-chat-message live-chat-message--citizen">
+        <div class="live-chat-avatar" aria-hidden="true">${meta.icon}</div>
+        <div class="live-chat-bubble">
+          <strong>${meta.label}</strong>
+          <p>${shifted}</p>
+        </div>
+      </article>
+    `;
+  });
+
+  return `<div class="live-role-chat">${[...bubbles, ...citizenMessages].join("")}</div>`;
+}
+
 
 function formatOnlineClock(totalSeconds) {
   const safe = Math.max(0, Math.ceil(Number(totalSeconds) || 0));
@@ -1181,6 +1236,13 @@ function renderOnlineVotingResult(room) {
   return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small><h2>${title}</h2><p>${description}</p></section>`;
 }
 
+function isHostNightRoleComplete(room, role) {
+  const rolePlayers = (room?.players || []).filter(player => player.alive && player.role === role);
+  if (!rolePlayers.length) return false;
+  const confirmedActors = room?.nightActions?.confirmedActors || {};
+  return rolePlayers.every(player => confirmedActors[player.id]?.role === role);
+}
+
 function renderHostNightControls(room) {
   if (room.status !== "playing" || !["role-reveal", "eyes-closed", "night-role"].includes(room.phase)) return "";
   const roles = ["thief", "nurse", "king", "investigator"];
@@ -1191,7 +1253,8 @@ function renderHostNightControls(room) {
     <div class="role-control-grid">
       ${roles.map(role => {
         const absent = room.status === "playing" && room.players.some(player => player.role) && !aliveRoles.has(role);
-        return `<button class="role-wake-button ${room.activeRole === role ? "active" : ""} ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}" ${roleButtonsLocked || absent ? "disabled" : ""}>${labels[role]}${absent ? " · غير موجود" : ""}</button>`;
+        const actionComplete = isHostNightRoleComplete(room, role);
+        return `<button class="role-wake-button ${room.activeRole === role ? "active" : ""} ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""} ${actionComplete ? "is-action-complete" : ""}" data-role="${role}" ${roleButtonsLocked || absent || actionComplete ? "disabled" : ""}>${labels[role]}${absent ? " · غير موجود" : actionComplete ? " · ✓ تم" : ""}</button>`;
       }).join("")}
     </div>
     <button id="finishOnlineNight" class="online-primary-button large finish-night-button ${room.nightReady ? "is-ready" : "is-locked"}" type="button" ${room.nightReady ? "" : "disabled"}>
@@ -2100,7 +2163,7 @@ export function openLiveRoom({ app, onBack, code }) {
             ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
             ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
             ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : ""}
-            <section class="live-player-section live-events-panel"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section>
+            <section class="live-player-section live-events-panel live-chat-panel"><div class="live-chat-panel-heading"><span>💬</span><div><h3>محادثة المدينة</h3><p>رسائل مباشرة من أصحاب الأدوار والمواطنين</p></div></div>${renderLiveRoleChat(room, 12)}</section>
           </main>
         </div>
       </div>`, "مركز المباراة المباشر");

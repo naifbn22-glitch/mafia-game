@@ -789,3 +789,122 @@
   .live-participants-list{grid-template-columns:1fr}.live-participant{grid-template-columns:50px 1fr 11px}.live-participant__avatar{width:50px;height:50px}
   .live-realistic-moon{top:14vh}.live-rooster-silhouette{left:18vw}.live-day-trees i{opacity:.55}
 }
+
+/* === Night role completion state === */
+.role-wake-button.is-action-complete,
+.role-wake-button.is-action-complete:disabled{
+  opacity:1;
+  color:#effff7;
+  background:linear-gradient(135deg,rgba(20,143,91,.98),rgba(7,91,61,.98));
+  border:1px solid rgba(92,255,181,.48);
+  box-shadow:0 0 0 1px rgba(68,235,158,.08) inset,0 10px 30px rgba(17,184,111,.18),0 0 22px rgba(56,239,153,.18);
+  cursor:default;
+}
+.role-wake-button.is-action-complete::after{
+  content:"✓";
+  float:left;
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  margin-right:10px;
+  border-radius:50%;
+  background:rgba(230,255,244,.14);
+  color:#baffd9;
+  font-size:15px;
+  box-shadow:0 0 15px rgba(74,246,164,.25);
+}
+
+/* === Live city chat === */
+.live-chat-panel{
+  overflow:hidden;
+  background:linear-gradient(180deg,rgba(10,12,21,.86),rgba(8,10,18,.78));
+}
+.live-chat-panel-heading{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-bottom:16px;
+  margin-bottom:14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.live-chat-panel-heading>span{
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);
+  font-size:21px;
+}
+.live-chat-panel-heading h3{margin:0;font-size:21px}
+.live-chat-panel-heading p{margin:3px 0 0;color:#9ca4b7;font-size:12px}
+.live-role-chat{display:flex;flex-direction:column;gap:12px}
+.live-role-chat-empty{min-height:150px;display:grid;place-items:center;text-align:center;color:#a7adbc;padding:24px}
+.live-role-chat-empty span{font-size:34px}.live-role-chat-empty p{margin:6px 0 0}
+.live-chat-message{
+  display:grid;
+  grid-template-columns:46px minmax(0,1fr);
+  align-items:end;
+  gap:10px;
+  animation:liveChatEnter .28s ease both;
+}
+.live-chat-avatar{
+  width:46px;
+  height:46px;
+  border-radius:15px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);
+  font-size:23px;
+  box-shadow:0 9px 25px rgba(0,0,0,.2);
+}
+.live-chat-bubble{
+  position:relative;
+  padding:13px 15px 14px;
+  border-radius:18px 18px 7px 18px;
+  border:1px solid rgba(255,255,255,.11);
+  background:rgba(255,255,255,.055);
+  box-shadow:0 12px 28px rgba(0,0,0,.17);
+}
+.live-chat-bubble::before{
+  content:"";
+  position:absolute;
+  right:-7px;
+  bottom:9px;
+  width:13px;
+  height:13px;
+  transform:rotate(45deg);
+  background:inherit;
+  border-right:1px solid inherit;
+  border-top:1px solid inherit;
+}
+.live-chat-bubble strong{display:block;margin-bottom:5px;font-size:13px;letter-spacing:.1px}
+.live-chat-bubble p{margin:0;color:#eef0f5;line-height:1.75;font-size:14px}
+.live-chat-message--thief .live-chat-avatar{background:rgba(141,24,43,.24);border-color:rgba(255,81,105,.28)}
+.live-chat-message--thief .live-chat-bubble{background:linear-gradient(135deg,rgba(118,24,39,.34),rgba(50,16,25,.42));border-color:rgba(255,85,108,.22)}
+.live-chat-message--thief .live-chat-bubble strong{color:#ff8092}
+.live-chat-message--nurse .live-chat-avatar{background:rgba(16,129,83,.22);border-color:rgba(67,238,157,.28)}
+.live-chat-message--nurse .live-chat-bubble{background:linear-gradient(135deg,rgba(15,113,75,.31),rgba(10,48,36,.39));border-color:rgba(77,239,165,.21)}
+.live-chat-message--nurse .live-chat-bubble strong{color:#72efb2}
+.live-chat-message--king .live-chat-avatar{background:rgba(24,91,170,.23);border-color:rgba(76,160,255,.29)}
+.live-chat-message--king .live-chat-bubble{background:linear-gradient(135deg,rgba(24,86,158,.32),rgba(10,39,84,.42));border-color:rgba(77,161,255,.22)}
+.live-chat-message--king .live-chat-bubble strong{color:#79bbff}
+.live-chat-message--investigator .live-chat-avatar{background:rgba(112,72,33,.28);border-color:rgba(206,148,86,.3)}
+.live-chat-message--investigator .live-chat-bubble{background:linear-gradient(135deg,rgba(105,65,28,.34),rgba(51,33,19,.44));border-color:rgba(210,153,94,.22)}
+.live-chat-message--investigator .live-chat-bubble strong{color:#e3ad74}
+.live-chat-message--citizen{margin-right:34px}
+.live-chat-message--citizen .live-chat-avatar{background:rgba(91,94,111,.22);border-color:rgba(195,202,221,.16)}
+.live-chat-message--citizen .live-chat-bubble{background:linear-gradient(135deg,rgba(75,80,98,.24),rgba(38,41,53,.38));border-color:rgba(199,204,222,.12)}
+.live-chat-message--citizen .live-chat-bubble strong{color:#cbd2e1}
+@keyframes liveChatEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:620px){
+  .live-chat-message{grid-template-columns:40px minmax(0,1fr);gap:8px}
+  .live-chat-avatar{width:40px;height:40px;border-radius:13px;font-size:20px}
+  .live-chat-bubble{padding:11px 12px 12px}
+  .live-chat-bubble p{font-size:13px}
+  .live-chat-message--citizen{margin-right:14px}
+}
