@@ -60,6 +60,8 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
     maxPlayers: Math.min(22, Math.max(4, Number(maxPlayers) || 10)),
     discussionDurationSeconds: Math.min(300, Math.max(30, Number(discussionDurationSeconds) || 60)),
     status: "waiting",
+    joinLocked: false,
+    joinLockedReason: null,
     phase: "lobby",
     activeRole: null,
     createdAt: now,
@@ -94,8 +96,13 @@ export function addTimeline(room, event) {
 }
 
 export function joinPlayer(room, { name, gender, avatar }) {
-  if (room.status !== "waiting") throw new Error("ROOM_CLOSED");
-  if (room.players.length >= room.maxPlayers) throw new Error("ROOM_FULL");
+  if (room.status !== "waiting" || room.joinLocked) throw new Error("ROOM_CLOSED");
+  if (room.players.length >= room.maxPlayers) {
+    room.joinLocked = true;
+    room.joinLockedReason = "full";
+    touch(room);
+    throw new Error("ROOM_FULL");
+  }
   const cleanName = String(name || "").trim().slice(0, 24);
   if (!cleanName) throw new Error("INVALID_NAME");
   if (room.players.some(p => p.name.toLocaleLowerCase("ar") === cleanName.toLocaleLowerCase("ar"))) throw new Error("NAME_TAKEN");
@@ -115,6 +122,11 @@ export function joinPlayer(room, { name, gender, avatar }) {
   };
   room.players.push(player);
   addTimeline(room, { type: "player_joined", playerId: player.id, publicText: `انضم ${player.name} إلى الغرفة`, hostText: `انضم ${player.name} إلى الغرفة` });
+  if (room.players.length >= room.maxPlayers) {
+    room.joinLocked = true;
+    room.joinLockedReason = "full";
+    addTimeline(room, { type: "room_locked", publicText: "اكتمل عدد المتسابقين وأغلقت الغرفة أمام انضمامات جديدة", hostText: "اكتمل الحد الأعلى للاعبين وتم إغلاق الانضمام تلقائيًا" });
+  }
   touch(room);
   return player;
 }
@@ -146,6 +158,8 @@ export function startGame(room) {
     royalPardonsRemaining: roles[i] === "king" ? 3 : 0,
   }));
   room.status = "playing";
+  room.joinLocked = true;
+  room.joinLockedReason = "started";
   room.phase = "role-reveal";
   room.activeRole = null;
   room.roleRevealStartedAt = Date.now();
@@ -477,7 +491,7 @@ export function publicProjection(room) {
   return {
     _view: "public",
     code: room.code, roomName: room.roomName, hostName: room.hostName, maxPlayers: room.maxPlayers,
-    status: room.status, phase: room.phase, activeRole: room.activeRole, createdAt: room.createdAt,
+    status: room.status, joinLocked: Boolean(room.joinLocked), joinLockedReason: room.joinLockedReason || null, phase: room.phase, activeRole: room.activeRole, createdAt: room.createdAt,
     updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber, roundNumber: room.roundNumber || 1,
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
     discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,

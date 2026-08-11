@@ -503,6 +503,14 @@ function inviteUrl(code) {
   return url.toString();
 }
 
+function liveViewUrl(code) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("live", normalizeRoomCode(code));
+  return url.toString();
+}
+
 async function copyTextToClipboard(text, sourceInput = null) {
   const value = String(text ?? "");
 
@@ -715,8 +723,11 @@ function renderJoinRoom({ app, onBack, code }) {
     });
     return;
   }
-  if (room.status !== "waiting") {
-    showInfoToast("المباراة بدأت بالفعل ولا يمكن إضافة لاعب جديد.", "الغرفة مغلقة");
+  if (room.status !== "waiting" || room.joinLocked) {
+    const message = room.joinLockedReason === "full"
+      ? "اكتمل الحد الأعلى للاعبين وتم إغلاق الغرفة أمام انضمامات جديدة."
+      : "المباراة بدأت بالفعل ولا يمكن إضافة لاعب جديد.";
+    showInfoToast(message, "الغرفة مغلقة");
   }
   app.innerHTML = pageShell(`
     <div class="join-room-layout">
@@ -727,7 +738,7 @@ function renderJoinRoom({ app, onBack, code }) {
         <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>👨 ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>👩 أنثى</span></label></div></fieldset>
         <div><span class="field-label">الصورة الشخصية</span>${avatarPicker()}</div>
         <input id="selectedAvatar" type="hidden" value="${AVATARS[0].src}" />
-        <button class="online-primary-button" type="submit" ${room.status !== "waiting" ? "disabled" : ""}>الانضمام إلى الغرفة</button>
+        <button class="online-primary-button" type="submit" ${room.status !== "waiting" || room.joinLocked ? "disabled" : ""}>${room.joinLockedReason === "full" ? "اكتمل عدد اللاعبين" : room.status !== "waiting" || room.joinLocked ? "الغرفة مغلقة" : "الانضمام إلى الغرفة"}</button>
       </form>
     </div>
   `, "تسجيل المتسابق");
@@ -740,7 +751,7 @@ function renderJoinRoom({ app, onBack, code }) {
   document.querySelector("#playerJoinForm")?.addEventListener("submit", async event => {
     event.preventDefault();
     const current = readRoom(code);
-    if (!current || current.status !== "waiting") return showErrorToast("الغرفة مغلقة الآن.", "تعذر الانضمام");
+    if (!current || current.status !== "waiting" || current.joinLocked) return showErrorToast("الغرفة مغلقة الآن أمام انضمامات جديدة.", "تعذر الانضمام");
     if (current.players.length >= current.maxPlayers) return showErrorToast("اكتمل عدد اللاعبين.", "الغرفة ممتلئة");
     const name = document.querySelector("#playerNameInput").value.trim();
     if (current.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return showErrorToast("هذا الاسم مستخدم داخل الغرفة.", "اختر اسمًا آخر");
@@ -1067,9 +1078,10 @@ function renderHostLobby({ app, onBack, code }) {
       return;
     }
     const url = inviteUrl(code);
+    const broadcastUrl = liveViewUrl(code);
     app.innerHTML = pageShell(`
       <div class="host-dashboard">
-        <section class="host-room-hero"><div><span class="live-status"><i></i>${room.status === "waiting" ? "الغرفة مفتوحة" : "المباراة جارية"}</span><h2>${room.roomName}</h2><p>مدير اللعبة: ${room.hostName}</p></div><div class="host-room-code"><small>رمز الغرفة</small><strong>${room.code}</strong></div></section>
+        <section class="host-room-hero"><div><span class="live-status"><i></i>${room.status === "waiting" && !room.joinLocked ? "الغرفة مفتوحة" : room.status === "waiting" ? "الغرفة مغلقة" : "المباراة جارية"}</span><h2>${room.roomName}</h2><p>مدير اللعبة: ${room.hostName}</p></div><div class="host-room-code"><small>رمز الغرفة</small><strong>${room.code}</strong></div></section>
         <section class="invite-panel"><div><small>رابط دعوة المتسابقين</small><input id="inviteLinkInput" readonly value="${url}" /></div><button id="copyInviteButton" class="online-secondary-button">نسخ الرابط</button><button id="shareInviteButton" class="online-primary-button">مشاركة</button></section>
         <div class="dashboard-grid">
           <section class="players-panel"><div class="panel-title"><div><h3>المتسابقون</h3><p>يظهر كل لاعب فور انضمامه</p></div><strong>${room.players.length} / ${room.maxPlayers}</strong></div><div class="online-players-list">${room.players.length ? room.players.map(p => playerCard(p, room.status === "waiting")).join("") : `<div class="online-empty small"><div>👥</div><h3>بانتظار المتسابقين</h3><p>شارك الرابط ليبدأ اللاعبون بالانضمام.</p></div>`}</div></section>
@@ -1080,7 +1092,10 @@ function renderHostLobby({ app, onBack, code }) {
             ${room.status === "waiting" ? `
               <button id="startOnlineGame" class="online-primary-button large" ${room.players.length < 4 ? "disabled" : ""}>▶ بدء اللعبة</button>
             ` : ""}
-            <button id="openLiveView" class="online-secondary-button">📡 شاشة البث المباشر</button>
+            <div class="live-share-row">
+              <button id="openLiveView" class="online-secondary-button" type="button">📡 شاشة البث المباشر</button>
+              <button id="shareLiveView" class="online-secondary-button live-share-button" type="button">🔗 مشاركة رابط البث</button>
+            </div>
             ${room.status === "playing" && room.phase === "role-reveal" ? renderHostRoleRevealCountdown(room) : ""}
             ${renderHostNightControls(room)}
             ${room.status === "playing" && room.phase === "day" ? `
@@ -1155,7 +1170,25 @@ function renderHostLobby({ app, onBack, code }) {
         showSuccessToast("تم توزيع الأدوار وإرسالها للاعبين.", "بدأت المباراة");
       } catch { showErrorToast("تعذر بدء المباراة.", "خطأ في الخادم"); }
     });
-    document.querySelector("#openLiveView")?.addEventListener("click", () => window.open(`${location.pathname}?live=${code}`, "_blank"));
+    document.querySelector("#openLiveView")?.addEventListener("click", () => window.open(broadcastUrl, "_blank"));
+    document.querySelector("#shareLiveView")?.addEventListener("click", async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: `البث المباشر - ${room.roomName}`,
+            text: "تابع أحداث مباراة مافيا مباشرة",
+            url: broadcastUrl,
+          });
+          return;
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+      }
+
+      const copied = await copyTextToClipboard(broadcastUrl);
+      if (copied) showSuccessToast("تم نسخ رابط البث المباشر.", "الرابط جاهز");
+      else showErrorToast("تعذر نسخ رابط البث المباشر.", "تعذر تنفيذ الطلب");
+    });
 
     bindHostRoleRevealCountdown(code, room);
 

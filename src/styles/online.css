@@ -687,3 +687,24 @@
   .assassination-knife{font-size:44px;right:14px;top:16px}
   .assassination-portrait-frame{width:min(195px,58vw)}
 }
+
+
+/* مشاركة صفحة البث المباشر. لا تؤثر على منطق الغرف أو مزامنة اللاعبين. */
+.live-share-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.live-share-row > button {
+  width: 100%;
+  min-width: 0;
+}
+.live-share-button {
+  border-color: rgba(67, 219, 178, 0.36);
+}
+@media (max-width: 620px) {
+  .live-share-row {
+    grid-template-columns: 1fr;
+  }
+}
