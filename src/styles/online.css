@@ -708,3 +708,84 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Broadcast visual polish, presentation-only. No game logic selectors are overridden. ===== */
+.night-events-stack{display:grid;gap:16px}
+.night-event-card{position:relative;overflow:hidden;display:grid;grid-template-columns:92px 1fr 74px;align-items:center;gap:20px;padding:24px 26px;border-radius:24px;border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 55px rgba(0,0,0,.26);text-align:right;isolation:isolate}
+.night-event-card::before{content:"";position:absolute;inset:-35%;z-index:-1;opacity:.42;filter:blur(42px)}
+.night-event-card__body small{display:block;font-size:12px;font-weight:800;letter-spacing:.7px;margin-bottom:5px}
+.night-event-card__body h2{margin:0 0 7px;font-size:clamp(32px,5vw,52px);line-height:1.05}
+.night-event-card__body h3{margin:0 0 6px;font-size:20px}
+.night-event-card__body p{margin:0;line-height:1.75;font-size:14px}
+.night-event-card__badge{width:70px;height:70px;display:grid;place-items:center;border-radius:22px;font-size:34px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);box-shadow:inset 0 0 24px rgba(255,255,255,.04)}
+.night-event-card--rescue{background:linear-gradient(135deg,rgba(6,53,36,.96),rgba(8,25,24,.96));border-color:rgba(67,239,158,.34);box-shadow:0 18px 60px rgba(16,214,128,.13)}
+.night-event-card--rescue::before{background:radial-gradient(circle,#20e790 0,transparent 60%)}
+.night-event-card--rescue .night-event-card__body small,.night-event-card--rescue .night-event-card__body h2{color:#65f4ae}
+.night-event-card--rescue .night-event-card__body p{color:#c1e7d3}
+.night-event-card__pulse{width:88px;height:88px;position:relative;display:grid;place-items:center;border-radius:50%;background:radial-gradient(circle,rgba(43,235,145,.2),rgba(43,235,145,.04) 65%,transparent 68%);border:1px solid rgba(84,255,177,.28);box-shadow:0 0 28px rgba(34,230,139,.18)}
+.night-event-card__pulse span{position:absolute;top:10px;right:16px;font-size:25px;color:#dffff0;font-weight:900}
+.night-event-card__pulse b{font-size:30px;color:#55f3a8;text-shadow:0 0 14px rgba(78,255,172,.55)}
+.night-event-card__pulse i{position:absolute;left:8px;right:8px;top:50%;height:2px;background:linear-gradient(90deg,transparent,#7dffba 12%,#7dffba 30%,transparent 31%,transparent 38%,#7dffba 39%,#7dffba 42%,transparent 43%,transparent 49%,#7dffba 50%,#7dffba 55%,transparent 56%,transparent 62%,#7dffba 63%,#7dffba 87%,transparent);filter:drop-shadow(0 0 5px #4ff1a1)}
+.night-event-card--pardon{background:linear-gradient(135deg,rgba(10,38,83,.97),rgba(8,18,44,.97));border-color:rgba(66,156,255,.36);box-shadow:0 18px 60px rgba(35,119,255,.13)}
+.night-event-card--pardon::before{background:radial-gradient(circle,#2185ff 0,transparent 62%)}
+.night-event-card--pardon .night-event-card__body small,.night-event-card--pardon .night-event-card__body h2{color:#6bb8ff}
+.night-event-card--pardon .night-event-card__body p{color:#c6dbf4}
+.night-event-card__scepter{width:88px;height:88px;display:grid;place-items:center;border-radius:26px;font-size:46px;color:#85c8ff;background:linear-gradient(145deg,rgba(71,159,255,.18),rgba(14,65,128,.08));border:1px solid rgba(104,183,255,.28);text-shadow:0 0 18px rgba(84,174,255,.55);transform:rotate(-10deg)}
+.night-event-card--pardon .night-event-card__badge{color:#8dccff;background:rgba(41,126,230,.14);border-color:rgba(102,183,255,.25)}
+.night-event-card--investigation{grid-template-columns:74px 1fr;background:linear-gradient(135deg,rgba(42,22,73,.8),rgba(20,16,38,.86));border-color:rgba(166,105,255,.2)}
+.night-event-card--investigation .night-event-card__body small{color:#b98cff}.night-event-card--investigation .night-event-card__body p{color:#b9b3c9}
+
+.live-dashboard{position:relative;isolation:isolate;min-height:72vh}
+.live-dashboard>*:not(.live-cinematic-bg){position:relative;z-index:2}
+.live-cinematic-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:.92}
+.live-cinematic-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,14,.2),rgba(4,6,14,.54) 44%,rgba(4,6,14,.82));backdrop-filter:blur(.2px)}
+.live-cinematic-bg--lobby{background:radial-gradient(circle at 20% 20%,rgba(112,65,232,.2),transparent 38%),linear-gradient(160deg,#080a13,#0b0c1b 55%,#06070e)}
+.live-cinematic-bg--night{background:radial-gradient(circle at 25% 25%,rgba(44,80,154,.28),transparent 26%),radial-gradient(circle at 70% 10%,rgba(84,49,153,.14),transparent 30%),linear-gradient(180deg,#02040c 0%,#071020 54%,#02050a 100%)}
+.live-realistic-moon{position:absolute;width:min(38vw,460px);aspect-ratio:1;left:4vw;top:8vh;border-radius:50%;background:radial-gradient(circle at 37% 32%,#fff 0 4%,#d9e1e7 5% 15%,#9aa8b4 16% 18%,#d9dfe2 19% 27%,#9ba8b0 28% 31%,#e2e7e8 32% 49%,#adb6ba 50% 52%,#e3e5e4 53% 100%);box-shadow:0 0 32px rgba(215,232,255,.55),0 0 120px rgba(123,163,231,.28);filter:saturate(.75) contrast(1.08)}
+.live-realistic-moon::before,.live-realistic-moon::after{content:"";position:absolute;border-radius:50%;background:rgba(92,104,110,.22);box-shadow:34px 12px 0 8px rgba(91,104,112,.14),-18px 46px 0 2px rgba(91,104,112,.18),42px 70px 0 11px rgba(91,104,112,.11)}
+.live-realistic-moon::before{width:18%;height:18%;left:18%;top:22%}.live-realistic-moon::after{width:11%;height:11%;right:22%;top:37%}
+.live-night-horizon{position:absolute;left:0;right:0;bottom:0;height:29vh;background:linear-gradient(to top,#010205,rgba(1,2,5,.95) 42%,transparent)}
+.live-night-horizon i{position:absolute;bottom:0;width:7vw;height:14vh;background:#010205;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.live-night-horizon i:nth-child(1){left:2%;height:17vh}.live-night-horizon i:nth-child(2){left:12%;height:21vh}.live-night-horizon i:nth-child(3){left:25%;height:14vh}.live-night-horizon i:nth-child(4){left:38%;height:19vh}.live-night-horizon i:nth-child(5){left:52%;height:15vh}
+
+.live-cinematic-bg--day{background:linear-gradient(180deg,#6eaad0 0%,#d9b47b 45%,#65442d 76%,#162017 100%)}
+.live-sunrise-sun{position:absolute;width:min(30vw,390px);aspect-ratio:1;left:7vw;top:15vh;border-radius:50%;background:radial-gradient(circle,#fffbd8 0 8%,#ffd86d 32%,#ff9f44 63%,rgba(255,132,46,.22) 68%,transparent 72%);box-shadow:0 0 100px rgba(255,173,69,.6),0 0 220px rgba(255,155,44,.28)}
+.live-day-hills{position:absolute;left:-5%;right:-5%;bottom:0;height:38vh;background:linear-gradient(180deg,#5b7948,#1d321e);clip-path:polygon(0 63%,10% 44%,21% 57%,34% 31%,47% 58%,62% 36%,77% 54%,89% 32%,100% 51%,100% 100%,0 100%)}
+.live-day-trees i{position:absolute;bottom:8vh;width:70px;height:180px;background:#142416;clip-path:polygon(45% 0,58% 31%,76% 20%,70% 43%,94% 47%,72% 58%,88% 75%,59% 70%,55% 100%,44% 100%,41% 70%,10% 77%,28% 58%,5% 48%,31% 43%,22% 22%,43% 31%)}
+.live-day-trees i:nth-child(1){left:4%;transform:scale(.85)}.live-day-trees i:nth-child(2){left:17%;transform:scale(1.1)}.live-day-trees i:nth-child(3){left:33%;transform:scale(.7)}.live-day-trees i:nth-child(4){left:49%;transform:scale(.95)}
+.live-rooster-silhouette{position:absolute;left:38vw;bottom:10vh;font-size:82px;filter:grayscale(1) brightness(.22);transform:scaleX(-1);opacity:.75}
+
+.live-cinematic-bg--voting{background:radial-gradient(circle at 50% 28%,rgba(80,71,107,.28),transparent 30%),linear-gradient(180deg,#0b0b12,#15131b 55%,#050508)}
+.live-voting-crowd{position:absolute;left:2vw;right:43vw;bottom:12vh;height:43vh;display:flex;align-items:flex-end;justify-content:space-around;gap:2vw}
+.live-voting-crowd i{position:relative;width:72px;height:210px;opacity:calc(.42 + (var(--person) * .045));filter:drop-shadow(0 18px 25px rgba(0,0,0,.55))}
+.live-voting-crowd i b{position:absolute;left:18px;top:0;width:42px;height:42px;border-radius:50%;background:#050507}
+.live-voting-crowd i span{position:absolute;left:2px;right:2px;top:37px;bottom:0;border-radius:35px 35px 10px 10px;background:linear-gradient(#09090d,#030304);clip-path:polygon(25% 0,75% 0,100% 100%,0 100%)}
+.live-ballot-box{position:absolute;left:19vw;bottom:7vh;width:210px;height:140px;border-radius:10px 10px 18px 18px;background:linear-gradient(145deg,#4a3a2d,#231b16);border:5px solid #0b0a09;box-shadow:0 24px 65px rgba(0,0,0,.55);display:grid;place-items:center;color:#e4d7c7;font-size:27px;font-weight:900}
+.live-ballot-box::before{content:"";position:absolute;width:88px;height:8px;top:18px;background:#080706;border-radius:8px}.live-ballot-box span{position:absolute;width:60px;height:82px;top:-47px;background:linear-gradient(#e8e4db,#aaa49a);transform:rotate(4deg);border-radius:3px;box-shadow:0 6px 10px rgba(0,0,0,.3)}
+
+.live-broadcast-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,330px);grid-template-areas:"main rail";gap:22px;align-items:start;direction:ltr}
+.live-broadcast-main{grid-area:main;display:grid;gap:20px;direction:rtl;min-width:0}
+.live-participants-rail{grid-area:rail;position:sticky;top:18px;direction:rtl;border:1px solid rgba(255,255,255,.13);border-radius:28px;background:rgba(8,10,18,.72);backdrop-filter:blur(22px);box-shadow:0 24px 70px rgba(0,0,0,.32);padding:18px;max-height:calc(100vh - 36px);overflow:hidden;display:flex;flex-direction:column}
+.live-participants-rail__heading{display:grid;grid-template-columns:1fr auto;gap:3px 10px;align-items:end;padding:6px 4px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.live-participants-rail__heading small{grid-column:1/-1;color:#6debb8;font-size:11px}.live-participants-rail__heading h3{margin:0;font-size:22px}.live-participants-rail__heading span{font-size:12px;color:#9da3b4}
+.live-participants-list{display:flex;flex-direction:column;gap:9px;padding-top:13px;overflow:auto;scrollbar-width:thin}
+.live-participant{display:grid;grid-template-columns:46px minmax(0,1fr) 11px;gap:10px;align-items:center;padding:9px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(255,255,255,.045);transition:opacity .25s ease,filter .25s ease,transform .25s ease,border-color .25s ease}
+.live-participant__avatar{width:46px;height:46px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.13)}.live-participant__avatar img{width:100%;height:100%;object-fit:cover}
+.live-participant__info{min-width:0;display:grid;gap:4px}.live-participant__info strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.live-participant__info span{font-size:10px;color:#aab0be;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-participant__life-dot{width:10px;height:10px;border-radius:50%;background:#34df9b;box-shadow:0 0 13px rgba(52,223,155,.85)}
+.live-participant.is-out{opacity:.42;filter:grayscale(.9);order:99;background:rgba(84,22,30,.15);border-color:rgba(255,76,91,.13)}.live-participant.is-out .live-participant__life-dot{background:#ff4d5f;box-shadow:0 0 13px rgba(255,77,95,.7)}.live-participant.is-out .live-participant__avatar{position:relative}
+.live-events-panel{background:rgba(11,13,22,.78)}
+.live-dashboard .live-hero,.live-dashboard .live-stats,.live-dashboard .live-player-section,.live-dashboard .online-night-summary,.live-dashboard .online-day-timer,.live-dashboard .online-voting-status,.live-dashboard .online-voting-result,.live-dashboard .night-event-card,.live-dashboard .assassination-scene{backdrop-filter:blur(18px)}
+
+@media(max-width:920px){
+  .live-broadcast-layout{grid-template-columns:1fr;grid-template-areas:"rail" "main";direction:rtl}
+  .live-participants-rail{position:relative;top:auto;max-height:none}
+  .live-participants-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .live-realistic-moon,.live-sunrise-sun{width:66vw;left:-13vw;opacity:.75}
+  .live-voting-crowd{right:12vw;left:-5vw;opacity:.55}.live-ballot-box{left:8vw;transform:scale(.8)}
+}
+@media(max-width:620px){
+  .night-event-card{grid-template-columns:70px 1fr;padding:20px 16px;gap:14px}.night-event-card__badge{display:none}.night-event-card__pulse,.night-event-card__scepter{width:68px;height:68px}.night-event-card__body h2{font-size:34px}
+  .live-participants-list{grid-template-columns:1fr}.live-participant{grid-template-columns:50px 1fr 11px}.live-participant__avatar{width:50px;height:50px}
+  .live-realistic-moon{top:14vh}.live-rooster-silhouette{left:18vw}.live-day-trees i{opacity:.55}
+}

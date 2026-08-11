@@ -304,12 +304,16 @@ export function finishNight(room) {
     victim.alive = false;
   }
 
+  const kingPardonPlayer = kingTargetId ? room.players.find(player => player.id === kingTargetId) || null : null;
+
   room.daySummary = {
     outcome,
     victimId: victim?.id || null,
     victimName: victim?.name || null,
     nurseSavedVictim: wasSaved,
     kingPardonGranted: Boolean(kingTargetId),
+    kingPardonPlayerId: kingPardonPlayer?.id || null,
+    kingPardonPlayerName: kingPardonPlayer?.name || null,
     investigatorCompleted: room.players.some(player => player.alive && player.role === "investigator")
       ? room.players.filter(player => player.alive && player.role === "investigator").every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]))
       : false,

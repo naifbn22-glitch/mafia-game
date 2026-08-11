@@ -1060,42 +1060,78 @@ function renderAssassinationScene({ name, avatar }) {
   `;
 }
 
+function renderNurseRescueCard(summary) {
+  const savedName = summary?.victimName || "أحد اللاعبين";
+  return `
+    <section class="night-event-card night-event-card--rescue" aria-label="تم إنقاذ اللاعب">
+      <div class="night-event-card__pulse" aria-hidden="true"><span>＋</span><i></i><b>♥</b></div>
+      <div class="night-event-card__body">
+        <small>استجابة إسعافية ناجحة</small>
+        <h2>${savedName}</h2>
+        <p>تم إنقاذه من هجوم اللصوص وعاد إلى اللعبة.</p>
+      </div>
+      <div class="night-event-card__badge" aria-hidden="true">🚑</div>
+    </section>
+  `;
+}
+
+function renderRoyalPardonCard(summary) {
+  if (!summary?.kingPardonGranted) return "";
+  const pardonedName = summary?.kingPardonPlayerName || "أحد اللاعبين";
+  return `
+    <section class="night-event-card night-event-card--pardon" aria-label="تم منح العفو الملكي">
+      <div class="night-event-card__scepter" aria-hidden="true">♔</div>
+      <div class="night-event-card__body">
+        <small>وسام العفو الملكي</small>
+        <h2>${pardonedName}</h2>
+        <p>حصل على وسام عفو ملكي لهذه الجولة.</p>
+      </div>
+      <div class="night-event-card__badge night-event-card__badge--scepter" aria-hidden="true">⚜</div>
+    </section>
+  `;
+}
+
 function renderOnlineNightSummary(room) {
   const summary = room?.daySummary;
   if (!summary) return "";
-  let main = "مرّت الليلة دون خروج أي لاعب.";
-  let icon = "🌅";
+  const pardonCard = renderRoyalPardonCard(summary);
+
   if (summary.outcome === "saved") {
-    icon = "🛡️";
-    main = `نجحت الممرضة في حماية ${summary.victimName || "هدف اللصوص"}، ولم يخرج أحد هذه الليلة.`;
-  } else if (summary.outcome === "eliminated") {
-    const victim = (room.players || []).find(player => player.id === summary.victimId) || null;
     return `
-      ${renderAssassinationScene({
-        name: summary.victimName || victim?.name || "أحد اللاعبين",
-        avatar: victim?.avatar || "",
-      })}
-      <section class="online-night-summary online-night-summary--after-assassination">
-        <div class="online-night-summary-icon">🕯️</div>
-        <div>
-          <small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small>
-          <h3>خرج ${summary.victimName || victim?.name || "أحد اللاعبين"} من اللعبة خلال الليل، دون كشف دوره.</h3>
-          <p>${summary.kingPardonGranted ? "👑 تم منح وسام عفو ملكي لأحد اللاعبين لهذه الجولة." : "👑 لم يتم منح وسام عفو ملكي في هذه الجولة."}</p>
-          ${summary.investigatorCompleted ? "<p>🕵️ أكمل المحقق تحقيقه بسرية.</p>" : ""}
-        </div>
-      </section>
+      <div class="night-events-stack">
+        ${renderNurseRescueCard(summary)}
+        ${pardonCard}
+        ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
+      </div>
     `;
   }
-  return `
-    <section class="online-night-summary">
-      <div class="online-night-summary-icon">${icon}</div>
-      <div>
-        <small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small>
-        <h3>${main}</h3>
-        <p>${summary.kingPardonGranted ? "👑 تم منح وسام عفو ملكي لأحد اللاعبين لهذه الجولة." : "👑 لم يتم منح وسام عفو ملكي في هذه الجولة."}</p>
-        ${summary.investigatorCompleted ? "<p>🕵️ أكمل المحقق تحقيقه بسرية.</p>" : ""}
+
+  if (summary.outcome === "eliminated") {
+    const victim = (room.players || []).find(player => player.id === summary.victimId) || null;
+    return `
+      <div class="night-events-stack">
+        ${renderAssassinationScene({
+          name: summary.victimName || victim?.name || "أحد اللاعبين",
+          avatar: victim?.avatar || "",
+        })}
+        ${pardonCard}
+        ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
       </div>
-    </section>
+    `;
+  }
+
+  return `
+    <div class="night-events-stack">
+      <section class="online-night-summary">
+        <div class="online-night-summary-icon">🌅</div>
+        <div>
+          <small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small>
+          <h3>مرّت الليلة دون خروج أي لاعب.</h3>
+        </div>
+      </section>
+      ${pardonCard}
+      ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
+    </div>
   `;
 }
 
@@ -1978,6 +2014,68 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
   startRoomViewSync({ code, mode: "player", playerId, draw, intervalMs: 700 });
 }
 
+
+function getLiveVisualPhase(room) {
+  if (room?.phase === "eyes-closed" || room?.phase === "night-role") return "night";
+  if (room?.phase === "voting" || room?.phase === "voting-result") return "voting";
+  if (room?.phase === "day") return "day";
+  return "lobby";
+}
+
+function renderLiveCinematicBackdrop(room) {
+  const visualPhase = getLiveVisualPhase(room);
+  if (visualPhase === "night") {
+    return `
+      <div class="live-cinematic-bg live-cinematic-bg--night" aria-hidden="true">
+        <div class="live-realistic-moon"></div>
+        <div class="live-night-horizon"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>`;
+  }
+  if (visualPhase === "day") {
+    return `
+      <div class="live-cinematic-bg live-cinematic-bg--day" aria-hidden="true">
+        <div class="live-sunrise-sun"></div>
+        <div class="live-day-hills"></div>
+        <div class="live-day-trees"><i></i><i></i><i></i><i></i></div>
+        <div class="live-rooster-silhouette">♞</div>
+      </div>`;
+  }
+  if (visualPhase === "voting") {
+    return `
+      <div class="live-cinematic-bg live-cinematic-bg--voting" aria-hidden="true">
+        <div class="live-voting-crowd">${Array.from({ length: 7 }, (_, index) => `<i style="--person:${index}"><b></b><span></span></i>`).join("")}</div>
+        <div class="live-ballot-box"><strong>التصويت</strong><span></span></div>
+      </div>`;
+  }
+  return `<div class="live-cinematic-bg live-cinematic-bg--lobby" aria-hidden="true"></div>`;
+}
+
+function renderLiveParticipantsRail(room) {
+  const players = Array.isArray(room?.players) ? room.players : [];
+  const ordered = [...players.filter(player => player.alive), ...players.filter(player => !player.alive)];
+  return `
+    <aside class="live-participants-rail" aria-label="حالة المتسابقين">
+      <div class="live-participants-rail__heading">
+        <small>الحالة المباشرة</small>
+        <h3>المتسابقون</h3>
+        <span>${players.filter(player => player.alive).length} أحياء</span>
+      </div>
+      <div class="live-participants-list">
+        ${ordered.map((player, index) => `
+          <article class="live-participant ${player.alive ? "is-alive" : "is-out"}" style="--player-order:${index}">
+            <div class="live-participant__avatar"><img src="${player.avatar}" alt="${player.name}" /></div>
+            <div class="live-participant__info">
+              <strong>${player.name}</strong>
+              <span>${player.roleKnown ? "✓ تمت معرفة الدور" : "⌛ لم تتم معرفة الدور"}</span>
+            </div>
+            <i class="live-participant__life-dot" title="${player.alive ? "داخل اللعبة" : "خرج من اللعبة"}"></i>
+          </article>
+        `).join("")}
+      </div>
+    </aside>
+  `;
+}
+
 export function openLiveRoom({ app, onBack, code }) {
   subscribeRoom(code, "public");
   const draw = () => {
@@ -1986,19 +2084,25 @@ export function openLiveRoom({ app, onBack, code }) {
       fetchRoomFromServer(code).then(foundRoom => foundRoom && draw());
       return;
     }
-    const alive = room.players.filter(p=>p.alive); const out = room.players.filter(p=>!p.alive);
+    const alive = room.players.filter(player => player.alive);
+    const out = room.players.filter(player => !player.alive);
     const phaseText = room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.phase === "day" ? "☀️ استيقظوا جميعًا، بدأت مرحلة النهار" : room.phase === "voting" ? "🗳️ التصويت جارٍ الآن" : room.phase === "voting-result" ? "📊 ظهرت نتيجة التصويت" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية";
+    const visualPhase = getLiveVisualPhase(room);
     app.innerHTML = pageShell(`
-      <div class="live-dashboard">
-        <section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${phaseText}</p></section>
-        <div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div>
-        ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
-        ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
-        ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
-        ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : ""}
-        <section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>
-        ${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}
-        <section class="live-player-section"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section>
+      <div class="live-dashboard live-dashboard--${visualPhase}">
+        ${renderLiveCinematicBackdrop(room)}
+        <div class="live-broadcast-layout">
+          ${renderLiveParticipantsRail(room)}
+          <main class="live-broadcast-main">
+            <section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${phaseText}</p></section>
+            <div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(player => player.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div>
+            ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
+            ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
+            ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
+            ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : ""}
+            <section class="live-player-section live-events-panel"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section>
+          </main>
+        </div>
       </div>`, "مركز المباراة المباشر");
     attachBack(onBack);
   };
