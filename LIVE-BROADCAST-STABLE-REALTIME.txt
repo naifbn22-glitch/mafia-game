@@ -1,0 +1,1 @@
+Stable DOM patch added for live broadcast realtime updates. Realtime sync remains active; existing DOM nodes are updated in place instead of rebuilding the full page.

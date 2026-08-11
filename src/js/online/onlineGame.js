@@ -442,7 +442,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
         const room = await fetchRoomFromServer(normalizedCode, mode, playerId);
         // نتيجة الخادم هي المرجع النهائي. نجبر الرسم بعد كل مزامنة ناجحة،
         // بدون إعادة تحميل الصفحة أو تغيير مسار الغرفة.
-        if (room) redrawIfNeeded(room, true);
+        if (room) redrawIfNeeded(room);
       } finally {
         requestInFlight = false;
       }
@@ -2139,6 +2139,48 @@ function renderLiveParticipantsRail(room) {
   `;
 }
 
+
+function patchStableLiveDom(target, html) {
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  const nextRoot = template.content.firstElementChild;
+  const currentRoot = target.firstElementChild;
+
+  if (!currentRoot || !nextRoot || currentRoot.tagName !== nextRoot.tagName) {
+    target.innerHTML = html;
+    return;
+  }
+
+  const syncNode = (current, next) => {
+    if (!current || !next) return;
+    if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
+      current.replaceWith(next.cloneNode(true));
+      return;
+    }
+    if (current.nodeType === Node.TEXT_NODE) {
+      if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+      return;
+    }
+    if (current.nodeType !== Node.ELEMENT_NODE) return;
+
+    for (const attr of [...current.attributes]) {
+      if (!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+    }
+    for (const attr of [...next.attributes]) {
+      if (current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+    }
+
+    const currentChildren = [...current.childNodes];
+    const nextChildren = [...next.childNodes];
+    const common = Math.min(currentChildren.length, nextChildren.length);
+    for (let i = 0; i < common; i += 1) syncNode(currentChildren[i], nextChildren[i]);
+    for (let i = currentChildren.length - 1; i >= nextChildren.length; i -= 1) currentChildren[i].remove();
+    for (let i = currentChildren.length; i < nextChildren.length; i += 1) current.appendChild(nextChildren[i].cloneNode(true));
+  };
+
+  syncNode(currentRoot, nextRoot);
+}
+
 export function openLiveRoom({ app, onBack, code }) {
   subscribeRoom(code, "public");
   const draw = () => {
@@ -2151,7 +2193,7 @@ export function openLiveRoom({ app, onBack, code }) {
     const out = room.players.filter(player => !player.alive);
     const phaseText = room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.phase === "day" ? "☀️ استيقظوا جميعًا، بدأت مرحلة النهار" : room.phase === "voting" ? "🗳️ التصويت جارٍ الآن" : room.phase === "voting-result" ? "📊 ظهرت نتيجة التصويت" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية";
     const visualPhase = getLiveVisualPhase(room);
-    app.innerHTML = pageShell(`
+    const liveMarkup = pageShell(`
       <div class="live-dashboard live-dashboard--${visualPhase}">
         ${renderLiveCinematicBackdrop(room)}
         <div class="live-broadcast-layout">
@@ -2167,6 +2209,7 @@ export function openLiveRoom({ app, onBack, code }) {
           </main>
         </div>
       </div>`, "مركز المباراة المباشر");
+    patchStableLiveDom(app, liveMarkup);
     attachBack(onBack);
   };
   draw();
