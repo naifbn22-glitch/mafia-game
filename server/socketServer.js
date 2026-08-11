@@ -2,9 +2,9 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import {
-  addTimeline, beginEyesClosed, confirmNightAction, createRoom, finishNight, hostProjection, joinPlayer,
+  addTimeline, beginEyesClosed, beginNextNight, castVote, confirmNightAction, createRoom, finishNight, hostProjection, joinPlayer,
   markRoleKnown, normalizeRoomCode, playerProjection, publicProjection, requireHost, requirePlayer,
-  selectNightTarget, skipKingPardon, startGame, touch, wakeRole,
+  selectNightTarget, skipKingPardon, startGame, startVoting, touch, wakeRole,
 } from "./gameEngine.js";
 
 const safeError = error => ({ ok: false, error: error?.message || "SERVER_ERROR" });
@@ -117,6 +117,8 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "eyes-closed") beginEyesClosed(room);
         else if (action === "wake-role") wakeRole(room, payload.role);
         else if (action === "finish-night") finishNight(room);
+        else if (action === "start-voting") startVoting(room);
+        else if (action === "next-night") beginNextNight(room);
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room); await emitRoom(room);
         ack({ ok: true, room: hostProjection(room) });
@@ -132,6 +134,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "select-night-target") selectNightTarget(room, player, payload.targetId);
         else if (action === "skip-king-pardon") skipKingPardon(room, player);
         else if (action === "confirm-night-action") confirmNightAction(room, player);
+        else if (action === "cast-vote") castVote(room, player, payload.targetId);
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room); await emitRoom(room);
         ack({ ok: true, room: playerProjection(room, player) });

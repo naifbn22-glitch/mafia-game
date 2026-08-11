@@ -50,7 +50,7 @@ export function newNightActions() {
   };
 }
 
-export function createRoom({ hostName, roomName, maxPlayers }) {
+export function createRoom({ hostName, roomName, maxPlayers, discussionDurationSeconds }) {
   const now = Date.now();
   return {
     id: randomId("room"),
@@ -58,6 +58,7 @@ export function createRoom({ hostName, roomName, maxPlayers }) {
     roomName: String(roomName || "").trim().slice(0, 32),
     hostName: String(hostName || "").trim().slice(0, 24),
     maxPlayers: Math.min(22, Math.max(4, Number(maxPlayers) || 10)),
+    discussionDurationSeconds: Math.min(300, Math.max(30, Number(discussionDurationSeconds) || 60)),
     status: "waiting",
     phase: "lobby",
     activeRole: null,
@@ -73,6 +74,15 @@ export function createRoom({ hostName, roomName, maxPlayers }) {
     roleRevealStartedAt: null,
     roleRevealEndsAt: null,
     timerEndsAt: null,
+    dayStartedAt: null,
+    dayEndsAt: null,
+    daySummary: null,
+    votes: {},
+    votingStartedAt: null,
+    votingResult: null,
+    currentPardonPlayerId: null,
+    roundNumber: 1,
+    winner: null,
     completedSteps: [],
   };
 }
@@ -141,7 +151,16 @@ export function startGame(room) {
   room.roleRevealStartedAt = Date.now();
   room.roleRevealEndsAt = Date.now() + 30_000;
   room.nightNumber = 0;
+  room.roundNumber = 1;
   room.nightActions = newNightActions();
+  room.dayStartedAt = null;
+  room.dayEndsAt = null;
+  room.daySummary = null;
+  room.votes = {};
+  room.votingStartedAt = null;
+  room.votingResult = null;
+  room.currentPardonPlayerId = null;
+  room.winner = null;
   addTimeline(room, { type: "game_started", publicText: "بدأت المباراة وتم توزيع الأدوار", hostText: "بدأت المباراة وتم توزيع الأدوار" });
   touch(room);
 }
@@ -227,23 +246,185 @@ export function canFinishNight(room) {
   return everyRequiredRoleWasWoken && everyRequiredActorConfirmed;
 }
 
+function resolveThiefVictimId(room) {
+  const votes = Object.values(room.nightActions?.thiefVotes || {}).filter(Boolean);
+  if (!votes.length) return null;
+  const counts = new Map();
+  for (const targetId of votes) counts.set(targetId, (counts.get(targetId) || 0) + 1);
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return null;
+  return ranked[0][0];
+}
+
+function checkWinner(room) {
+  const alive = room.players.filter(player => player.alive);
+  const thieves = alive.filter(player => player.role === "thief").length;
+  const citizens = alive.length - thieves;
+  if (thieves === 0) return "citizens";
+  if (thieves >= citizens) return "thieves";
+  return null;
+}
+
 export function finishNight(room) {
   if (!canFinishNight(room)) throw new Error("NIGHT_NOT_COMPLETE");
+
+  const victimId = resolveThiefVictimId(room);
+  const victim = victimId ? room.players.find(player => player.id === victimId && player.alive) : null;
+  const nurseTargetId = room.nightActions?.nurseTargetId || null;
+  const wasSaved = Boolean(victim && nurseTargetId && victim.id === nurseTargetId);
+  const kingTargetId = room.nightActions?.kingPardonFinalized && !room.nightActions?.kingSkipped
+    ? room.nightActions?.kingTargetId || null
+    : null;
+
+  room.currentPardonPlayerId = kingTargetId;
+  room.lastTargets = {
+    thief: victimId || null,
+    nurse: nurseTargetId || null,
+  };
+
+  let outcome = "peace";
+  if (victim && wasSaved) {
+    outcome = "saved";
+  } else if (victim) {
+    outcome = "eliminated";
+    victim.alive = false;
+  }
+
+  room.daySummary = {
+    outcome,
+    victimId: victim?.id || null,
+    victimName: victim?.name || null,
+    nurseSavedVictim: wasSaved,
+    kingPardonGranted: Boolean(kingTargetId),
+    investigatorCompleted: room.players.some(player => player.alive && player.role === "investigator")
+      ? room.players.filter(player => player.alive && player.role === "investigator").every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]))
+      : false,
+    nightNumber: room.nightNumber,
+  };
 
   room.phase = "day";
   room.activeRole = null;
   room.completedSteps ||= [];
-  if (!room.completedSteps.includes("night-complete")) {
-    room.completedSteps.push("night-complete");
-  }
+  if (!room.completedSteps.includes("night-complete")) room.completedSteps.push("night-complete");
+  room.dayStartedAt = Date.now();
+  room.dayEndsAt = room.dayStartedAt + Math.min(300, Math.max(30, Number(room.discussionDurationSeconds) || 60)) * 1000;
+  room.timerEndsAt = room.dayEndsAt;
+  room.votes = {};
+  room.votingStartedAt = null;
+  room.votingResult = null;
 
+  const nightText = outcome === "saved"
+    ? `نجحت الممرضة في حماية ${victim.name} ولم يخرج أحد هذه الليلة`
+    : outcome === "eliminated"
+      ? `خرج ${victim.name} من اللعبة خلال الليل`
+      : "مرّت الليلة دون خروج أي لاعب";
+
+  addTimeline(room, {
+    type: "night_result",
+    publicText: nightText,
+    hostText: nightText,
+  });
   addTimeline(room, {
     type: "day_started",
     publicText: "استيقظوا جميعًا، بدأت مرحلة النهار",
     hostText: "اكتملت جميع مهام الليل وتم الانتقال إلى مرحلة النهار",
   });
 
+  room.winner = checkWinner(room);
   touch(room);
+}
+
+export function startVoting(room) {
+  if (room.status !== "playing" || room.phase !== "day" || room.winner) throw new Error("ACTION_NOT_ALLOWED");
+  if (Date.now() < Number(room.dayEndsAt || 0)) throw new Error("DAY_TIMER_ACTIVE");
+  room.phase = "voting";
+  room.votingStartedAt = Date.now();
+  room.votes = {};
+  room.votingResult = null;
+  addTimeline(room, {
+    type: "voting_started",
+    publicText: "بدأ التصويت السري",
+    hostText: "بدأ التصويت السري",
+  });
+  touch(room);
+}
+
+function calculateVotingResult(room) {
+  const counts = new Map();
+  for (const vote of Object.values(room.votes || {})) {
+    const targetId = vote?.targetId;
+    if (!targetId) continue;
+    counts.set(targetId, (counts.get(targetId) || 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return { outcome: "no-votes", highestVotes: 0, playerId: null, playerName: null };
+  const highestVotes = ranked[0][1];
+  const top = ranked.filter(([, count]) => count === highestVotes).map(([id]) => id);
+  if (top.length > 1) return { outcome: "tie", highestVotes, playerId: null, playerName: null };
+  if (top[0] === "abstain") return { outcome: "abstain", highestVotes, playerId: null, playerName: null };
+  const player = room.players.find(item => item.id === top[0] && item.alive);
+  if (!player) return { outcome: "no-votes", highestVotes, playerId: null, playerName: null };
+  if (room.currentPardonPlayerId === player.id) {
+    return { outcome: "pardoned", highestVotes, playerId: player.id, playerName: player.name };
+  }
+  return { outcome: "eliminated", highestVotes, playerId: player.id, playerName: player.name };
+}
+
+function resolveVoting(room) {
+  const result = calculateVotingResult(room);
+  if (result.outcome === "eliminated" && result.playerId) {
+    const player = room.players.find(item => item.id === result.playerId);
+    if (player) player.alive = false;
+  }
+  room.votingResult = { ...result, resolvedAt: Date.now() };
+  room.phase = "voting-result";
+  room.winner = checkWinner(room);
+  const text = result.outcome === "eliminated"
+    ? `خرج ${result.playerName} بعد حصوله على أعلى عدد من الأصوات`
+    : result.outcome === "pardoned"
+      ? `حصل ${result.playerName} على وسام عفو ملكي وبقي في اللعبة`
+      : result.outcome === "tie"
+        ? "تعادل التصويت ولم يخرج أحد"
+        : result.outcome === "abstain"
+          ? "حصل الامتناع على أعلى عدد من الأصوات ولم يخرج أحد"
+          : "انتهى التصويت دون خروج أي لاعب";
+  addTimeline(room, { type: "voting_result", publicText: text, hostText: text });
+  touch(room);
+}
+
+export function castVote(room, player, targetId) {
+  if (room.status !== "playing" || room.phase !== "voting" || !player.alive) throw new Error("ACTION_NOT_ALLOWED");
+  room.votes ||= {};
+  if (room.votes[player.id]) throw new Error("VOTE_ALREADY_CAST");
+  const normalizedTarget = targetId === "abstain" ? "abstain" : String(targetId || "");
+  if (normalizedTarget !== "abstain") {
+    const target = room.players.find(item => item.id === normalizedTarget && item.alive && item.id !== player.id);
+    if (!target) throw new Error("INVALID_TARGET");
+  }
+  room.votes[player.id] = { targetId: normalizedTarget, castAt: Date.now() };
+  addTimeline(room, {
+    type: "vote_cast",
+    playerId: player.id,
+    publicText: `${player.name} أدلى بصوته`,
+    hostText: `${player.name} أدلى بصوته`,
+  });
+  const alivePlayers = room.players.filter(item => item.alive);
+  if (alivePlayers.every(item => Boolean(room.votes[item.id]))) resolveVoting(room);
+  else touch(room);
+}
+
+export function beginNextNight(room) {
+  if (room.status !== "playing" || room.phase !== "voting-result" || room.winner) throw new Error("ACTION_NOT_ALLOWED");
+  room.roundNumber = Number(room.roundNumber || 1) + 1;
+  room.currentPardonPlayerId = null;
+  room.daySummary = null;
+  room.dayStartedAt = null;
+  room.dayEndsAt = null;
+  room.timerEndsAt = null;
+  room.votes = {};
+  room.votingStartedAt = null;
+  room.votingResult = null;
+  beginEyesClosed(room);
 }
 
 export function selectNightTarget(room, player, targetId) {
@@ -297,8 +478,11 @@ export function publicProjection(room) {
     _view: "public",
     code: room.code, roomName: room.roomName, hostName: room.hostName, maxPlayers: room.maxPlayers,
     status: room.status, phase: room.phase, activeRole: room.activeRole, createdAt: room.createdAt,
-    updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber,
+    updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber, roundNumber: room.roundNumber || 1,
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
+    discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,
+    daySummary: room.daySummary || null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult || null, winner: room.winner || null,
+    votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
     timeline: (room.timeline || []).map(e => ({ id: e.id, at: e.at, type: e.type, text: e.publicText })).filter(e => e.text),
   };
@@ -308,6 +492,9 @@ export function hostProjection(room) {
   const safe = structuredClone(room);
   safe._view = "host";
   safe.nightReady = canFinishNight(room);
+  safe.dayTimerFinished = room.phase === "day" && Date.now() >= Number(room.dayEndsAt || 0);
+  safe.votingStatus = { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length };
+  delete safe.votes;
   delete safe.hostToken;
   safe.players = safe.players.map(p => { delete p.sessionToken; return p; });
   safe.timeline = (room.timeline || []).map(e => ({ ...e, text: e.hostText || e.publicText })).filter(e => e.text);
@@ -331,6 +518,7 @@ export function playerProjection(room, player) {
     confirmedActors: isConfirmed(room, player.id) ? { [player.id]: room.nightActions.confirmedActors[player.id] } : {},
   };
   base.lastTargets = player.role === "thief" ? { thief: room.lastTargets?.thief || null } : player.role === "nurse" ? { nurse: room.lastTargets?.nurse || null } : {};
+  base.myVote = room.votes?.[player.id]?.targetId || null;
   if (player.role === "investigator" && isConfirmed(room, player.id)) {
     const targetId = room.nightActions.confirmedActors[player.id]?.targetId;
     const target = room.players.find(p => p.id === targetId);

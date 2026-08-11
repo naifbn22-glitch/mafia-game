@@ -154,8 +154,8 @@ async function fetchRoomFromServer(code, mode = "public", playerId = null) {
   }
 }
 
-async function createRoomOnServer(hostName, roomName, maxPlayers) {
-  const response = await emitAck("room:create", { hostName, roomName, maxPlayers });
+async function createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds) {
+  const response = await emitAck("room:create", { hostName, roomName, maxPlayers, discussionDurationSeconds });
   localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken }));
   cacheServerRoom(response.room);
   return response.room;
@@ -622,6 +622,7 @@ function renderCreateRoom({ app, onBack }) {
         <label>اسم مدير اللعبة<input id="hostNameInput" required maxlength="24" placeholder="مثال: نايف" /></label>
         <label>اسم الغرفة<input id="roomNameInput" required maxlength="32" placeholder="مثال: سهرة الجمعة" /></label>
         <label>الحد الأعلى للاعبين<select id="maxPlayersInput">${[6,7,8,9,10,12,14,16,18,20].map(n => `<option value="${n}" ${n===10?"selected":""}>${n} لاعبين</option>`).join("")}</select></label>
+        <label>مدة مرحلة النهار والنقاش<select id="discussionDurationInput">${[{v:30,l:"30 ثانية"},{v:60,l:"دقيقة واحدة"},{v:90,l:"دقيقة و30 ثانية"},{v:120,l:"دقيقتان"},{v:180,l:"3 دقائق"},{v:240,l:"4 دقائق"},{v:300,l:"5 دقائق"}].map(item => `<option value="${item.v}" ${item.v===60?"selected":""}>${item.l}</option>`).join("")}</select><small class="online-field-hint">يظهر المؤقت لجميع اللاعبين وفي شاشة البث المباشر بعد انتهاء الليل.</small></label>
         <button class="online-primary-button" type="submit">إنشاء الغرفة الخاصة</button>
       </form>
     </div>
@@ -632,9 +633,10 @@ function renderCreateRoom({ app, onBack }) {
     const hostName = document.querySelector("#hostNameInput").value.trim();
     const roomName = document.querySelector("#roomNameInput").value.trim();
     const maxPlayers = Number(document.querySelector("#maxPlayersInput").value);
+    const discussionDurationSeconds = Number(document.querySelector("#discussionDurationInput")?.value || 60);
     if (!hostName || !roomName) return showErrorToast("أكمل اسم المدير واسم الغرفة.", "بيانات ناقصة");
     try {
-      const room = await createRoomOnServer(hostName, roomName, maxPlayers);
+      const room = await createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds);
       history.replaceState({}, "", `?host=${room.code}`);
       showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
       renderHostLobby({ app, onBack, code: room.code });
@@ -891,6 +893,130 @@ function renderOnlineTimeline(room, limit = 8) {
   return `<div class="online-timeline">${items.map(item => `<article class="online-timeline-item"><span class="online-timeline-dot"></span><div><strong>${item.text || item.hostText || item.publicText || "تم تحديث المباراة"}</strong><small>${new Date(item.at || Date.now()).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div></article>`).join("")}</div>`;
 }
 
+
+function formatOnlineClock(totalSeconds) {
+  const safe = Math.max(0, Math.ceil(Number(totalSeconds) || 0));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getOnlineDayRemaining(room) {
+  return Math.max(0, Math.ceil((Number(room?.dayEndsAt || 0) - Date.now()) / 1000));
+}
+
+function renderOnlineDayTimer(room, { compact = false } = {}) {
+  const total = Math.max(30, Number(room?.discussionDurationSeconds || 60));
+  const remaining = getOnlineDayRemaining(room);
+  const percentage = Math.max(0, Math.min(100, (remaining / total) * 100));
+  const stateClass = remaining <= 5 ? "timer-danger" : remaining <= 15 ? "timer-warning" : "timer-normal";
+  return `
+    <section class="online-day-timer ${compact ? "is-compact" : ""}">
+      <div class="discussion-timer">
+        <div class="timer-progress-ring ${stateClass}" role="timer" aria-live="polite" style="--timer-progress:${percentage}%">
+          <div class="timer-content">
+            <span>الوقت المتبقي</span>
+            <strong>${formatOnlineClock(remaining)}</strong>
+            <small>${remaining > 0 ? "النقاش جارٍ الآن" : "انتهى وقت النقاش"}</small>
+          </div>
+        </div>
+      </div>
+      <div class="online-day-progress"><i style="width:${percentage}%"></i></div>
+    </section>
+  `;
+}
+
+function renderOnlineNightSummary(room) {
+  const summary = room?.daySummary;
+  if (!summary) return "";
+  let main = "مرّت الليلة دون خروج أي لاعب.";
+  let icon = "🌅";
+  if (summary.outcome === "saved") {
+    icon = "🛡️";
+    main = `نجحت الممرضة في حماية ${summary.victimName || "هدف اللصوص"}، ولم يخرج أحد هذه الليلة.`;
+  } else if (summary.outcome === "eliminated") {
+    icon = "🕯️";
+    main = `خرج ${summary.victimName || "أحد اللاعبين"} من اللعبة خلال الليل، دون كشف دوره.`;
+  }
+  return `
+    <section class="online-night-summary">
+      <div class="online-night-summary-icon">${icon}</div>
+      <div>
+        <small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small>
+        <h3>${main}</h3>
+        <p>${summary.kingPardonGranted ? "👑 تم منح وسام عفو ملكي لأحد اللاعبين لهذه الجولة." : "👑 لم يتم منح وسام عفو ملكي في هذه الجولة."}</p>
+        ${summary.investigatorCompleted ? "<p>🕵️ أكمل المحقق تحقيقه بسرية.</p>" : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderOnlineVotingStatus(room) {
+  const voted = new Set(room?.votingStatus?.votedPlayerIds || []);
+  const alive = (room?.players || []).filter(player => player.alive);
+  if (!alive.length) return "";
+  return `
+    <section class="online-voting-status">
+      <div class="online-voting-status-heading"><strong>🗳️ حالة التصويت</strong><span>${voted.size} / ${alive.length}</span></div>
+      <div class="online-voting-status-list">
+        ${alive.map(player => `
+          <div class="online-vote-status-player ${voted.has(player.id) ? "has-voted" : "waiting-vote"}">
+            <img src="${player.avatar}" alt="${player.name}" />
+            <span>${player.name}</span>
+            <b>${voted.has(player.id) ? "✅ قام بالتصويت" : "⌛ لم يصوت بعد"}</b>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderOnlineVotingResult(room) {
+  const result = room?.votingResult;
+  if (!result) return "";
+  let icon = "🗳️";
+  let title = "انتهى التصويت";
+  let description = "لم يخرج أي لاعب.";
+  if (result.outcome === "eliminated") {
+    icon = "🚪";
+    title = `خرج ${result.playerName}`;
+    description = `حصل على أعلى عدد من الأصوات (${result.highestVotes}) وخرج من اللعبة.`;
+  } else if (result.outcome === "pardoned") {
+    icon = "👑";
+    title = `${result.playerName} حصل على عفو ملكي`;
+    description = `حصل على أعلى عدد من الأصوات (${result.highestVotes})، لكن وسام العفو الملكي أبقاه في اللعبة.`;
+  } else if (result.outcome === "tie") {
+    icon = "⚖️";
+    title = "تعادل في الأصوات";
+    description = "تساوت أعلى الأصوات، لذلك لم يخرج أحد.";
+  } else if (result.outcome === "abstain") {
+    icon = "✋";
+    title = "الامتناع هو الأعلى";
+    description = "حصل الامتناع على أعلى عدد من الأصوات، لذلك لم يخرج أحد.";
+  }
+  return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small><h2>${title}</h2><p>${description}</p></section>`;
+}
+
+function renderHostNightControls(room) {
+  if (room.status !== "playing" || !["role-reveal", "eyes-closed", "night-role"].includes(room.phase)) return "";
+  const roles = ["thief", "nurse", "king", "investigator"];
+  const labels = { thief: "🗡️ استيقاظ اللصوص", nurse: "🏥 استيقاظ الممرضة", king: "👑 استيقاظ الملك", investigator: "🕵️ استيقاظ المحقق" };
+  const roleButtonsLocked = room.phase === "role-reveal";
+  const aliveRoles = new Set((room.players || []).filter(player => player.alive).map(player => player.role));
+  return `
+    <div class="role-control-grid">
+      ${roles.map(role => {
+        const absent = room.status === "playing" && room.players.some(player => player.role) && !aliveRoles.has(role);
+        return `<button class="role-wake-button ${room.activeRole === role ? "active" : ""} ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}" ${roleButtonsLocked || absent ? "disabled" : ""}>${labels[role]}${absent ? " · غير موجود" : ""}</button>`;
+      }).join("")}
+    </div>
+    <button id="finishOnlineNight" class="online-primary-button large finish-night-button ${room.nightReady ? "is-ready" : "is-locked"}" type="button" ${room.nightReady ? "" : "disabled"}>
+      ☀️ الانتقال إلى مرحلة النهار
+    </button>
+    <small class="finish-night-hint">${room.nightReady ? "اكتملت جميع مهام الليل. الزر جاهز للانتقال." : "يتفعّل تلقائيًا بعد تأكيد جميع أصحاب الأدوار الليلية لاختياراتهم."}</small>
+  `;
+}
+
 function renderHostLobby({ app, onBack, code }) {
   subscribeRoom(code, "host");
   const draw = () => {
@@ -918,26 +1044,22 @@ function renderHostLobby({ app, onBack, code }) {
             ` : ""}
             <button id="openLiveView" class="online-secondary-button">📡 شاشة البث المباشر</button>
             ${room.status === "playing" && room.phase === "role-reveal" ? renderHostRoleRevealCountdown(room) : ""}
-            ${room.status === "playing" && room.phase === "eyes-closed" ? `
-              <div class="role-control-grid">
-                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
-              </div>
-            ` : ""}
-            ${room.status === "playing" && room.phase === "night-role" ? `
-              <div class="role-control-grid">
-                ${["thief","nurse","king","investigator"].map(role => `<button class="role-wake-button ${room.activeRole === role ? "active" : ""} ${room.completedSteps?.includes(`wake-${role}`) ? "is-completed" : ""}" data-role="${role}">${({thief:"🗡️ استيقاظ اللصوص",nurse:"🏥 استيقاظ الممرضة",king:"👑 استيقاظ الملك",investigator:"🕵️ استيقاظ المحقق"})[role]}</button>`).join("")}
-              </div>
-              ${room.nightReady ? `
-                <button id="finishOnlineNight" class="online-primary-button large finish-night-button" type="button">
-                  ☀️ الانتقال إلى مرحلة النهار
-                </button>
-              ` : ""}
-            ` : ""}
+            ${renderHostNightControls(room)}
             ${room.status === "playing" && room.phase === "day" ? `
               <div class="day-stage-banner">
                 <strong>☀️ مرحلة النهار</strong>
                 <span>استيقظوا جميعًا، انتهت مهام الليل.</span>
               </div>
+              ${renderOnlineNightSummary(room)}
+              ${renderOnlineDayTimer(room, { compact: true })}
+              ${room.dayTimerFinished ? `
+                <button id="startOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ الانتقال إلى التصويت</button>
+              ` : `<small class="finish-night-hint">سيظهر زر الانتقال إلى التصويت تلقائيًا عند انتهاء المؤقت.</small>`}
+            ` : ""}
+            ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
+            ${room.status === "playing" && room.phase === "voting-result" ? `
+              ${renderOnlineVotingResult(room)}
+              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
             ` : ""}
             <section class="host-live-timeline"><h3>سجل الأحداث المباشر</h3>${renderOnlineTimeline(room, 10)}</section>
           </aside>
@@ -1015,6 +1137,22 @@ function renderHostLobby({ app, onBack, code }) {
         showSuccessToast("اكتملت مهام الليل وبدأت مرحلة النهار.", "☀️ استيقظوا جميعًا");
       } catch {
         showErrorToast("لا يمكن الانتقال للنهار قبل اكتمال جميع مهام الليل.", "المهام غير مكتملة");
+      }
+    });
+    document.querySelector("#startOnlineVoting")?.addEventListener("click", async () => {
+      try {
+        await hostCommand(code, "start-voting");
+        showSuccessToast("بدأ التصويت السري لجميع اللاعبين الأحياء.", "🗳️ بدأ التصويت");
+      } catch {
+        showErrorToast("لا يمكن بدء التصويت قبل انتهاء مؤقت النهار.", "المؤقت ما زال يعمل");
+      }
+    });
+    document.querySelector("#startNextOnlineNight")?.addEventListener("click", async () => {
+      try {
+        await hostCommand(code, "next-night");
+        showSuccessToast("بدأت ليلة جديدة.", "🌙 الجولة التالية");
+      } catch {
+        showErrorToast("تعذر بدء الليلة التالية.", "خطأ في الخادم");
       }
     });
   };
@@ -1499,7 +1637,35 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
       `;
     }
     else if (room.phase === "night-role") content = `<div class="eyes-closed-screen"><div>🌙</div><h2>أبقِ عينيك مغمضتين</h2><p>الدور الحالي سري. انتظر حتى يوقظكم المدير.</p></div>`;
-    else if (room.phase === "day") content = `<div class="eyes-closed-screen day-awake-screen"><div>☀️</div><h2>استيقظوا جميعًا</h2><p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p></div>`;
+    else if (room.phase === "day") content = `
+      <div class="online-day-player-screen">
+        <div class="day-awake-icon">☀️</div>
+        <h2>استيقظوا جميعًا</h2>
+        <p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p>
+        ${renderOnlineNightSummary(room)}
+        ${renderOnlineDayTimer(room)}
+        <small class="online-day-player-note">عند انتهاء الوقت سيبدأ المدير مرحلة التصويت.</small>
+      </div>`;
+    else if (room.phase === "voting") {
+      if (!player.alive) {
+        content = `<div class="eyes-closed-screen"><div>👁️</div><h2>تابع التصويت</h2><p>أنت خارج اللعبة، ويمكنك متابعة حالة التصويت من شاشة البث المباشر.</p></div>`;
+      } else if (room.myVote) {
+        content = `<div class="online-vote-confirmed-screen"><div>✅</div><h2>تم تسجيل تصويتك</h2><p>${room.myVote === "abstain" ? "اخترت الامتناع عن التصويت." : "تم حفظ اختيارك بصورة سرية."}</p><small>بانتظار بقية اللاعبين...</small></div>`;
+      } else {
+        const eligible = room.players.filter(item => item.alive && item.id !== player.id);
+        content = `
+          <div class="online-voting-player-screen">
+            <div class="online-voting-player-heading"><span>🗳️</span><div><small>تصويت سري</small><h2>من تعتقد أنه اللص؟</h2><p>اختر لاعبًا واحدًا أو امتنع عن التصويت. لا يمكنك التصويت لنفسك.</p></div></div>
+            <div class="online-vote-options">
+              ${eligible.map(item => `<button type="button" class="online-vote-option" data-online-vote-target="${item.id}"><img src="${item.avatar}" alt="${item.name}"/><strong>${item.name}</strong><small>اختيار هذا اللاعب</small></button>`).join("")}
+              <button type="button" class="online-vote-option abstain" data-online-vote-target="abstain"><span>✋</span><strong>الامتناع</strong><small>عدم اختيار أي لاعب</small></button>
+            </div>
+            <p id="onlineVoteSelectionMessage" class="night-choice-status">اختر خيارًا ثم أكد التصويت.</p>
+            <button id="confirmOnlineVote" class="online-primary-button large" type="button" disabled>تأكيد التصويت</button>
+          </div>`;
+      }
+    }
+    else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}${room.winner ? `<div class="online-player-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : `<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`}`;
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
@@ -1595,6 +1761,29 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           );
         }
       });
+    let selectedOnlineVoteTarget = null;
+    document.querySelectorAll("[data-online-vote-target]").forEach(button => {
+      button.addEventListener("click", () => {
+        selectedOnlineVoteTarget = button.dataset.onlineVoteTarget || null;
+        document.querySelectorAll("[data-online-vote-target]").forEach(item => item.classList.remove("selected"));
+        button.classList.add("selected");
+        const confirmVoteButton = document.querySelector("#confirmOnlineVote");
+        if (confirmVoteButton) confirmVoteButton.disabled = !selectedOnlineVoteTarget;
+        const message = document.querySelector("#onlineVoteSelectionMessage");
+        if (message) message.textContent = selectedOnlineVoteTarget === "abstain" ? "تم اختيار الامتناع. اضغط تأكيد التصويت." : "تم تحديد اللاعب. اضغط تأكيد التصويت.";
+      });
+    });
+    document.querySelector("#confirmOnlineVote")?.addEventListener("click", async event => {
+      if (!selectedOnlineVoteTarget) return;
+      event.currentTarget.disabled = true;
+      try {
+        await playerCommand(code, playerId, "cast-vote", { targetId: selectedOnlineVoteTarget });
+        showSuccessToast("تم تسجيل تصويتك بصورة سرية.", "تم التصويت");
+      } catch {
+        event.currentTarget.disabled = false;
+        showErrorToast("تعذر حفظ التصويت. حاول مرة أخرى.", "خطأ في التصويت");
+      }
+    });
     const card = document.querySelector("#onlineRoleCard");
     if (card && !card.classList.contains("card-flipped")) {
       const revealKey = `${code}:${playerId}`;
@@ -1619,7 +1808,19 @@ export function openLiveRoom({ app, onBack, code }) {
       return;
     }
     const alive = room.players.filter(p=>p.alive); const out = room.players.filter(p=>!p.alive);
-    app.innerHTML = pageShell(`<div class="live-dashboard"><section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.phase === "day" ? "☀️ استيقظوا جميعًا، بدأت مرحلة النهار" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية"}</p></section><div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div><section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}<section class="live-player-section"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section></div>`, "مركز المباراة المباشر");
+    const phaseText = room.phase === "eyes-closed" ? "🌙 أغمضوا أعينكم جميعًا" : room.phase === "night-role" ? "🌙 المرحلة الليلية جارية" : room.phase === "day" ? "☀️ استيقظوا جميعًا، بدأت مرحلة النهار" : room.phase === "voting" ? "🗳️ التصويت جارٍ الآن" : room.phase === "voting-result" ? "📊 ظهرت نتيجة التصويت" : room.status === "waiting" ? "بانتظار بدء المباراة" : "المباراة جارية";
+    app.innerHTML = pageShell(`
+      <div class="live-dashboard">
+        <section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${phaseText}</p></section>
+        <div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(p=>p.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div>
+        ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
+        ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
+        ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
+        ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : ""}
+        <section class="live-player-section"><h3>المتسابقون</h3><div class="live-player-grid">${alive.map(p=>playerCard(p)).join("")}</div></section>
+        ${out.length?`<section class="live-player-section eliminated-section"><h3>اللاعبون الخارجون</h3><div class="live-player-grid">${out.map(p=>playerCard(p)).join("")}</div></section>`:""}
+        <section class="live-player-section"><h3>الأحداث المباشرة</h3>${renderOnlineTimeline(room, 12)}</section>
+      </div>`, "مركز المباراة المباشر");
     attachBack(onBack);
   };
   draw();
