@@ -396,8 +396,37 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
   const roomSignature = room => {
     if (!room) return "";
     const players = Array.isArray(room.players)
-      ? room.players.map(player => `${player.id}:${player.name}:${player.avatar || ""}:${player.online !== false ? 1 : 0}`).join("|")
+      ? room.players.map(player => [
+          player.id,
+          player.name,
+          player.avatar || "",
+          player.online !== false ? 1 : 0,
+          player.alive !== false ? 1 : 0,
+          player.roleKnown ? 1 : 0,
+          // في عرض اللاعب يكون دوره موجودًا في الإسقاط الخاص به. إضافته للبصمة
+          // تضمن تحديث شاشة اللاعب فور انتقال المدير بين الأدوار الليلية.
+          mode === "player" && player.id === playerId ? (player.role || "") : "",
+          mode === "player" && player.id === playerId ? Number(player.royalPardonsRemaining || 0) : "",
+        ].join(":" )).join("|")
       : "";
+
+    // واجهة اللاعب تعتمد على هذه الحقول لإظهار أسماء الأهداف، حالة التأكيد،
+    // نتائج التحقيق، التصويت والانتقال بين المراحل. إدخالها في البصمة يجعل
+    // التحديث اللحظي في الخلفية يغيّر الواجهة عند الحاجة فقط، بدون إعادة رسم
+    // مستمرة أو وميض للقوائم.
+    const playerState = mode === "player"
+      ? JSON.stringify({
+          nightActions: room.nightActions || null,
+          investigationResult: room.investigationResult || null,
+          myVote: room.myVote || null,
+          daySummary: room.daySummary || null,
+          votingResult: room.votingResult || null,
+          winner: room.winner || null,
+          completedSteps: room.completedSteps || null,
+          dayEndsAt: room.dayEndsAt || null,
+        })
+      : "";
+
     return [
       room.code,
       room.version || 0,
@@ -406,6 +435,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       room.phase || "",
       room.activeRole || "",
       players,
+      playerState,
     ].join("::");
   };
 
@@ -440,9 +470,28 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       requestInFlight = true;
       try {
         const room = await fetchRoomFromServer(normalizedCode, mode, playerId);
-        // نتيجة الخادم هي المرجع النهائي. نجبر الرسم بعد كل مزامنة ناجحة،
-        // بدون إعادة تحميل الصفحة أو تغيير مسار الغرفة.
-        if (room) redrawIfNeeded(room);
+        if (room) {
+          let forcePlayerStageRepair = false;
+
+          if (mode === "player" && playerId) {
+            const me = room.players?.find(player => player.id === playerId);
+            const shouldShowNightAction = Boolean(
+              room.phase === "night-role" &&
+              me?.role &&
+              room.activeRole === me.role
+            );
+            const showingNightAction = Boolean(document.querySelector(".active-role-screen"));
+
+            // طبقة إصلاح احتياطية فقط إذا كانت حالة الخادم تقول إن اللاعب
+            // مستيقظ بينما الواجهة ما زالت على شاشة الانتظار، أو العكس.
+            // لا تعيد رسم الصفحة في كل نبضة، ولا تمس التحديث اللحظي نفسه.
+            if (shouldShowNightAction !== showingNightAction) {
+              forcePlayerStageRepair = true;
+            }
+          }
+
+          redrawIfNeeded(room, forcePlayerStageRepair);
+        }
       } finally {
         requestInFlight = false;
       }
