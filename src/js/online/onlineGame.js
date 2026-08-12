@@ -28,6 +28,7 @@ const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
 let onlineDayTimerIntervalId = null;
 const liveNightOverlayShown = new Map();
+const liveNightPardonOverlayShown = new Map();
 const liveVotingPardonOverlayShown = new Map();
 
 
@@ -368,6 +369,28 @@ socket.on("connect", () => {
   }, 50);
 });
 socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server-disconnected")));
+
+// مزامنة فورية مخصصة لتغيّر المرحلة. هذا الحدث لا يحمل بيانات سرية،
+// ويطلب من كل عرض داخل الغرفة جلب إسقاطه الصحيح فورًا.
+socket.on("room:phase-changed", payload => {
+  const code = normalizeRoomCode(payload?.code);
+  if (!code) return;
+
+  const matches = [...desiredSubscriptions.values()]
+    .filter(subscription => normalizeRoomCode(subscription.code) === code);
+
+  for (const subscription of matches) {
+    [0, 180, 550].forEach(delay => {
+      window.setTimeout(async () => {
+        try {
+          await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
+        } catch {
+          // المزامنة الدورية الحالية ستعيد المحاولة تلقائيًا.
+        }
+      }, delay);
+    });
+  }
+});
 
 function stopRoomViewSync(syncKey = null) {
   if (!syncKey) stopOnlineDayTimerTicker();
@@ -2296,28 +2319,67 @@ function renderLiveNightResultOverlayContent(room) {
 
 function showLiveNightResultOverlay(room) {
   if (room?.phase !== "day" || !room?.daySummary) return;
-  const nightKey = `${normalizeRoomCode(room.code)}:${room.daySummary.nightNumber || room.nightNumber || 0}`;
-  if (liveNightOverlayShown.has(nightKey)) return;
 
+  const summary = room.daySummary;
+  const nightNumber = summary.nightNumber || room.nightNumber || 0;
+  const nightKey = `${normalizeRoomCode(room.code)}:${nightNumber}`;
   const startedAt = Number(room.dayStartedAt || 0);
-  const elapsed = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
-  const remaining = Math.max(0, 7000 - elapsed);
-  if (remaining <= 0) {
+  const now = Date.now();
+  const elapsed = startedAt ? Math.max(0, now - startedAt) : 0;
+
+  // أول 7 ثوانٍ لنتيجة الهجوم أو الإنقاذ.
+  if (!liveNightOverlayShown.has(nightKey) && elapsed < 7000) {
+    const remaining = Math.max(0, 7000 - elapsed);
     liveNightOverlayShown.set(nightKey, true);
+    document.querySelector(".live-night-result-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "live-night-result-overlay";
+    overlay.innerHTML = `<div class="live-night-result-overlay__content">${renderLiveNightResultOverlayContent(room)}</div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("is-visible"));
+    window.setTimeout(() => {
+      overlay.classList.remove("is-visible");
+      window.setTimeout(() => overlay.remove(), 420);
+    }, remaining);
+  } else if (elapsed >= 7000) {
+    liveNightOverlayShown.set(nightKey, true);
+  }
+
+  // إذا منح الملك عفوًا، يظهر بعد نتيجة الليل مباشرة لمدة 7 ثوانٍ أخرى.
+  if (!summary.kingPardonGranted) return;
+
+  const pardonKey = `${nightKey}:pardon`;
+  if (liveNightPardonOverlayShown.has(pardonKey)) return;
+
+  const pardonStartAt = startedAt ? startedAt + 7000 : now + 7000;
+  const pardonEndAt = pardonStartAt + 7000;
+
+  if (now >= pardonEndAt) {
+    liveNightPardonOverlayShown.set(pardonKey, true);
     return;
   }
 
-  liveNightOverlayShown.set(nightKey, true);
-  document.querySelector(".live-night-result-overlay")?.remove();
-  const overlay = document.createElement("div");
-  overlay.className = "live-night-result-overlay";
-  overlay.innerHTML = `<div class="live-night-result-overlay__content">${renderLiveNightResultOverlayContent(room)}</div>`;
-  document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add("is-visible"));
-  window.setTimeout(() => {
-    overlay.classList.remove("is-visible");
-    window.setTimeout(() => overlay.remove(), 420);
-  }, remaining);
+  const showPardon = () => {
+    if (liveNightPardonOverlayShown.has(pardonKey)) return;
+    liveNightPardonOverlayShown.set(pardonKey, true);
+    document.querySelector(".live-night-result-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "live-night-result-overlay live-night-result-overlay--pardon";
+    overlay.innerHTML = `<div class="live-night-result-overlay__content">${renderRoyalPardonCard(summary)}</div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("is-visible"));
+
+    const visibleFor = Math.max(0, Math.min(7000, pardonEndAt - Date.now()));
+    window.setTimeout(() => {
+      overlay.classList.remove("is-visible");
+      window.setTimeout(() => overlay.remove(), 420);
+    }, visibleFor);
+  };
+
+  if (now >= pardonStartAt) showPardon();
+  else window.setTimeout(showPardon, Math.max(0, pardonStartAt - now));
 }
 
 

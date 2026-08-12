@@ -31,6 +31,18 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     for (const player of room.players) io.to(`room:${room.code}:player:${player.id}`).emit("room:snapshot", playerProjection(room, player));
   }
 
+  // حدث صغير وعام لتغيير المرحلة فقط. لا يحمل أي بيانات سرية.
+  // الهدف منه إجبار كل جهاز داخل الغرفة على جلب إسقاطه الصحيح فورًا،
+  // حتى لو تأخر أو ضاع room:snapshot بسبب إعادة اتصال WebSocket.
+  function emitPhaseChanged(room) {
+    io.emit("room:phase-changed", {
+      code: room.code,
+      phase: room.phase,
+      version: room.version || 0,
+      changedAt: Date.now(),
+    });
+  }
+
   io.on("connection", socket => {
     socket.emit("server:ready", { now: Date.now() });
 
@@ -122,6 +134,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "rematch") resetForRematch(room);
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room); await emitRoom(room);
+        if (action === "start-voting") emitPhaseChanged(room);
         ack({ ok: true, room: hostProjection(room) });
       } catch (error) { ack(safeError(error)); }
     });

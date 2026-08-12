@@ -1,0 +1,14 @@
+2026-08-12
+
+Scoped fix only. Core game rules, room creation/join logic, player realtime lobby updates, Redis storage, voting rules, and role rules were not changed.
+
+Changes:
+1. Added a small non-secret room:phase-changed Socket.IO signal after the host starts voting.
+2. Player clients receiving that signal immediately fetch their own authenticated room projection, with short retries, while the existing realtime snapshot and background polling remain enabled.
+3. The live broadcast now sequences the royal-pardon night message after the assassination/rescue result. First result shows up to 7 seconds, then a granted royal pardon shows for up to 7 seconds in the same full overlay size. The pardoned player's identity remains hidden at night.
+
+Validation performed:
+- node --check passed for server/socketServer.js
+- node --check passed for src/js/online/onlineGame.js
+- game-engine test verified startVoting moves the room to voting and player/host/public projections all expose phase=voting.
+- static checks verified server phase signal and client phase receiver are present.
