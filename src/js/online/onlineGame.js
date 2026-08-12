@@ -26,6 +26,9 @@ const voteSelectionUiState = new Map();
 const roomViewSyncControllers = new Map();
 const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
+let onlineDayTimerIntervalId = null;
+const liveNightOverlayShown = new Map();
+
 
 function dispatchRoomsUpdated() {
   channel?.postMessage({ type: "rooms-updated" });
@@ -366,6 +369,7 @@ socket.on("connect", () => {
 socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server-disconnected")));
 
 function stopRoomViewSync(syncKey = null) {
+  if (!syncKey) stopOnlineDayTimerTicker();
   if (syncKey) {
     const controller = roomViewSyncControllers.get(syncKey);
     controller?.stop?.();
@@ -1131,7 +1135,7 @@ function renderOnlineDayTimer(room, { compact = false } = {}) {
   const percentage = Math.max(0, Math.min(100, (remaining / total) * 100));
   const stateClass = remaining <= 5 ? "timer-danger" : remaining <= 15 ? "timer-warning" : "timer-normal";
   return `
-    <section class="online-day-timer ${compact ? "is-compact" : ""}">
+    <section class="online-day-timer ${compact ? "is-compact" : ""}" data-day-ends-at="${Number(room?.dayEndsAt || 0)}" data-day-total="${total}">
       <div class="discussion-timer">
         <div class="timer-progress-ring ${stateClass}" role="timer" aria-live="polite" style="--timer-progress:${percentage}%">
           <div class="timer-content">
@@ -1181,14 +1185,14 @@ function renderNurseRescueCard(summary) {
 
 function renderRoyalPardonCard(summary) {
   if (!summary?.kingPardonGranted) return "";
-  const pardonedName = summary?.kingPardonPlayerName || "أحد اللاعبين";
+  const pardonedName = summary?.kingPardonPlayerName || null;
   return `
     <section class="night-event-card night-event-card--pardon" aria-label="تم منح العفو الملكي">
       <div class="night-event-card__scepter" aria-hidden="true">♔</div>
       <div class="night-event-card__body">
         <small>وسام العفو الملكي</small>
-        <h2>${pardonedName}</h2>
-        <p>حصل على وسام عفو ملكي لهذه الجولة.</p>
+        <h2>${pardonedName || "عفو ملكي"}</h2>
+        <p>${pardonedName ? "حصل على وسام عفو ملكي لهذه الجولة." : "قام الملك بإعطاء عفو ملكي لأحد الأشخاص."}</p>
       </div>
       <div class="night-event-card__badge night-event-card__badge--scepter" aria-hidden="true">⚜</div>
     </section>
@@ -1271,8 +1275,10 @@ function renderOnlineVotingResult(room) {
     description = `حصل على أعلى عدد من الأصوات (${result.highestVotes}) وخرج من اللعبة.`;
   } else if (result.outcome === "pardoned") {
     icon = "👑";
-    title = `${result.playerName} حصل على عفو ملكي`;
-    description = `حصل على أعلى عدد من الأصوات (${result.highestVotes})، لكن وسام العفو الملكي أبقاه في اللعبة.`;
+    title = result.playerName ? `${result.playerName} حصل على عفو ملكي` : "تم تفعيل عفو ملكي";
+    description = result.playerName
+      ? `حصل على أعلى عدد من الأصوات (${result.highestVotes})، لكن وسام العفو الملكي أبقاه في اللعبة.`
+      : "قام الملك بإعطاء عفو ملكي لأحد الأشخاص، ولن يتم كشف هويته في البث العام.";
   } else if (result.outcome === "tie") {
     icon = "⚖️";
     title = "تعادل في الأصوات";
@@ -1439,6 +1445,9 @@ function renderHostLobby({ app, onBack, code }) {
     });
 
     bindHostRoleRevealCountdown(code, room);
+    bindOnlineDayTimerTicker({ onFinish: () => {
+      if (readRoom(code)?.phase === "day") draw();
+    }});
 
     document.querySelector("#skipRoleRevealWait")?.addEventListener("click", async () => {
       try { await hostCommand(code, "skip-role-reveal"); } catch { showErrorToast("تعذر تخطي الانتظار.", "خطأ"); }
@@ -1991,6 +2000,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
+    bindOnlineDayTimerTicker();
     const revealButton = document.querySelector("#revealMyRole");
     const handleReveal = event => {
       const button = revealButton;
@@ -2041,24 +2051,22 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
             targetId,
           );
 
-          if (updated) {
-            showInfoToast(
-              "تم تحديد اللاعب. اضغط زر التأكيد لاعتماد المهمة.",
-              "اختيار مبدئي",
-            );
-          }
         }),
       );
 
     document
       .querySelector("#skipKingPardon")
-      ?.addEventListener("click", async () => {
-        await skipKingPardon(code, playerId);
-
-        showInfoToast(
-          "تم اختيار الاحتفاظ بوسام العفو. اضغط اعتماد القرار.",
-          "قرار مبدئي",
-        );
+      ?.addEventListener("click", async event => {
+        const button = event.currentTarget;
+        if (button?.disabled) return;
+        if (button) button.disabled = true;
+        try {
+          await skipKingPardon(code, playerId);
+          await confirmNightAction(code, playerId);
+        } catch {
+          if (button) button.disabled = false;
+          showErrorToast("تعذر حفظ قرار عدم منح العفو. حاول مرة أخرى.", "خطأ في الاتصال");
+        }
       });
 
     document
@@ -2069,14 +2077,6 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           playerId,
         );
 
-        if (updated) {
-          showSuccessToast(
-            player.role === "investigator"
-              ? "تم تأكيد التحقيق وحفظ اللاعب والنتيجة داخل اللعبة."
-              : "تم تأكيد الاختيار وحفظه داخل اللعبة.",
-            "اكتملت المهمة",
-          );
-        }
       });
     const voteSelectionKey = `${code}:${playerId}`;
     document.querySelectorAll("[data-online-vote-target]").forEach(button => {
@@ -2189,6 +2189,100 @@ function renderLiveParticipantsRail(room) {
 }
 
 
+function stopOnlineDayTimerTicker() {
+  if (onlineDayTimerIntervalId) {
+    window.clearInterval(onlineDayTimerIntervalId);
+    onlineDayTimerIntervalId = null;
+  }
+}
+
+function bindOnlineDayTimerTicker({ onFinish = null } = {}) {
+  stopOnlineDayTimerTicker();
+  let finishNotified = false;
+
+  const tick = () => {
+    const timers = [...document.querySelectorAll(".online-day-timer[data-day-ends-at]")];
+    if (!timers.length) return;
+
+    let anyFinished = false;
+    for (const timer of timers) {
+      const endsAt = Number(timer.dataset.dayEndsAt || 0);
+      const total = Math.max(30, Number(timer.dataset.dayTotal || 60));
+      const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+      const percentage = Math.max(0, Math.min(100, (remaining / total) * 100));
+      const stateClass = remaining <= 5 ? "timer-danger" : remaining <= 15 ? "timer-warning" : "timer-normal";
+
+      const ring = timer.querySelector(".timer-progress-ring");
+      const value = timer.querySelector(".timer-content strong");
+      const status = timer.querySelector(".timer-content small");
+      const progress = timer.querySelector(".online-day-progress i");
+
+      if (value) value.textContent = formatOnlineClock(remaining);
+      if (status) status.textContent = remaining > 0 ? "النقاش جارٍ الآن" : "انتهى وقت النقاش";
+      if (progress) progress.style.width = `${percentage}%`;
+      if (ring) {
+        ring.style.setProperty("--timer-progress", `${percentage}%`);
+        ring.classList.remove("timer-normal", "timer-warning", "timer-danger");
+        ring.classList.add(stateClass);
+      }
+      anyFinished ||= remaining <= 0;
+    }
+
+    if (anyFinished && !finishNotified) {
+      finishNotified = true;
+      onFinish?.();
+    }
+  };
+
+  tick();
+  onlineDayTimerIntervalId = window.setInterval(tick, 250);
+}
+
+function renderLiveNightResultOverlayContent(room) {
+  const summary = room?.daySummary;
+  if (!summary) return "";
+  if (summary.outcome === "saved") return renderNurseRescueCard(summary);
+  if (summary.outcome === "eliminated") {
+    const victim = (room.players || []).find(player => player.id === summary.victimId) || null;
+    return renderAssassinationScene({
+      name: summary.victimName || victim?.name || "أحد اللاعبين",
+      avatar: victim?.avatar || "",
+    });
+  }
+  return `
+    <section class="online-night-summary live-night-result-peace">
+      <div class="online-night-summary-icon">🌅</div>
+      <div><small>نتيجة الليلة ${summary.nightNumber || room.nightNumber || 1}</small><h3>مرّت الليلة دون خروج أي لاعب.</h3></div>
+    </section>`;
+}
+
+function showLiveNightResultOverlay(room) {
+  if (room?.phase !== "day" || !room?.daySummary) return;
+  const nightKey = `${normalizeRoomCode(room.code)}:${room.daySummary.nightNumber || room.nightNumber || 0}`;
+  if (liveNightOverlayShown.has(nightKey)) return;
+
+  const startedAt = Number(room.dayStartedAt || 0);
+  const elapsed = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+  const remaining = Math.max(0, 7000 - elapsed);
+  if (remaining <= 0) {
+    liveNightOverlayShown.set(nightKey, true);
+    return;
+  }
+
+  liveNightOverlayShown.set(nightKey, true);
+  document.querySelector(".live-night-result-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "live-night-result-overlay";
+  overlay.innerHTML = `<div class="live-night-result-overlay__content">${renderLiveNightResultOverlayContent(room)}</div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+  window.setTimeout(() => {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => overlay.remove(), 420);
+  }, remaining);
+}
+
+
 function patchStableLiveDom(target, html) {
   const template = document.createElement("template");
   template.innerHTML = html.trim();
@@ -2249,7 +2343,6 @@ export function openLiveRoom({ app, onBack, code }) {
           ${renderLiveParticipantsRail(room)}
           <main class="live-broadcast-main">
             <section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${phaseText}</p></section>
-            <div class="live-stats"><div><strong>${alive.length}</strong><span>داخل اللعبة</span></div><div><strong>${out.length}</strong><span>خرجوا</span></div><div><strong>${room.players.filter(player => player.roleKnown).length}</strong><span>عرفوا أدوارهم</span></div></div>
             ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
             ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
             ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
@@ -2260,6 +2353,8 @@ export function openLiveRoom({ app, onBack, code }) {
       </div>`, "مركز المباراة المباشر");
     patchStableLiveDom(app, liveMarkup);
     attachBack(onBack);
+    bindOnlineDayTimerTicker();
+    showLiveNightResultOverlay(room);
   };
   draw();
   startRoomViewSync({ code, mode: "public", draw, intervalMs: 450 });

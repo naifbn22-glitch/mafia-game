@@ -908,3 +908,28 @@
   .live-chat-bubble p{font-size:13px}
   .live-chat-message--citizen{margin-right:14px}
 }
+
+/* تحسينات مستقلة لواجهة البث، بدون تغيير منطق اللعبة */
+.live-broadcast-layout{grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:26px}
+.live-participants-rail{width:100%;min-width:300px}
+.live-participants-list{gap:12px}
+.live-participant{padding:14px 13px;min-height:78px}
+.live-participant__avatar img{width:56px;height:56px}
+.live-participant__info strong{font-size:17px}
+.live-participant__info span{font-size:12px}
+
+.live-night-result-overlay{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:rgba(3,5,12,.5);backdrop-filter:blur(18px) saturate(.8);opacity:0;transition:opacity .4s ease;pointer-events:none}
+.live-night-result-overlay.is-visible{opacity:1}
+.live-night-result-overlay__content{width:min(900px,92vw);transform:scale(.92);transition:transform .45s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 28px 80px rgba(0,0,0,.55))}
+.live-night-result-overlay.is-visible .live-night-result-overlay__content{transform:scale(1)}
+.live-night-result-overlay .night-event-card,.live-night-result-overlay .assassination-scene,.live-night-result-overlay .online-night-summary{min-height:380px;border-width:2px;box-shadow:0 35px 100px rgba(0,0,0,.65)}
+.live-night-result-overlay .night-event-card__body h2,.live-night-result-overlay .assassination-scene h2{font-size:clamp(42px,7vw,78px)}
+.live-night-result-overlay .night-event-card__body p,.live-night-result-overlay .assassination-scene p{font-size:clamp(17px,2vw,24px)}
+.live-night-result-peace{padding:50px;justify-content:center;text-align:center}
+
+@media(max-width:900px){
+  .live-broadcast-layout{grid-template-columns:1fr}
+  .live-participants-rail{min-width:0}
+  .live-night-result-overlay{padding:12px}
+  .live-night-result-overlay .night-event-card,.live-night-result-overlay .assassination-scene,.live-night-result-overlay .online-night-summary{min-height:320px}
+}
