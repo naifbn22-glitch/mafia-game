@@ -1360,9 +1360,8 @@ function renderHostLobby({ app, onBack, code }) {
               </div>
               ${renderOnlineNightSummary(room)}
               ${renderOnlineDayTimer(room, { compact: true })}
-              ${room.dayTimerFinished ? `
-                <button id="startOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ الانتقال إلى التصويت</button>
-              ` : `<small class="finish-night-hint">سيظهر زر الانتقال إلى التصويت تلقائيًا عند انتهاء المؤقت.</small>`}
+              <button id="startOnlineVoting" class="online-primary-button large start-voting-button ${room.dayTimerFinished ? "is-ready" : "is-skip"}" type="button">🗳️ ${room.dayTimerFinished ? "الانتقال إلى التصويت" : "تخطي وقت النقاش والانتقال إلى التصويت"}</button>
+              <small class="finish-night-hint">${room.dayTimerFinished ? "انتهى وقت النقاش، ويمكن بدء التصويت الآن." : "يمكن للمدير تخطي الوقت المتبقي وبدء التصويت مباشرة."}</small>
             ` : ""}
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
@@ -1473,7 +1472,7 @@ function renderHostLobby({ app, onBack, code }) {
         await hostCommand(code, "start-voting");
         showSuccessToast("بدأ التصويت السري لجميع اللاعبين الأحياء.", "🗳️ بدأ التصويت");
       } catch {
-        showErrorToast("لا يمكن بدء التصويت قبل انتهاء مؤقت النهار.", "المؤقت ما زال يعمل");
+        showErrorToast("تعذر الانتقال إلى التصويت. حاول مرة أخرى.", "خطأ في الانتقال");
       }
     });
     document.querySelector("#startNextOnlineNight")?.addEventListener("click", async () => {

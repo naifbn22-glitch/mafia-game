@@ -354,7 +354,10 @@ export function finishNight(room) {
 
 export function startVoting(room) {
   if (room.status !== "playing" || room.phase !== "day" || room.winner) throw new Error("ACTION_NOT_ALLOWED");
-  if (Date.now() < Number(room.dayEndsAt || 0)) throw new Error("DAY_TIMER_ACTIVE");
+  // مدير الغرفة يملك صلاحية إنهاء وقت النقاش مبكرًا.
+  // المؤقت يبقى مرجعًا بصريًا فقط، وعند بدء التصويت تُغلق مرحلة النهار فورًا.
+  room.dayEndsAt = Date.now();
+  room.timerEndsAt = room.dayEndsAt;
   room.phase = "voting";
   room.votingStartedAt = Date.now();
   room.votes = {};
