@@ -444,13 +444,46 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     ].join("::");
   };
 
+  const playerStageNeedsRepair = room => {
+    if (mode !== "player" || !playerId || !room) return false;
+    const me = room.players?.find(player => player.id === playerId);
+    if (!me) return false;
+
+    if (room.phase === "night-role") {
+      const shouldShowNightAction = Boolean(me.role && room.activeRole === me.role);
+      const showingNightAction = Boolean(document.querySelector(".active-role-screen"));
+      return shouldShowNightAction !== showingNightAction;
+    }
+
+    if (room.phase === "day") {
+      return !document.querySelector(".online-day-player-screen");
+    }
+
+    if (room.phase === "voting") {
+      if (!me.alive) {
+        return !document.querySelector(".eyes-closed-screen");
+      }
+      if (room.myVote) {
+        return !document.querySelector(".online-vote-confirmed-screen");
+      }
+      return !document.querySelector(".online-voting-player-screen");
+    }
+
+    if (room.phase === "voting-result") {
+      return !document.querySelector(".online-voting-result");
+    }
+
+    return false;
+  };
+
   const redrawIfNeeded = (room = null, force = false) => {
     if (disposed) return;
     const currentRoom = room || readRoom(normalizedCode);
     if (!currentRoom) return;
 
     const signature = roomSignature(currentRoom);
-    if (!force && signature === lastDrawSignature) return;
+    const repairPlayerStage = playerStageNeedsRepair(currentRoom);
+    if (!force && !repairPlayerStage && signature === lastDrawSignature) return;
     lastDrawSignature = signature;
     draw();
   };
@@ -476,26 +509,9 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       try {
         const room = await fetchRoomFromServer(normalizedCode, mode, playerId);
         if (room) {
-          let forcePlayerStageRepair = false;
-
-          if (mode === "player" && playerId) {
-            const me = room.players?.find(player => player.id === playerId);
-            const shouldShowNightAction = Boolean(
-              room.phase === "night-role" &&
-              me?.role &&
-              room.activeRole === me.role
-            );
-            const showingNightAction = Boolean(document.querySelector(".active-role-screen"));
-
-            // طبقة إصلاح احتياطية فقط إذا كانت حالة الخادم تقول إن اللاعب
-            // مستيقظ بينما الواجهة ما زالت على شاشة الانتظار، أو العكس.
-            // لا تعيد رسم الصفحة في كل نبضة، ولا تمس التحديث اللحظي نفسه.
-            if (shouldShowNightAction !== showingNightAction) {
-              forcePlayerStageRepair = true;
-            }
-          }
-
-          redrawIfNeeded(room, forcePlayerStageRepair);
+          // إعادة الرسم لا تتم إلا عند تغير بيانات الغرفة أو عندما تكون شاشة اللاعب
+          // لا تطابق المرحلة الفعلية على الخادم. هذا يشمل الانتقال للتصويت فورًا.
+          redrawIfNeeded(room);
         }
       } finally {
         requestInFlight = false;
