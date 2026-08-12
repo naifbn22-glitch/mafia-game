@@ -30,6 +30,7 @@ let onlineDayTimerIntervalId = null;
 const liveNightOverlayShown = new Map();
 const liveNightPardonOverlayShown = new Map();
 const liveVotingPardonOverlayShown = new Map();
+const liveFinalSequenceShown = new Map();
 
 
 function dispatchRoomsUpdated() {
@@ -2479,6 +2480,79 @@ function showLiveVotingPardonOverlay(room) {
   }, remaining);
 }
 
+
+function renderLiveWinnerCinematic(room) {
+  const thievesWon = room?.winner === "thieves";
+  const finalRoles = Array.isArray(room?.finalRoles) ? room.finalRoles : [];
+  const thieves = finalRoles.filter(player => player.role === "thief");
+  const thiefNames = thieves.map(player => player.name).join("، ") || "اللصوص";
+
+  return `
+    <section class="live-final-cinematic live-final-cinematic--${thievesWon ? "thieves" : "citizens"}">
+      <div class="live-final-cinematic__scene" aria-hidden="true">
+        ${thievesWon
+          ? `<div class="live-final-cinematic__fire"></div><div class="live-final-cinematic__city"></div>`
+          : `<div class="live-final-cinematic__victory-rays"></div><div class="live-final-cinematic__podium">1</div>`}
+      </div>
+      <div class="live-final-cinematic__badge">${thievesWon ? "🗡️" : "🏆"}</div>
+      <small>${thievesWon ? "المدينة سقطت" : "انتصار المواطنين"}</small>
+      <h1>${thievesWon ? "سيطر اللصوص على المدينة" : "تم كشف جميع اللصوص"}</h1>
+      <p>${thievesWon
+        ? `أصبحت المدينة تحت سيطرة اللصوص: <strong>${thiefNames}</strong>`
+        : "تم القبض على جميع اللصوص بنجاح، وعاد الأمان إلى المدينة."}</p>
+    </section>`;
+}
+
+function renderLiveBestPlayerCinematic(room) {
+  const best = room?.bestPlayer;
+  if (!best?.playerName) return "";
+  const player = (room.players || []).find(item => item.id === best.playerId);
+  const avatar = best.avatar || player?.avatar || "";
+  return `
+    <section class="live-best-player-cinematic">
+      <div class="live-best-player-cinematic__rays" aria-hidden="true"></div>
+      <div class="live-best-player-cinematic__trophy" aria-hidden="true">🏆</div>
+      <div class="live-best-player-cinematic__medal" aria-hidden="true">🥇</div>
+      ${avatar ? `<div class="live-best-player-cinematic__avatar"><img src="${avatar}" alt="${best.playerName}" /></div>` : ""}
+      <small>أفضل لاعب في المباراة</small>
+      <h2>${best.playerName}</h2>
+      <p>${best.reason || "قدم أفضل أداء في المباراة"}</p>
+    </section>`;
+}
+
+function showLiveFinalSequenceOverlay(room) {
+  if (!room?.winner || !room?.bestPlayer?.playerName) return;
+
+  const resultStamp = Number(room?.votingResult?.resolvedAt || room?.dayStartedAt || room?.roundNumber || room?.nightNumber || 0);
+  const key = `${normalizeRoomCode(room.code)}:${room.winner}:${resultStamp}:${room.bestPlayer.playerId || room.bestPlayer.playerName}`;
+  if (liveFinalSequenceShown.has(key)) return;
+  liveFinalSequenceShown.set(key, true);
+
+  document.querySelector(".live-final-sequence-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "live-final-sequence-overlay";
+  overlay.innerHTML = `<div class="live-final-sequence-overlay__content">${renderLiveWinnerCinematic(room)}</div>`;
+  document.body.appendChild(overlay);
+
+  const content = overlay.querySelector(".live-final-sequence-overlay__content");
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+
+  window.setTimeout(() => {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (!document.body.contains(overlay)) return;
+      content.innerHTML = renderLiveBestPlayerCinematic(room);
+      overlay.classList.add("is-best-player");
+      requestAnimationFrame(() => overlay.classList.add("is-visible"));
+    }, 420);
+  }, 7000);
+
+  window.setTimeout(() => {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => overlay.remove(), 420);
+  }, 14420);
+}
+
 function patchStableLiveDom(target, html) {
   const template = document.createElement("template");
   template.innerHTML = html.trim();
@@ -2552,6 +2626,7 @@ export function openLiveRoom({ app, onBack, code }) {
     bindOnlineDayTimerTicker();
     showLiveNightResultOverlay(room);
     showLiveVotingPardonOverlay(room);
+    showLiveFinalSequenceOverlay(room);
   };
   draw();
   startRoomViewSync({ code, mode: "public", draw, intervalMs: 450 });

@@ -25,6 +25,37 @@
 
 <meta name="apple-mobile-web-app-title" content="Mafia" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- تحميل خط beIN قبل أول رسم للواجهة لمنع ظهور أي خط احتياطي أثناء الانتقال أو التحديث -->
+  <link rel="preload" href="/fonts/beIN-Normal.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="/fonts/beIN-Black.ttf" as="font" type="font/ttf" crossorigin />
+  <style>
+    @font-face{font-family:"beIN Normal";src:url("/fonts/beIN-Normal.ttf") format("truetype");font-weight:400;font-style:normal;font-display:block}
+    @font-face{font-family:"beIN Black";src:url("/fonts/beIN-Black.ttf") format("truetype");font-weight:900;font-style:normal;font-display:block}
+    html{font-family:"beIN Normal",sans-serif}
+    html.fonts-loading body{visibility:hidden}
+    html.fonts-ready body{visibility:visible}
+  </style>
+  <script>
+    document.documentElement.classList.add("fonts-loading");
+    (async () => {
+      try {
+        if (document.fonts?.load) {
+          await Promise.all([
+            document.fonts.load('400 16px "beIN Normal"'),
+            document.fonts.load('900 16px "beIN Black"'),
+          ]);
+        }
+      } finally {
+        document.documentElement.classList.remove("fonts-loading");
+        document.documentElement.classList.add("fonts-ready");
+      }
+    })();
+    window.setTimeout(() => {
+      document.documentElement.classList.remove("fonts-loading");
+      document.documentElement.classList.add("fonts-ready");
+    }, 3500);
+  </script>
   <title>مافيا</title>
 </head>
 

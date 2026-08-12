@@ -1,6 +1,6 @@
 :root {
-  --font-display: "beIN Black", "beIN Normal", Tahoma, Arial, sans-serif;
-  --font-body: "beIN Normal", Tahoma, Arial, sans-serif;
+  --font-display: "beIN Black", "beIN Normal", sans-serif;
+  --font-body: "beIN Normal", "beIN Black", sans-serif;
   --background-dark: #060b0a;
   --background-panel: rgba(13, 20, 18, 0.78);
 
