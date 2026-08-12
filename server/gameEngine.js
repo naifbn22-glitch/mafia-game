@@ -85,6 +85,7 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
     currentPardonPlayerId: null,
     roundNumber: 1,
     winner: null,
+    bestPlayer: null,
     completedSteps: [],
   };
 }
@@ -119,6 +120,7 @@ export function joinPlayer(room, { name, gender, avatar }) {
     royalPardonsRemaining: 0,
     joinedAt: Date.now(),
     lastSeenAt: Date.now(),
+    performance: { nurseCorrectSaves: 0, investigatorThiefFinds: 0, kingPardonsUsed: 0, roundsSurvived: 0 },
   };
   room.players.push(player);
   addTimeline(room, { type: "player_joined", playerId: player.id, publicText: `انضم ${player.name} إلى الغرفة`, hostText: `انضم ${player.name} إلى الغرفة` });
@@ -156,6 +158,7 @@ export function startGame(room) {
     roleKnown: false,
     alive: true,
     royalPardonsRemaining: roles[i] === "king" ? 3 : 0,
+    performance: { nurseCorrectSaves: 0, investigatorThiefFinds: 0, kingPardonsUsed: 0, roundsSurvived: 0 },
   }));
   room.status = "playing";
   room.joinLocked = true;
@@ -175,6 +178,7 @@ export function startGame(room) {
   room.votingResult = null;
   room.currentPardonPlayerId = null;
   room.winner = null;
+  room.bestPlayer = null;
   addTimeline(room, { type: "game_started", publicText: "بدأت المباراة وتم توزيع الأدوار", hostText: "بدأت المباراة وتم توزيع الأدوار" });
   touch(room);
 }
@@ -286,6 +290,10 @@ export function finishNight(room) {
   const victim = victimId ? room.players.find(player => player.id === victimId && player.alive) : null;
   const nurseTargetId = room.nightActions?.nurseTargetId || null;
   const wasSaved = Boolean(victim && nurseTargetId && victim.id === nurseTargetId);
+  if (wasSaved) {
+    const nurse = room.players.find(player => player.alive && player.role === "nurse");
+    if (nurse) { nurse.performance ||= {}; nurse.performance.nurseCorrectSaves = Number(nurse.performance.nurseCorrectSaves || 0) + 1; }
+  }
   const kingTargetId = room.nightActions?.kingPardonFinalized && !room.nightActions?.kingSkipped
     ? room.nightActions?.kingTargetId || null
     : null;
@@ -348,8 +356,44 @@ export function finishNight(room) {
     hostText: "اكتملت جميع مهام الليل وتم الانتقال إلى مرحلة النهار",
   });
 
+  for (const survivor of room.players.filter(player => player.alive)) { survivor.performance ||= {}; survivor.performance.roundsSurvived = Number(survivor.performance.roundsSurvived || 0) + 1; }
   room.winner = checkWinner(room);
+  if (room.winner) room.bestPlayer = calculateBestPlayer(room);
   touch(room);
+}
+
+
+function calculateBestPlayer(room) {
+  const players = room.players || [];
+  if (!players.length || !room.winner) return null;
+  const scored = players.map(player => {
+    const perf = player.performance || {};
+    let score = 0;
+    const reasons = [];
+    const winningSide = room.winner === "thieves" ? player.role === "thief" : player.role !== "thief";
+    if (winningSide) { score += 100; reasons.push(room.winner === "thieves" && player.role === "thief" ? "قاد فريق اللصوص إلى الفوز" : "ساهم في فوز المواطنين"); }
+    if (player.role === "nurse") {
+      const saves = Number(perf.nurseCorrectSaves || 0);
+      score += saves * 55;
+      if (saves >= 2) reasons.push(`أنقذ ${saves} لاعبين من الاغتيال`);
+      if (saves >= 3) score += 120;
+    }
+    if (player.role === "investigator") {
+      const finds = Number(perf.investigatorThiefFinds || 0);
+      score += finds * 45;
+      if (finds) reasons.push(`كشف ${finds} من اللصوص أثناء التحقيق`);
+    }
+    if (player.role === "king") {
+      const pardons = Number(perf.kingPardonsUsed || 0);
+      const survived = Number(perf.roundsSurvived || 0);
+      score += pardons * 15 + survived * 8;
+      if (winningSide && survived >= 2) reasons.push(`بقي مؤثرًا لمدة ${survived} جولات`);
+    }
+    if (player.alive) score += 15;
+    return { player, score, reasons };
+  }).sort((a,b) => b.score-a.score || Number(b.player.alive)-Number(a.player.alive) || Number(a.player.joinedAt)-Number(b.player.joinedAt));
+  const top = scored[0];
+  return { playerId: top.player.id, playerName: top.player.name, avatar: top.player.avatar, role: top.player.role, score: top.score, reason: top.reasons[0] || "قدم أفضل أداء إجمالي في المباراة" };
 }
 
 export function startVoting(room) {
@@ -400,6 +444,7 @@ function resolveVoting(room) {
   room.votingResult = { ...result, resolvedAt: Date.now() };
   room.phase = "voting-result";
   room.winner = checkWinner(room);
+  if (room.winner) room.bestPlayer = calculateBestPlayer(room);
   const text = result.outcome === "eliminated"
     ? `خرج ${result.playerName} بعد حصوله على أعلى عدد من الأصوات`
     : result.outcome === "pardoned"
@@ -448,6 +493,36 @@ export function beginNextNight(room) {
   beginEyesClosed(room);
 }
 
+
+export function resetForRematch(room) {
+  if (!room.winner) throw new Error("ACTION_NOT_ALLOWED");
+  room.status = "waiting";
+  room.joinLocked = room.players.length >= room.maxPlayers;
+  room.joinLockedReason = room.joinLocked ? "full" : null;
+  room.phase = "lobby";
+  room.activeRole = null;
+  room.nightNumber = 0;
+  room.roundNumber = 1;
+  room.roleRevealStartedAt = null;
+  room.roleRevealEndsAt = null;
+  room.timerEndsAt = null;
+  room.dayStartedAt = null;
+  room.dayEndsAt = null;
+  room.daySummary = null;
+  room.votes = {};
+  room.votingStartedAt = null;
+  room.votingResult = null;
+  room.currentPardonPlayerId = null;
+  room.winner = null;
+  room.bestPlayer = null;
+  room.nightActions = newNightActions();
+  room.completedSteps = [];
+  room.lastTargets = { thief: null, nurse: null };
+  room.players = room.players.map(player => ({ ...player, role: null, roleKnown: false, alive: true, royalPardonsRemaining: 0, performance: { nurseCorrectSaves: 0, investigatorThiefFinds: 0, kingPardonsUsed: 0, roundsSurvived: 0 } }));
+  addTimeline(room, { type: "rematch_ready", publicText: "تم تجهيز الغرفة لمباراة جديدة", hostText: "تمت إعادة فتح الغرفة بنفس المشاركين ويمكن انضمام لاعبين جدد" });
+  touch(room);
+}
+
 export function selectNightTarget(room, player, targetId) {
   if (room.phase !== "night-role" || room.activeRole !== player.role || isConfirmed(room, player.id)) throw new Error("ACTION_NOT_ALLOWED");
   const target = allowedTargets(room, player).find(item => item.id === targetId);
@@ -481,6 +556,9 @@ export function confirmNightAction(room, player) {
     }
   } else if (!selected) throw new Error("NO_SELECTION");
   room.nightActions.confirmedActors[player.id] = { role: player.role, targetId: selected, skipped: player.role === "king" && kingSkipped, confirmedAt: new Date().toISOString() };
+  player.performance ||= {};
+  if (player.role === "investigator" && selected) { const investigated = room.players.find(p => p.id === selected); if (investigated?.role === "thief") player.performance.investigatorThiefFinds = Number(player.performance.investigatorThiefFinds || 0) + 1; }
+  if (player.role === "king" && selected) player.performance.kingPardonsUsed = Number(player.performance.kingPardonsUsed || 0) + 1;
   const target = selected ? room.players.find(p => p.id === selected) : null;
   const roleText = roleLabel(player.role);
   const publicText = player.role === "thief"
@@ -519,7 +597,7 @@ export function publicProjection(room) {
     updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber, roundNumber: room.roundNumber || 1,
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
     discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,
-    daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null,
+    daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null, bestPlayer: room.bestPlayer ? { ...room.bestPlayer } : null,
     votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
     timeline: (room.timeline || []).map(e => ({ id: e.id, at: e.at, type: e.type, role: e.role || null, chatText: e.chatText || null, text: e.publicText })).filter(e => e.text || e.chatText),

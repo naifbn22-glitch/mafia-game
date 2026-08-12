@@ -1280,6 +1280,20 @@ function renderOnlineVotingStatus(room) {
   `;
 }
 
+function renderOnlineBestPlayer(room, { live = false } = {}) {
+  const best = room?.bestPlayer;
+  if (!room?.winner || !best?.playerName) return "";
+  const player = (room.players || []).find(item => item.id === best.playerId);
+  const avatar = best.avatar || player?.avatar || "";
+  return `<section class="online-best-player ${live ? "is-live" : ""}">
+    <div class="online-best-player-medal">🥇</div>
+    ${avatar ? `<div class="online-best-player-avatar"><img src="${avatar}" alt="${best.playerName}" /></div>` : ""}
+    <small>أفضل لاعب في المباراة</small>
+    <h2>${best.playerName}</h2>
+    <p>${best.reason || "قدم أفضل أداء إجمالي في المباراة"}</p>
+  </section>`;
+}
+
 function renderOnlineVotingResult(room) {
   const result = room?.votingResult;
   if (!result) return "";
@@ -1376,13 +1390,13 @@ function renderHostLobby({ app, onBack, code }) {
               </div>
               ${renderOnlineNightSummary(room)}
               ${renderOnlineDayTimer(room, { compact: true })}
-              <button id="startOnlineVoting" class="online-primary-button large start-voting-button ${room.dayTimerFinished ? "is-ready" : "is-skip"}" type="button">🗳️ ${room.dayTimerFinished ? "الانتقال إلى التصويت" : "تخطي وقت النقاش والانتقال إلى التصويت"}</button>
-              <small class="finish-night-hint">${room.dayTimerFinished ? "انتهى وقت النقاش، ويمكن بدء التصويت الآن." : "يمكن للمدير تخطي الوقت المتبقي وبدء التصويت مباشرة."}</small>
+              <button id="startOnlineVoting" class="online-primary-button large start-voting-button is-ready" type="button">🗳️ الانتقال إلى التصويت</button>
+              <small class="finish-night-hint">يمكن للمدير الانتقال إلى التصويت في أي وقت، سواء انتهى المؤقت أم ما زال يعمل.</small>
             ` : ""}
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
               ${renderOnlineVotingResult(room)}
-              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
+              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<button id="restartOnlineGame" class="online-primary-button large online-rematch-button" type="button">🔄 إعادة اللعبة بنفس الغرفة</button><small class="finish-night-hint">سيبقى المشاركون الحاليون وتفتح الغرفة مجددًا لانضمام لاعبين جدد حتى الحد الأعلى.</small>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
             ` : ""}
             <section class="host-live-timeline"><h3>سجل الأحداث المباشر</h3>${renderOnlineTimeline(room, 10)}</section>
           </aside>
@@ -1497,6 +1511,14 @@ function renderHostLobby({ app, onBack, code }) {
         showSuccessToast("بدأت ليلة جديدة.", "🌙 الجولة التالية");
       } catch {
         showErrorToast("تعذر بدء الليلة التالية.", "خطأ في الخادم");
+      }
+    });
+    document.querySelector("#restartOnlineGame")?.addEventListener("click", async () => {
+      try {
+        await hostCommand(code, "rematch");
+        showSuccessToast("تمت إعادة فتح الغرفة بنفس المشاركين.", "🔄 مباراة جديدة");
+      } catch {
+        showErrorToast("تعذرت إعادة تجهيز الغرفة.", "خطأ في الخادم");
       }
     });
   };
@@ -2012,7 +2034,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           </div>`;
       }
     }
-    else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}${room.winner ? `<div class="online-player-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : `<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`}`;
+    else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}${room.winner ? `<div class="online-player-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لإعادة فتح الغرفة للمباراة التالية...</p></div>` : `<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`}`;
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
@@ -2407,7 +2429,7 @@ export function openLiveRoom({ app, onBack, code }) {
             ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
             ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
             ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
-            ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>` : ""}
+            ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room, { live: true })}` : ""}
             <section class="live-player-section live-events-panel live-chat-panel"><div class="live-chat-panel-heading"><span>💬</span><div><h3>محادثة المدينة</h3><p>رسائل مباشرة من أصحاب الأدوار والمواطنين</p></div></div>${renderLiveRoleChat(room, 12)}</section>
           </main>
         </div>
