@@ -1050,3 +1050,38 @@
 .live-best-player-cinematic small{color:#ffdf72}.live-best-player-cinematic h2{margin:6px 0 10px;font-size:clamp(52px,7vw,90px);line-height:1.05;color:#fff8dc;text-shadow:0 0 30px rgba(255,215,87,.42)}
 .live-best-player-cinematic p{max-width:760px;margin:0;color:#f4dfad;font-size:clamp(18px,2.2vw,25px);line-height:1.85}
 @media(max-width:700px){.live-final-sequence-overlay{padding:12px}.live-final-cinematic,.live-best-player-cinematic{min-height:520px;padding:38px 22px;border-radius:30px}.live-final-cinematic__badge{font-size:72px}.live-best-player-cinematic__avatar{width:142px;height:142px}.live-best-player-cinematic__trophy,.live-best-player-cinematic__medal{font-size:70px}}
+
+/* ===== Voting readiness flow ===== */
+.online-voting-readiness{
+  display:grid;
+  gap:14px;
+  margin-top:14px;
+  padding:18px;
+  border-radius:20px;
+  border:1px solid rgba(85,232,175,.2);
+  background:rgba(28,129,93,.08);
+}
+.online-ready-vote-button{
+  margin-top:18px;
+  transition:opacity .25s ease,filter .25s ease,box-shadow .25s ease,transform .25s ease;
+}
+.online-ready-vote-button.is-locked{
+  opacity:.38;
+  filter:saturate(.5);
+  box-shadow:none;
+}
+.online-ready-vote-button.is-ready{
+  opacity:1;
+  background:linear-gradient(135deg,#38bdf8,#2563eb);
+  box-shadow:0 0 26px rgba(56,189,248,.3),0 14px 34px rgba(37,99,235,.24);
+  animation:onlineReadyVoteGlow 1.7s ease-in-out infinite;
+}
+.online-ready-vote-button.is-confirmed{
+  opacity:1;
+  background:linear-gradient(135deg,#35d399,#16865f);
+  box-shadow:0 0 22px rgba(53,211,153,.28);
+}
+@keyframes onlineReadyVoteGlow{
+  0%,100%{transform:translateY(0);box-shadow:0 0 18px rgba(56,189,248,.2),0 12px 30px rgba(37,99,235,.2)}
+  50%{transform:translateY(-1px);box-shadow:0 0 34px rgba(56,189,248,.4),0 16px 38px rgba(37,99,235,.3)}
+}

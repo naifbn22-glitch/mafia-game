@@ -80,6 +80,7 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
     dayEndsAt: null,
     daySummary: null,
     votes: {},
+    votingReady: {},
     votingStartedAt: null,
     votingResult: null,
     currentPardonPlayerId: null,
@@ -174,6 +175,7 @@ export function startGame(room) {
   room.dayEndsAt = null;
   room.daySummary = null;
   room.votes = {};
+  room.votingReady = {};
   room.votingStartedAt = null;
   room.votingResult = null;
   room.currentPardonPlayerId = null;
@@ -336,6 +338,7 @@ export function finishNight(room) {
   room.dayEndsAt = room.dayStartedAt + Math.min(300, Math.max(30, Number(room.discussionDurationSeconds) || 60)) * 1000;
   room.timerEndsAt = room.dayEndsAt;
   room.votes = {};
+  room.votingReady = {};
   room.votingStartedAt = null;
   room.votingResult = null;
 
@@ -394,6 +397,33 @@ function calculateBestPlayer(room) {
   }).sort((a,b) => b.score-a.score || Number(b.player.alive)-Number(a.player.alive) || Number(a.player.joinedAt)-Number(b.player.joinedAt));
   const top = scored[0];
   return { playerId: top.player.id, playerName: top.player.name, avatar: top.player.avatar, role: top.player.role, score: top.score, reason: top.reasons[0] || "قدم أفضل أداء إجمالي في المباراة" };
+}
+
+export function markReadyToVote(room, player) {
+  if (room.status !== "playing" || room.phase !== "day" || room.winner || !player.alive) {
+    throw new Error("ACTION_NOT_ALLOWED");
+  }
+  if (Date.now() < Number(room.dayEndsAt || 0)) {
+    throw new Error("DISCUSSION_TIME_ACTIVE");
+  }
+  room.votingReady ||= {};
+  if (!room.votingReady[player.id]) {
+    room.votingReady[player.id] = { readyAt: Date.now() };
+    addTimeline(room, {
+      type: "voting_ready",
+      playerId: player.id,
+      publicText: `${player.name} أصبح جاهزًا للتصويت`,
+      hostText: `${player.name} جاهز للتصويت`,
+    });
+  }
+  const alivePlayers = room.players.filter(item => item.alive);
+  const allReady = alivePlayers.length > 0 && alivePlayers.every(item => Boolean(room.votingReady[item.id]));
+  if (allReady) {
+    startVoting(room);
+    return { startedVoting: true };
+  }
+  touch(room);
+  return { startedVoting: false };
 }
 
 export function startVoting(room) {
@@ -488,6 +518,7 @@ export function beginNextNight(room) {
   room.dayEndsAt = null;
   room.timerEndsAt = null;
   room.votes = {};
+  room.votingReady = {};
   room.votingStartedAt = null;
   room.votingResult = null;
   beginEyesClosed(room);
@@ -510,6 +541,7 @@ export function resetForRematch(room) {
   room.dayEndsAt = null;
   room.daySummary = null;
   room.votes = {};
+  room.votingReady = {};
   room.votingStartedAt = null;
   room.votingResult = null;
   room.currentPardonPlayerId = null;
@@ -598,6 +630,7 @@ export function publicProjection(room) {
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
     discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,
     daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null, bestPlayer: room.bestPlayer ? { ...room.bestPlayer } : null,
+    votingReadyStatus: { readyPlayerIds: Object.keys(room.votingReady || {}), totalAlive: room.players.filter(p => p.alive).length },
     votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
     finalRoles: room.winner
@@ -612,6 +645,7 @@ export function hostProjection(room) {
   safe._view = "host";
   safe.nightReady = canFinishNight(room);
   safe.dayTimerFinished = room.phase === "day" && Date.now() >= Number(room.dayEndsAt || 0);
+  safe.votingReadyStatus = { readyPlayerIds: Object.keys(room.votingReady || {}), totalAlive: room.players.filter(p => p.alive).length };
   safe.votingStatus = { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length };
   delete safe.votes;
   delete safe.hostToken;
@@ -637,6 +671,7 @@ export function playerProjection(room, player) {
     confirmedActors: isConfirmed(room, player.id) ? { [player.id]: room.nightActions.confirmedActors[player.id] } : {},
   };
   base.lastTargets = player.role === "thief" ? { thief: room.lastTargets?.thief || null } : player.role === "nurse" ? { nurse: room.lastTargets?.nurse || null } : {};
+  base.myVotingReady = Boolean(room.votingReady?.[player.id]);
   base.myVote = room.votes?.[player.id]?.targetId || null;
   if (player.role === "investigator" && isConfirmed(room, player.id)) {
     const targetId = room.nightActions.confirmedActors[player.id]?.targetId;

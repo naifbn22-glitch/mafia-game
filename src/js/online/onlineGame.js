@@ -483,6 +483,8 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       ? JSON.stringify({
           nightActions: room.nightActions || null,
           investigationResult: room.investigationResult || null,
+          myVotingReady: Boolean(room.myVotingReady),
+          votingReadyStatus: room.votingReadyStatus || null,
           myVote: room.myVote || null,
           daySummary: room.daySummary || null,
           votingResult: room.votingResult || null,
@@ -1330,6 +1332,27 @@ function renderOnlineNightSummary(room) {
   `;
 }
 
+function renderOnlineVotingReadiness(room) {
+  const ready = new Set(room?.votingReadyStatus?.readyPlayerIds || []);
+  const alive = (room?.players || []).filter(player => player.alive);
+  if (!alive.length) return "";
+  return `
+    <section class="online-voting-readiness">
+      <div class="online-voting-status-heading"><strong>✅ الجاهزية للتصويت</strong><span>${ready.size} / ${alive.length}</span></div>
+      <div class="online-voting-status-list">
+        ${alive.map(player => `
+          <div class="online-vote-status-player ${ready.has(player.id) ? "has-voted" : "waiting-vote"}">
+            <img src="${player.avatar}" alt="${player.name}" />
+            <span>${player.name}</span>
+            <b>${ready.has(player.id) ? "✅ جاهز للتصويت" : "⌛ لم يعلن جاهزيته بعد"}</b>
+          </div>
+        `).join("")}
+      </div>
+      <small class="finish-night-hint">عند جاهزية جميع المتسابقين الأحياء ينتقل الجميع تلقائيًا إلى صفحة التصويت.</small>
+    </section>
+  `;
+}
+
 function renderOnlineVotingStatus(room) {
   const voted = new Set(room?.votingStatus?.votedPlayerIds || []);
   const alive = (room?.players || []).filter(player => player.alive);
@@ -1510,8 +1533,7 @@ function renderHostLobby({ app, onBack, code }) {
               </div>
               ${renderOnlineNightSummary(room)}
               ${renderOnlineDayTimer(room, { compact: true })}
-              <button id="startOnlineVoting" class="online-primary-button large start-voting-button is-ready" type="button">🗳️ الانتقال إلى التصويت</button>
-              <small class="finish-night-hint">يمكن للمدير الانتقال إلى التصويت في أي وقت، سواء انتهى المؤقت أم ما زال يعمل.</small>
+              ${renderOnlineVotingReadiness(room)}
             ` : ""}
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
@@ -1615,14 +1637,6 @@ function renderHostLobby({ app, onBack, code }) {
         showSuccessToast("اكتملت مهام الليل وبدأت مرحلة النهار.", "☀️ استيقظوا جميعًا");
       } catch {
         showErrorToast("لا يمكن الانتقال للنهار قبل اكتمال جميع مهام الليل.", "المهام غير مكتملة");
-      }
-    });
-    document.querySelector("#startOnlineVoting")?.addEventListener("click", async () => {
-      try {
-        await hostCommand(code, "start-voting");
-        showSuccessToast("بدأ التصويت السري لجميع اللاعبين الأحياء.", "🗳️ بدأ التصويت");
-      } catch {
-        showErrorToast("تعذر الانتقال إلى التصويت. حاول مرة أخرى.", "خطأ في الانتقال");
       }
     });
     document.querySelector("#startNextOnlineNight")?.addEventListener("click", async () => {
@@ -2125,15 +2139,22 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
       `;
     }
     else if (room.phase === "night-role") content = `<div class="eyes-closed-screen"><div>🌙</div><h2>أبقِ عينيك مغمضتين</h2><p>الدور الحالي سري. انتظر حتى يوقظكم المدير.</p></div>`;
-    else if (room.phase === "day") content = `
-      <div class="online-day-player-screen">
-        <div class="day-awake-icon">☀️</div>
-        <h2>استيقظوا جميعًا</h2>
-        <p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p>
-        ${renderOnlineNightSummary(room)}
-        ${renderOnlineDayTimer(room)}
-        <small class="online-day-player-note">عند انتهاء الوقت سيبدأ المدير مرحلة التصويت.</small>
-      </div>`;
+    else if (room.phase === "day") {
+      const discussionFinished = getDayRemainingSeconds(room) <= 0;
+      const isReadyForVoting = Boolean(room.myVotingReady);
+      content = `
+        <div class="online-day-player-screen">
+          <div class="day-awake-icon">☀️</div>
+          <h2>استيقظوا جميعًا</h2>
+          <p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p>
+          ${renderOnlineNightSummary(room)}
+          ${renderOnlineDayTimer(room)}
+          <button id="readyForOnlineVoting" class="online-primary-button large online-ready-vote-button ${isReadyForVoting ? "is-confirmed" : discussionFinished ? "is-ready" : "is-locked"}" type="button" ${discussionFinished && !isReadyForVoting ? "" : "disabled"}>
+            ${isReadyForVoting ? "✅ جاهز للتصويت" : "🗳️ جاهز للتصويت"}
+          </button>
+          <small class="online-day-player-note">${isReadyForVoting ? "تم إرسال جاهزيتك للمدير. بانتظار بقية المتسابقين." : discussionFinished ? "اضغط جاهز للتصويت. عند جاهزية الجميع سيتم فتح التصويت تلقائيًا." : "سيتفعّل زر جاهز للتصويت تلقائيًا عند انتهاء وقت النقاش."}</small>
+        </div>`;
+    }
     else if (room.phase === "voting") {
       if (!player.alive) {
         content = `<div class="eyes-closed-screen"><div>👁️</div><h2>تابع التصويت</h2><p>أنت خارج اللعبة، ويمكنك متابعة حالة التصويت من شاشة البث المباشر.</p></div>`;
@@ -2159,7 +2180,9 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    bindOnlineDayTimerTicker();
+    bindOnlineDayTimerTicker({ onFinish: () => {
+      if (readRoom(code)?.phase === "day") draw();
+    }});
     const revealButton = document.querySelector("#revealMyRole");
     const handleReveal = event => {
       const button = revealButton;
@@ -2237,6 +2260,26 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         );
 
       });
+    document.querySelector("#readyForOnlineVoting")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      if (button?.disabled) return;
+      button.disabled = true;
+      try {
+        const updated = await playerCommand(code, playerId, "ready-to-vote");
+        if (updated?.phase === "voting") {
+          draw();
+          return;
+        }
+        draw();
+      } catch (error) {
+        if (button) button.disabled = false;
+        const message = error?.message === "DISCUSSION_TIME_ACTIVE"
+          ? "لم ينته وقت النقاش بعد."
+          : "تعذر إرسال جاهزيتك للتصويت. حاول مرة أخرى.";
+        showErrorToast(message, "تعذر تحديث الجاهزية");
+      }
+    });
+
     const voteSelectionKey = `${code}:${playerId}`;
     document.querySelectorAll("[data-online-vote-target]").forEach(button => {
       button.addEventListener("click", () => {
