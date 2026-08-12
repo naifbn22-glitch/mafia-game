@@ -933,3 +933,22 @@
   .live-night-result-overlay{padding:12px}
   .live-night-result-overlay .night-event-card,.live-night-result-overlay .assassination-scene,.live-night-result-overlay .online-night-summary{min-height:320px}
 }
+
+
+/* Voting result: reveal royal pardon only after the protected player tops the vote. */
+.live-voting-pardon-overlay{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:24px;background:rgba(2,7,18,.56);backdrop-filter:blur(20px) saturate(.82);opacity:0;transition:opacity .4s ease;pointer-events:none}
+.live-voting-pardon-overlay.is-visible{opacity:1}
+.live-voting-pardon-overlay__content{width:min(900px,92vw);transform:scale(.92);transition:transform .45s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 30px 90px rgba(0,0,0,.6))}
+.live-voting-pardon-overlay.is-visible .live-voting-pardon-overlay__content{transform:scale(1)}
+.live-voting-pardon-reveal{position:relative;overflow:hidden;min-height:430px;padding:44px 34px;border:2px solid rgba(92,165,255,.5);border-radius:34px;text-align:center;background:linear-gradient(145deg,rgba(7,25,64,.98),rgba(8,14,36,.98));box-shadow:0 38px 110px rgba(0,0,0,.72),0 0 60px rgba(37,119,255,.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.live-voting-pardon-reveal::before{content:"";position:absolute;inset:-30%;background:radial-gradient(circle at 50% 42%,rgba(51,139,255,.32),transparent 38%);pointer-events:none}
+.live-voting-pardon-reveal__glow{position:absolute;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(64,151,255,.3),transparent 68%);filter:blur(12px)}
+.live-voting-pardon-reveal__crest{position:relative;z-index:1;font-size:72px;filter:drop-shadow(0 0 24px rgba(100,178,255,.45))}
+.live-voting-pardon-reveal__scepter{position:absolute;right:7%;top:12%;font-size:76px;color:#7dbbff;opacity:.32;transform:rotate(-18deg)}
+.live-voting-pardon-reveal__avatar{position:relative;z-index:1;width:118px;height:118px;border-radius:28px;padding:4px;background:linear-gradient(145deg,#8bc6ff,#286edb);box-shadow:0 0 34px rgba(58,139,255,.32)}
+.live-voting-pardon-reveal__avatar img{width:100%;height:100%;object-fit:cover;border-radius:24px;display:block}
+.live-voting-pardon-reveal small{position:relative;z-index:1;color:#8fc8ff;font-size:17px;font-weight:800}
+.live-voting-pardon-reveal h2{position:relative;z-index:1;margin:2px 0;color:#fff;font-size:clamp(46px,7vw,82px);line-height:1.05;text-shadow:0 0 28px rgba(75,156,255,.28)}
+.live-voting-pardon-reveal h3{position:relative;z-index:1;margin:0;color:#67b2ff;font-size:clamp(24px,3vw,38px)}
+.live-voting-pardon-reveal p{position:relative;z-index:1;max-width:700px;margin:8px auto 0;color:#c7d9ef;font-size:clamp(16px,2vw,22px);line-height:1.8}
+@media (max-width:700px){.live-voting-pardon-overlay{padding:12px}.live-voting-pardon-reveal{min-height:390px;padding:34px 20px}.live-voting-pardon-reveal__avatar{width:100px;height:100px}.live-voting-pardon-reveal__crest{font-size:60px}}

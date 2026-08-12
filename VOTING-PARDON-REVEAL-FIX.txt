@@ -1,0 +1,7 @@
+Voting royal pardon reveal update
+
+- The public broadcast keeps the king's target anonymous during night/day.
+- The protected player's identity is revealed only when voting resolves with outcome=pardoned.
+- A 7-second blurred cinematic overlay appears in the live broadcast after voting resolution.
+- The normal voting result card also shows the pardoned player's name after the vote.
+- No room, player join, realtime sync, night action, or voting rules were changed.

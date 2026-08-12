@@ -28,6 +28,7 @@ const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
 let onlineDayTimerIntervalId = null;
 const liveNightOverlayShown = new Map();
+const liveVotingPardonOverlayShown = new Map();
 
 
 function dispatchRoomsUpdated() {
@@ -2283,6 +2284,51 @@ function showLiveNightResultOverlay(room) {
 }
 
 
+function renderLiveVotingPardonOverlayContent(room) {
+  const result = room?.votingResult;
+  if (!result || result.outcome !== "pardoned" || !result.playerName) return "";
+  const player = (room.players || []).find(item => item.id === result.playerId) || null;
+  return `
+    <section class="live-voting-pardon-reveal" aria-label="العفو الملكي بعد التصويت">
+      <div class="live-voting-pardon-reveal__glow"></div>
+      <div class="live-voting-pardon-reveal__crest">👑</div>
+      <div class="live-voting-pardon-reveal__scepter">♜</div>
+      ${player?.avatar ? `<div class="live-voting-pardon-reveal__avatar"><img src="${player.avatar}" alt="${result.playerName}" /></div>` : ""}
+      <small>نتيجة التصويت</small>
+      <h2>${result.playerName}</h2>
+      <h3>حصل على العفو الملكي</h3>
+      <p>تطابق اسمه مع أعلى عدد من الأصوات، لكن وسام العفو الملكي أبقاه داخل اللعبة.</p>
+    </section>`;
+}
+
+function showLiveVotingPardonOverlay(room) {
+  const result = room?.votingResult;
+  if (room?.phase !== "voting-result" || result?.outcome !== "pardoned" || !result?.playerName) return;
+
+  const resolvedAt = Number(result.resolvedAt || 0);
+  const key = `${normalizeRoomCode(room.code)}:${resolvedAt || room.roundNumber || room.nightNumber || 0}:${result.playerId || result.playerName}`;
+  if (liveVotingPardonOverlayShown.has(key)) return;
+
+  const elapsed = resolvedAt ? Math.max(0, Date.now() - resolvedAt) : 0;
+  const remaining = Math.max(0, 7000 - elapsed);
+  if (remaining <= 0) {
+    liveVotingPardonOverlayShown.set(key, true);
+    return;
+  }
+
+  liveVotingPardonOverlayShown.set(key, true);
+  document.querySelector(".live-voting-pardon-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "live-voting-pardon-overlay";
+  overlay.innerHTML = `<div class="live-voting-pardon-overlay__content">${renderLiveVotingPardonOverlayContent(room)}</div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+  window.setTimeout(() => {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => overlay.remove(), 420);
+  }, remaining);
+}
+
 function patchStableLiveDom(target, html) {
   const template = document.createElement("template");
   template.innerHTML = html.trim();
@@ -2355,6 +2401,7 @@ export function openLiveRoom({ app, onBack, code }) {
     attachBack(onBack);
     bindOnlineDayTimerTicker();
     showLiveNightResultOverlay(room);
+    showLiveVotingPardonOverlay(room);
   };
   draw();
   startRoomViewSync({ code, mode: "public", draw, intervalMs: 450 });
