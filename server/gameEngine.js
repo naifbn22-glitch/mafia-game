@@ -279,7 +279,7 @@ function checkWinner(room) {
   const thieves = alive.filter(player => player.role === "thief").length;
   const citizens = alive.length - thieves;
   if (thieves === 0) return "citizens";
-  if (thieves >= citizens) return "thieves";
+  if (thieves === citizens && thieves > 0) return "thieves";
   return null;
 }
 
@@ -600,6 +600,9 @@ export function publicProjection(room) {
     daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null, bestPlayer: room.bestPlayer ? { ...room.bestPlayer } : null,
     votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
+    finalRoles: room.winner
+      ? room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, role: p.role, alive: p.alive }))
+      : null,
     timeline: (room.timeline || []).map(e => ({ id: e.id, at: e.at, type: e.type, role: e.role || null, chatText: e.chatText || null, text: e.publicText })).filter(e => e.text || e.chatText),
   };
 }

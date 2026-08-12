@@ -1303,6 +1303,56 @@ function renderOnlineVotingStatus(room) {
   `;
 }
 
+function finalRoleName(role, gender = "male") {
+  const female = gender === "female";
+  if (role === "thief") return female ? "لصة" : "لص";
+  if (role === "nurse") return female ? "ممرضة" : "ممرض";
+  if (role === "king") return female ? "الملكة" : "الملك";
+  if (role === "investigator") return female ? "محققة" : "محقق";
+  return female ? "مواطنة" : "مواطن";
+}
+
+function finalRoleIcon(role) {
+  return ({ thief: "🗡️", nurse: "⚕️", king: "👑", investigator: "🔎", citizen: "🛡️" })[role] || "🎭";
+}
+
+function renderOnlineWinnerFinal(room, { live = false } = {}) {
+  if (!room?.winner) return "";
+  const finalRoles = Array.isArray(room.finalRoles) ? room.finalRoles : [];
+  const thiefNames = finalRoles.filter(player => player.role === "thief").map(player => player.name);
+  const thievesWon = room.winner === "thieves";
+  const namesText = thiefNames.length ? thiefNames.join("، ") : "اللصوص";
+  return `
+    <section class="online-final-winner online-final-winner--${thievesWon ? "thieves" : "citizens"} ${live ? "is-live" : ""}">
+      <div class="online-final-winner__icon">${thievesWon ? "🗡️" : "🛡️"}</div>
+      <small>${thievesWon ? "سيطر اللصوص على المدينة" : "انتصرت المدينة"}</small>
+      <h1>${thievesWon ? "اللصوص قد سيطروا على المدينة كاملة" : "تم كشف جميع اللصوص في المدينة"}</h1>
+      <p>${thievesWon
+        ? `اللصوص الذين نجحوا في السيطرة على المدينة هم: <strong>${namesText}</strong>`
+        : "تم القبض عليهم بنجاح، وانتهى خطر اللصوص داخل المدينة."}
+      </p>
+    </section>`;
+}
+
+function renderLiveFinalRoles(room) {
+  if (!room?.winner || !Array.isArray(room.finalRoles) || !room.finalRoles.length) return "";
+  return `
+    <section class="live-final-roles">
+      <header>
+        <span>🎭</span>
+        <div><small>انتهت المباراة</small><h3>الأدوار الحقيقية للمتسابقين</h3></div>
+      </header>
+      <div class="live-final-roles__grid">
+        ${room.finalRoles.map(player => `
+          <article class="live-final-role live-final-role--${player.role}">
+            <img src="${player.avatar}" alt="${player.name}" />
+            <div><strong>${player.name}</strong><span>${finalRoleIcon(player.role)} ${finalRoleName(player.role, player.gender)}</span></div>
+            <i class="${player.alive ? "is-alive" : "is-out"}">${player.alive ? "حي" : "خرج"}</i>
+          </article>`).join("")}
+      </div>
+    </section>`;
+}
+
 function renderOnlineBestPlayer(room, { live = false } = {}) {
   const best = room?.bestPlayer;
   if (!room?.winner || !best?.playerName) return "";
@@ -1724,7 +1774,8 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     const revealUiState = roleRevealUiState.get(revealKey) || "new";
     const revealStartedLocally = revealUiState === "animating" || revealUiState === "settled";
     let content = "";
-    if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
+    if (room.winner) content = `${renderOnlineWinnerFinal(room)}${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>انتهت المباراة. بانتظار مدير اللعبة لإعادة فتح الغرفة للمباراة التالية...</p></div>`;
+    else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
     else if (room.phase === "role-reveal" && !player.roleKnown && !revealStartedLocally) content = `
       <div class="role-envelope role-envelope--branded">
         <div class="role-reveal-emblem" aria-hidden="true">
@@ -2057,7 +2108,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           </div>`;
       }
     }
-    else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}${room.winner ? `<div class="online-player-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لإعادة فتح الغرفة للمباراة التالية...</p></div>` : `<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`}`;
+    else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`;
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
@@ -2491,7 +2542,7 @@ export function openLiveRoom({ app, onBack, code }) {
             ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
             ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
             ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
-            ${room.winner ? `<div class="online-winner-banner live-winner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room, { live: true })}` : ""}
+            ${room.winner ? `${renderOnlineWinnerFinal(room, { live: true })}${renderOnlineBestPlayer(room, { live: true })}${renderLiveFinalRoles(room)}` : ""}
             <section class="live-player-section live-events-panel live-chat-panel"><div class="live-chat-panel-heading"><span>💬</span><div><h3>محادثة المدينة</h3><p>رسائل مباشرة من أصحاب الأدوار والمواطنين</p></div></div>${renderLiveRoleChat(room, 12)}</section>
           </main>
         </div>
