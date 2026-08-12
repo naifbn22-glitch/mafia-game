@@ -91,6 +91,11 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         const normalized = normalizeRoomCode(code);
         const room = await store.get(normalized);
         if (!room) throw new Error("ROOM_NOT_FOUND");
+        // كل مشترك يدخل أيضًا قناة عامة داخلية خاصة بالغرفة.
+        // هذه القناة لا تحمل بيانات سرية، وتستخدم فقط لإشعارات تغيّر المرحلة
+        // حتى يصل انتقال التصويت لكل الأجهزة فورًا حتى بعد إعادة الاتصال.
+        await socket.join(`room:${normalized}`);
+
         if (mode === "host") {
           requireHost(room, token);
           await socket.join(`room:${normalized}:host`);
@@ -133,8 +138,19 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "next-night") beginNextNight(room);
         else if (action === "rematch") resetForRematch(room);
         else throw new Error("UNKNOWN_ACTION");
-        await store.set(room); await emitRoom(room);
-        if (action === "start-voting") emitPhaseChanged(room);
+        await store.set(room);
+        await emitRoom(room);
+        if (action === "start-voting") {
+          emitPhaseChanged(room);
+          // إشعار صريح ومخصص لبدء التصويت. لا يحتوي أسماء أدوار أو بيانات سرية.
+          // عميل اللاعب يجلب إسقاطه الخاص فور استلامه بدل انتظار دورة المزامنة.
+          io.to(`room:${room.code}`).emit("room:voting-started", {
+            code: room.code,
+            phase: room.phase,
+            version: room.version || 0,
+            changedAt: Date.now(),
+          });
+        }
         ack({ ok: true, room: hostProjection(room) });
       } catch (error) { ack(safeError(error)); }
     });

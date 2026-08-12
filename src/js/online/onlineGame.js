@@ -241,23 +241,35 @@ async function fetchRoomFromServer(code, mode = "public", playerId = null) {
         ? playerSession(normalizedCode, playerId)?.token
         : undefined;
 
-  try {
-    const response = await emitAck("room:sync", {
-      code: normalizedCode,
-      mode,
-      playerId,
-      token,
-    });
-    cacheServerRoom(response.room);
-    return response.room;
-  } catch {
+  // عروض المدير واللاعب يجب أن تستلم الإسقاط المصرح به فقط.
+  // السقوط إلى الإسقاط العام عند تعثر لحظي كان يسمح أحيانًا للواجهة
+  // بالبقاء على نسخة ناقصة حتى تحديث الصفحة يدويًا.
+  const attempts = mode === "public" ? 1 : 3;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await emitAck("room:lookup", { code: normalizedCode });
+      const response = await emitAck("room:sync", {
+        code: normalizedCode,
+        mode,
+        playerId,
+        token,
+      });
       cacheServerRoom(response.room);
       return response.room;
     } catch {
-      return null;
+      if (attempt < attempts - 1) {
+        await new Promise(resolve => window.setTimeout(resolve, 120 + attempt * 180));
+      }
     }
+  }
+
+  // الإسقاط العام مناسب فقط لصفحة البث أو فحص وجود الغرفة.
+  if (mode !== "public") return null;
+  try {
+    const response = await emitAck("room:lookup", { code: normalizedCode });
+    cacheServerRoom(response.room);
+    return response.room;
+  } catch {
+    return null;
   }
 }
 
@@ -373,6 +385,30 @@ socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server
 
 // مزامنة فورية مخصصة لتغيّر المرحلة. هذا الحدث لا يحمل بيانات سرية،
 // ويطلب من كل عرض داخل الغرفة جلب إسقاطه الصحيح فورًا.
+
+// إشعار صريح لبدء التصويت. عند وصوله نطلب فورًا الإسقاط الخاص بكل عرض
+// داخل الغرفة. هذا مستقل عن مؤقت المزامنة الخلفي ويبقيه كما هو كطبقة احتياطية.
+socket.on("room:voting-started", payload => {
+  const code = normalizeRoomCode(payload?.code);
+  if (!code) return;
+
+  const matches = [...desiredSubscriptions.values()]
+    .filter(subscription => normalizeRoomCode(subscription.code) === code);
+
+  for (const subscription of matches) {
+    [0, 120, 320].forEach(delay => {
+      window.setTimeout(async () => {
+        const room = await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
+        if (room?.phase === "voting") {
+          window.dispatchEvent(new CustomEvent("mafia-voting-started", {
+            detail: { room, mode: subscription.mode, playerId: subscription.playerId },
+          }));
+        }
+      }, delay);
+    });
+  }
+});
+
 socket.on("room:phase-changed", payload => {
   const code = normalizeRoomCode(payload?.code);
   if (!code) return;
@@ -518,6 +554,14 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     redrawIfNeeded(eventRoom || null);
   };
 
+  const onVotingStarted = event => {
+    const detail = event?.detail || {};
+    const eventRoom = detail.room;
+    if (!eventRoom || normalizeRoomCode(eventRoom.code) !== normalizedCode) return;
+    if (mode === "player" && detail.playerId && detail.playerId !== playerId) return;
+    redrawIfNeeded(eventRoom, true);
+  };
+
   const onConnected = async () => {
     if (disposed) return;
     await subscribeRoom(normalizedCode, mode, playerId);
@@ -549,6 +593,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
 
   window.addEventListener("mafia-rooms-updated", onRoomsUpdated);
   window.addEventListener("mafia-server-connected", onConnected);
+  window.addEventListener("mafia-voting-started", onVotingStarted);
 
   // ابدأ الاشتراك والجلب فورًا، ثم استمر بتحديث خلفي ثابت حتى لو ضاع حدث WebSocket.
   subscribeRoom(normalizedCode, mode, playerId);
@@ -559,6 +604,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     if (timerId) window.clearTimeout(timerId);
     window.removeEventListener("mafia-rooms-updated", onRoomsUpdated);
     window.removeEventListener("mafia-server-connected", onConnected);
+    window.removeEventListener("mafia-voting-started", onVotingStarted);
   };
 
   roomViewSyncControllers.set(syncKey, { stop });
