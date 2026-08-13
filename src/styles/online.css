@@ -1153,3 +1153,41 @@
 .live-news-ticker__item b{padding:4px 8px;border-radius:7px;background:#fff;color:#b31223;font-size:11px}
 @keyframes mafiaNewsTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media(max-width:700px){.live-news-ticker{grid-template-columns:1fr}.live-news-ticker__badge{min-height:34px;justify-content:center;padding:4px 12px}.live-news-ticker__track{animation-duration:64s}.live-news-ticker__item{font-size:12px}}
+
+/* نتيجة الليل تبقى واضحة وكبيرة طوال مرحلة النهار. لا تؤثر على منطق اللعبة. */
+.persistent-day-results{
+  width:100%;
+  margin:18px 0 22px;
+}
+.persistent-day-results .night-events-stack{
+  gap:18px;
+}
+.persistent-day-results .assassination-scene,
+.persistent-day-results .night-event-card,
+.persistent-day-results .online-night-summary{
+  min-height:260px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-width:2px;
+  box-shadow:0 24px 70px rgba(0,0,0,.34);
+}
+.persistent-day-results .assassination-scene h2,
+.persistent-day-results .night-event-card__body h2,
+.persistent-day-results .night-event-card__body h3,
+.persistent-day-results .online-night-summary h3{
+  font-size:clamp(30px,5vw,58px)!important;
+  line-height:1.08;
+}
+.persistent-day-results--live .assassination-scene,
+.persistent-day-results--live .night-event-card,
+.persistent-day-results--live .online-night-summary{
+  min-height:340px;
+  backdrop-filter:blur(18px);
+}
+.persistent-day-results--live .assassination-scene h2,
+.persistent-day-results--live .night-event-card__body h2,
+.persistent-day-results--live .night-event-card__body h3,
+.persistent-day-results--live .online-night-summary h3{
+  font-size:clamp(38px,6vw,72px)!important;
+}

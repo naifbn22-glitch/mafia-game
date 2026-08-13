@@ -43,6 +43,29 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     });
   }
 
+
+  function scheduleVotingBroadcast(code) {
+    // إعادة بث قصيرة بعد أمر المدير. الهدف ليس تغيير منطق اللعبة، بل ضمان
+    // وصول المرحلة الجديدة لكل جهاز حتى بعد إعادة اتصال أو مباراة معادة.
+    [0, 120, 350, 800, 1600, 2800].forEach(delay => {
+      setTimeout(async () => {
+        try {
+          const fresh = await store.get(normalizeRoomCode(code));
+          if (!fresh || fresh.phase !== "voting") return;
+          await emitRoom(fresh);
+          io.to(`room:${fresh.code}`).emit("room:voting-started", {
+            code: fresh.code,
+            phase: fresh.phase,
+            version: fresh.version || 0,
+            matchSequence: Number(fresh.matchSequence || 0),
+            changedAt: Date.now(),
+          });
+          emitPhaseChanged(fresh);
+        } catch {}
+      }, delay);
+    });
+  }
+
   io.on("connection", socket => {
     socket.emit("server:ready", { now: Date.now() });
 
@@ -152,14 +175,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
           });
         }
         if (action === "start-voting") {
-          // إشعار صريح ومخصص لبدء التصويت. لا يحتوي أسماء أدوار أو بيانات سرية.
-          // عميل اللاعب يجلب إسقاطه الخاص فور استلامه بدل انتظار دورة المزامنة.
-          io.to(`room:${room.code}`).emit("room:voting-started", {
-            code: room.code,
-            phase: room.phase,
-            version: room.version || 0,
-            changedAt: Date.now(),
-          });
+          // بث مؤكد ومتكرر لفترة قصيرة. لا يحمل أي بيانات سرية ولا يغيّر
+          // محرك التصويت، بل يضمن انتقال كل أجهزة الغرفة في كل جولة.
+          scheduleVotingBroadcast(room.code);
         }
         ack({ ok: true, room: hostProjection(room) });
       } catch (error) { ack(safeError(error)); }

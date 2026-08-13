@@ -418,7 +418,7 @@ socket.on("room:voting-started", payload => {
     .filter(subscription => normalizeRoomCode(subscription.code) === code);
 
   for (const subscription of matches) {
-    [0, 120, 320].forEach(delay => {
+    [0, 80, 180, 360, 700, 1200, 2000, 3200].forEach(delay => {
       window.setTimeout(async () => {
         const room = await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
         if (room?.phase === "voting") {
@@ -532,6 +532,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       room.updatedAt || 0,
       room.status || "",
       room.phase || "",
+      Number(room.matchSequence || 0),
       room.activeRole || "",
       players,
       playerState,
@@ -2195,7 +2196,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           <div class="day-awake-icon">☀️</div>
           <h2>استيقظوا جميعًا</h2>
           <p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p>
-          ${renderOnlineNightSummary(room)}
+          <div class="persistent-day-results">${renderOnlineNightSummary(room)}</div>
           ${renderOnlineDayTimer(room)}
           <small class="online-day-player-note">بانتظار مدير اللعبة للانتقال إلى مرحلة التصويت.</small>
         </div>`;
@@ -2488,7 +2489,7 @@ function showLiveNightResultOverlay(room) {
 
   const summary = room.daySummary;
   const nightNumber = summary.nightNumber || room.nightNumber || 0;
-  const nightKey = `${normalizeRoomCode(room.code)}:${nightNumber}`;
+  const nightKey = `${normalizeRoomCode(room.code)}:${Number(room.matchSequence || 0)}:${nightNumber}`;
   const startedAt = Number(room.dayStartedAt || 0);
   const now = Date.now();
   const elapsed = startedAt ? Math.max(0, now - startedAt) : 0;
@@ -2815,7 +2816,7 @@ export function openLiveRoom({ app, onBack, code }) {
           ${renderLiveParticipantsRail(room)}
           <main class="live-broadcast-main">
             <section class="live-hero"><span class="live-status"><i></i>بث مباشر</span><h2>${room.roomName}</h2><p>${phaseText}</p></section>
-            ${room.phase === "day" ? `${renderOnlineNightSummary(room)}${renderOnlineDayTimer(room)}` : ""}
+            ${room.phase === "day" ? `<div class="persistent-day-results persistent-day-results--live">${renderOnlineNightSummary(room)}</div>${renderOnlineDayTimer(room)}` : ""}
             ${room.phase === "voting" ? renderOnlineVotingStatus(room) : ""}
             ${room.phase === "voting-result" ? renderOnlineVotingResult(room) : ""}
             ${room.winner ? `${renderOnlineWinnerFinal(room, { live: true })}${renderOnlineBestPlayer(room, { live: true })}${renderLiveFinalRoles(room)}` : ""}

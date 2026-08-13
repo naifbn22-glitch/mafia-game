@@ -87,6 +87,7 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
     roundNumber: 1,
     winner: null,
     bestPlayer: null,
+    matchSequence: 0,
     completedSteps: [],
   };
 }
@@ -152,6 +153,7 @@ export function requirePlayer(room, playerId, token) {
 export function startGame(room) {
   if (room.players.length < 4) throw new Error("NOT_ENOUGH_PLAYERS");
   if (room.status !== "waiting") throw new Error("GAME_ALREADY_STARTED");
+  room.matchSequence = Number(room.matchSequence || 0) + 1;
   const roles = distributeRoles(room.players.length);
   room.players = shuffle(room.players).map((p, i) => ({
     ...p,
@@ -427,14 +429,25 @@ export function markReadyToVote(room, player) {
 }
 
 export function startVoting(room) {
-  if (room.status !== "playing" || room.phase !== "day" || room.winner) throw new Error("ACTION_NOT_ALLOWED");
-  // مدير الغرفة يملك صلاحية إنهاء وقت النقاش مبكرًا.
-  // المؤقت يبقى مرجعًا بصريًا فقط، وعند بدء التصويت تُغلق مرحلة النهار فورًا.
+  if (room.status !== "playing" || room.winner) throw new Error("ACTION_NOT_ALLOWED");
+
+  // الأمر idempotent: إذا وصل ضغط المدير أو إعادة الإرسال أكثر من مرة أثناء
+  // مرحلة التصويت نفسها فلا نمس الأصوات ولا نعيد تهيئة الجولة. هذا يجعل
+  // زر التصويت صالحًا في كل الجولات والمباريات المعادة بدون آثار جانبية.
+  if (room.phase === "voting") {
+    touch(room);
+    return;
+  }
+
+  if (room.phase !== "day") throw new Error("ACTION_NOT_ALLOWED");
+
+  // مدير الغرفة يملك صلاحية إنهاء وقت النقاش في أي لحظة.
   room.dayEndsAt = Date.now();
   room.timerEndsAt = room.dayEndsAt;
   room.phase = "voting";
   room.votingStartedAt = Date.now();
   room.votes = {};
+  room.votingReady = {};
   room.votingResult = null;
   addTimeline(room, {
     type: "voting_started",
@@ -626,7 +639,7 @@ export function publicProjection(room) {
     _view: "public",
     code: room.code, roomName: room.roomName, hostName: room.hostName, maxPlayers: room.maxPlayers,
     status: room.status, joinLocked: Boolean(room.joinLocked), joinLockedReason: room.joinLockedReason || null, phase: room.phase, activeRole: room.activeRole, createdAt: room.createdAt,
-    updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber, roundNumber: room.roundNumber || 1,
+    updatedAt: room.updatedAt, version: room.version, nightNumber: room.nightNumber, roundNumber: room.roundNumber || 1, matchSequence: Number(room.matchSequence || 0),
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
     discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,
     daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null, bestPlayer: room.bestPlayer ? { ...room.bestPlayer } : null,
