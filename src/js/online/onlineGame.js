@@ -1929,8 +1929,21 @@ function getInvestigationResult(target) {
 
 function renderPlayerRoom({ app, onBack, code, playerId }) {
   saveOnlineResumeMarker({ mode: "player", code, playerId });
+
+  const normalizedCode = normalizeRoomCode(code);
+
+  for (const [key, subscription] of desiredSubscriptions.entries()) {
+    if (
+      subscription.code === normalizedCode &&
+      subscription.mode === "public"
+    ) {
+      desiredSubscriptions.delete(key);
+      activeSubscriptions.delete(key);
+    }
+  }
+
   subscribeRoom(code, "player", playerId);
-  const draw = () => {
+    const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
     if (!room || !player) return renderJoinRoom({ app, onBack, code });
     const revealKey = `${code}:${playerId}`;
