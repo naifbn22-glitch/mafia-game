@@ -16,8 +16,8 @@ export default defineConfig({
       includeAssets: [
         "favicon.ico",
         "apple-touch-icon.png",
-        "pwa-192x192.png",
-        "pwa-512x512.png",
+        "pwa-192x192-transparent.png",
+        "pwa-512x512-transparent.png",
       ],
 
       manifest: {
@@ -40,21 +40,17 @@ export default defineConfig({
 
         icons: [
           {
-            src: "/pwa-192x192.png",
+            src: "/pwa-192x192-transparent.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/pwa-512x512-transparent.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any",
           },
-{
-  src: "/pwa-512x512.png",
-  sizes: "512x512",
-  type: "image/png",
-  purpose: "maskable",
-},
         ],
       },
 

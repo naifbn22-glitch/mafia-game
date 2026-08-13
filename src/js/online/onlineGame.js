@@ -30,6 +30,7 @@ let onlineDayTimerIntervalId = null;
 const liveNightOverlayShown = new Map();
 const liveNightPardonOverlayShown = new Map();
 const liveVotingPardonOverlayShown = new Map();
+const liveVotingResultOverlayShown = new Map();
 const liveFinalSequenceShown = new Map();
 
 
@@ -388,6 +389,27 @@ socket.on("disconnect", () => window.dispatchEvent(new CustomEvent("mafia-server
 
 // إشعار صريح لبدء التصويت. عند وصوله نطلب فورًا الإسقاط الخاص بكل عرض
 // داخل الغرفة. هذا مستقل عن مؤقت المزامنة الخلفي ويبقيه كما هو كطبقة احتياطية.
+socket.on("room:day-started", payload => {
+  const code = normalizeRoomCode(payload?.code);
+  if (!code) return;
+
+  const matches = [...desiredSubscriptions.values()]
+    .filter(subscription => normalizeRoomCode(subscription.code) === code);
+
+  for (const subscription of matches) {
+    [0, 100, 260, 600].forEach(delay => {
+      window.setTimeout(async () => {
+        const room = await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
+        if (room?.phase === "day") {
+          window.dispatchEvent(new CustomEvent("mafia-day-started", {
+            detail: { room, mode: subscription.mode, playerId: subscription.playerId },
+          }));
+        }
+      }, delay);
+    });
+  }
+});
+
 socket.on("room:voting-started", payload => {
   const code = normalizeRoomCode(payload?.code);
   if (!code) return;
@@ -483,8 +505,6 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
       ? JSON.stringify({
           nightActions: room.nightActions || null,
           investigationResult: room.investigationResult || null,
-          myVotingReady: Boolean(room.myVotingReady),
-          votingReadyStatus: room.votingReadyStatus || null,
           myVote: room.myVote || null,
           daySummary: room.daySummary || null,
           votingResult: room.votingResult || null,
@@ -556,6 +576,14 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     redrawIfNeeded(eventRoom || null);
   };
 
+  const onDayStarted = event => {
+    const detail = event?.detail || {};
+    const eventRoom = detail.room;
+    if (!eventRoom || normalizeRoomCode(eventRoom.code) !== normalizedCode) return;
+    if (mode === "player" && detail.playerId && detail.playerId !== playerId) return;
+    redrawIfNeeded(eventRoom, true);
+  };
+
   const onVotingStarted = event => {
     const detail = event?.detail || {};
     const eventRoom = detail.room;
@@ -595,6 +623,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
 
   window.addEventListener("mafia-rooms-updated", onRoomsUpdated);
   window.addEventListener("mafia-server-connected", onConnected);
+  window.addEventListener("mafia-day-started", onDayStarted);
   window.addEventListener("mafia-voting-started", onVotingStarted);
 
   // ابدأ الاشتراك والجلب فورًا، ثم استمر بتحديث خلفي ثابت حتى لو ضاع حدث WebSocket.
@@ -606,6 +635,7 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     if (timerId) window.clearTimeout(timerId);
     window.removeEventListener("mafia-rooms-updated", onRoomsUpdated);
     window.removeEventListener("mafia-server-connected", onConnected);
+    window.removeEventListener("mafia-day-started", onDayStarted);
     window.removeEventListener("mafia-voting-started", onVotingStarted);
   };
 
@@ -1332,27 +1362,6 @@ function renderOnlineNightSummary(room) {
   `;
 }
 
-function renderOnlineVotingReadiness(room) {
-  const ready = new Set(room?.votingReadyStatus?.readyPlayerIds || []);
-  const alive = (room?.players || []).filter(player => player.alive);
-  if (!alive.length) return "";
-  return `
-    <section class="online-voting-readiness">
-      <div class="online-voting-status-heading"><strong>✅ الجاهزية للتصويت</strong><span>${ready.size} / ${alive.length}</span></div>
-      <div class="online-voting-status-list">
-        ${alive.map(player => `
-          <div class="online-vote-status-player ${ready.has(player.id) ? "has-voted" : "waiting-vote"}">
-            <img src="${player.avatar}" alt="${player.name}" />
-            <span>${player.name}</span>
-            <b>${ready.has(player.id) ? "✅ جاهز للتصويت" : "⌛ لم يعلن جاهزيته بعد"}</b>
-          </div>
-        `).join("")}
-      </div>
-      <small class="finish-night-hint">عند جاهزية جميع المتسابقين الأحياء ينتقل الجميع تلقائيًا إلى صفحة التصويت.</small>
-    </section>
-  `;
-}
-
 function renderOnlineVotingStatus(room) {
   const voted = new Set(room?.votingStatus?.votedPlayerIds || []);
   const alive = (room?.players || []).filter(player => player.alive);
@@ -1533,9 +1542,8 @@ function renderHostLobby({ app, onBack, code }) {
               </div>
               ${renderOnlineNightSummary(room)}
               ${renderOnlineDayTimer(room, { compact: true })}
-              ${renderOnlineVotingReadiness(room)}
-              <button id="forceStartOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ تجاوز الجاهزية والانتقال للتصويت</button>
-              <small class="finish-night-hint">ينقل جميع المتسابقين الأحياء مباشرة إلى صفحة التصويت حتى لو لم تكتمل الجاهزية.</small>
+              <button id="forceStartOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ الانتقال إلى التصويت</button>
+              <small class="finish-night-hint">زر مدير اللعبة ينقل جميع المتسابقين الأحياء في الغرفة مباشرة إلى صفحة التصويت في أي وقت من مرحلة النهار.</small>
             ` : ""}
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
@@ -2154,8 +2162,6 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     }
     else if (room.phase === "night-role") content = `<div class="eyes-closed-screen"><div>🌙</div><h2>أبقِ عينيك مغمضتين</h2><p>الدور الحالي سري. انتظر حتى يوقظكم المدير.</p></div>`;
     else if (room.phase === "day") {
-      const discussionFinished = getOnlineDayRemaining(room) <= 0;
-      const isReadyForVoting = Boolean(room.myVotingReady);
       content = `
         <div class="online-day-player-screen">
           <div class="day-awake-icon">☀️</div>
@@ -2163,10 +2169,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           <p>انتهت مرحلة الليل وبدأت مرحلة النهار.</p>
           ${renderOnlineNightSummary(room)}
           ${renderOnlineDayTimer(room)}
-          <button id="readyForOnlineVoting" class="online-primary-button large online-ready-vote-button ${isReadyForVoting ? "is-confirmed" : discussionFinished ? "is-ready" : "is-locked"}" type="button" ${discussionFinished && !isReadyForVoting ? "" : "disabled"}>
-            ${isReadyForVoting ? "✅ جاهز للتصويت" : "🗳️ جاهز للتصويت"}
-          </button>
-          <small class="online-day-player-note">${isReadyForVoting ? "تم إرسال جاهزيتك للمدير. بانتظار بقية المتسابقين." : discussionFinished ? "اضغط جاهز للتصويت. عند جاهزية الجميع سيتم فتح التصويت تلقائيًا." : "سيتفعّل زر جاهز للتصويت تلقائيًا عند انتهاء وقت النقاش."}</small>
+          <small class="online-day-player-note">بانتظار مدير اللعبة للانتقال إلى مرحلة التصويت.</small>
         </div>`;
     }
     else if (room.phase === "voting") {
@@ -2274,26 +2277,6 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
         );
 
       });
-    document.querySelector("#readyForOnlineVoting")?.addEventListener("click", async event => {
-      const button = event.currentTarget;
-      if (button?.disabled) return;
-      button.disabled = true;
-      try {
-        const updated = await playerCommand(code, playerId, "ready-to-vote");
-        if (updated?.phase === "voting") {
-          draw();
-          return;
-        }
-        draw();
-      } catch (error) {
-        if (button) button.disabled = false;
-        const message = error?.message === "DISCUSSION_TIME_ACTIVE"
-          ? "لم ينته وقت النقاش بعد."
-          : "تعذر إرسال جاهزيتك للتصويت. حاول مرة أخرى.";
-        showErrorToast(message, "تعذر تحديث الجاهزية");
-      }
-    });
-
     const voteSelectionKey = `${code}:${playerId}`;
     document.querySelectorAll("[data-online-vote-target]").forEach(button => {
       button.addEventListener("click", () => {
@@ -2538,6 +2521,77 @@ function showLiveNightResultOverlay(room) {
 }
 
 
+function renderLiveVotingResultOverlayContent(room) {
+  const result = room?.votingResult;
+  if (!result || result.outcome === "pardoned") return "";
+  const player = result.playerId ? (room.players || []).find(item => item.id === result.playerId) || null : null;
+
+  if (result.outcome === "eliminated") {
+    return `
+      <section class="live-vote-cinematic live-vote-cinematic--eliminated" aria-label="خروج لاعب بالتصويت">
+        <div class="live-vote-cinematic__icon">🗳️</div>
+        ${player?.avatar ? `<div class="live-vote-cinematic__avatar"><img src="${player.avatar}" alt="${result.playerName || player.name}" /></div>` : ""}
+        <small>قرار المدينة</small>
+        <h2>${result.playerName || player?.name || "أحد المتسابقين"}</h2>
+        <h3>خرج من اللعبة بعد التصويت</h3>
+        <p>حصل على أعلى عدد من الأصوات، وتم تنفيذ قرار التصويت دون كشف دوره.</p>
+      </section>`;
+  }
+
+  if (result.outcome === "tie") {
+    return `
+      <section class="live-vote-cinematic live-vote-cinematic--tie" aria-label="تعادل الأصوات">
+        <div class="live-vote-cinematic__icon">⚖️</div>
+        <small>نتيجة التصويت</small>
+        <h2>تعادل في الأصوات</h2>
+        <h3>لا أحد يخرج من المدينة</h3>
+        <p>تساوت أعلى الأصوات بين أكثر من متسابق، لذلك تستمر المباراة دون إقصاء.</p>
+      </section>`;
+  }
+
+  if (result.outcome === "abstain" || result.outcome === "no-votes") {
+    return `
+      <section class="live-vote-cinematic live-vote-cinematic--abstain" aria-label="لا يوجد إقصاء بالتصويت">
+        <div class="live-vote-cinematic__icon">✋</div>
+        <small>نتيجة التصويت</small>
+        <h2>لا يوجد إقصاء</h2>
+        <h3>${result.outcome === "abstain" ? "الامتناع حصل على أعلى الأصوات" : "لم تُسجّل أصوات حاسمة"}</h3>
+        <p>تستمر المباراة دون خروج أي متسابق في هذه الجولة.</p>
+      </section>`;
+  }
+
+  return "";
+}
+
+function showLiveVotingResultOverlay(room) {
+  const result = room?.votingResult;
+  if (room?.phase !== "voting-result" || !result || result.outcome === "pardoned") return;
+  const resolvedAt = Number(result.resolvedAt || 0);
+  const key = `${normalizeRoomCode(room.code)}:${resolvedAt || room.roundNumber || 0}:${result.outcome}:${result.playerId || "none"}`;
+  if (liveVotingResultOverlayShown.has(key)) return;
+
+  const elapsed = resolvedAt ? Math.max(0, Date.now() - resolvedAt) : 0;
+  const remaining = Math.max(0, 7000 - elapsed);
+  if (remaining <= 0) {
+    liveVotingResultOverlayShown.set(key, true);
+    return;
+  }
+
+  const content = renderLiveVotingResultOverlayContent(room);
+  if (!content) return;
+  liveVotingResultOverlayShown.set(key, true);
+  document.querySelector(".live-voting-result-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "live-voting-result-overlay";
+  overlay.innerHTML = `<div class="live-voting-result-overlay__content">${content}</div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+  window.setTimeout(() => {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => overlay.remove(), 420);
+  }, remaining);
+}
+
 function renderLiveVotingPardonOverlayContent(room) {
   const result = room?.votingResult;
   if (!result || result.outcome !== "pardoned" || !result.playerName) return "";
@@ -2728,6 +2782,7 @@ export function openLiveRoom({ app, onBack, code }) {
     attachBack(onBack);
     bindOnlineDayTimerTicker();
     showLiveNightResultOverlay(room);
+    showLiveVotingResultOverlay(room);
     showLiveVotingPardonOverlay(room);
     showLiveFinalSequenceOverlay(room);
   };

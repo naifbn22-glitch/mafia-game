@@ -1,0 +1,16 @@
+Targeted patch only. No changes to game rules, room storage, role rules, vote counting, or player join logic.
+
+Changes:
+1) Day transition: explicit room:day-started event + phase-change refresh for all subscribed player views.
+2) Voting: removed player readiness UI and server action; only host starts voting from day phase.
+3) Host night role buttons: active/woken role is red; confirmed role remains green.
+4) Live broadcast: 7-second cinematic overlay for eliminated/tie/abstain voting results; royal pardon overlay remains separate.
+5) PWA icons: transparent icon assets use purpose=any only, with cache-busting transparent filenames.
+6) Arabic shaping: removed letter spacing from Arabic home/setup text and enabled Arabic ligatures/contextual shaping.
+
+Validation performed:
+- node --check passed for onlineGame.js, socketServer.js, gameEngine.js, vite.config.js.
+- Game-engine test passed for forced day -> voting -> votes -> voting-result.
+- Three consecutive forced voting cycles passed.
+- PWA source icons verified RGBA with transparent corner pixels.
+- npm ci was attempted but dependency download did not complete within the environment timeout; run npm install && npm run build locally before deployment.

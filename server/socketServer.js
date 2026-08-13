@@ -3,7 +3,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import {
   addTimeline, beginEyesClosed, beginNextNight, castVote, confirmNightAction, createRoom, finishNight, hostProjection, joinPlayer,
-  markRoleKnown, markReadyToVote, normalizeRoomCode, playerProjection, publicProjection, requireHost, requirePlayer,
+  markRoleKnown, normalizeRoomCode, playerProjection, publicProjection, requireHost, requirePlayer,
   selectNightTarget, skipKingPardon, startGame, startVoting, resetForRematch, touch, wakeRole,
 } from "./gameEngine.js";
 
@@ -140,8 +140,18 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room);
         await emitRoom(room);
-        if (action === "start-voting") {
+        if (["start-game", "eyes-closed", "wake-role", "finish-night", "start-voting", "next-night", "rematch"].includes(action)) {
           emitPhaseChanged(room);
+        }
+        if (action === "finish-night") {
+          io.to(`room:${room.code}`).emit("room:day-started", {
+            code: room.code,
+            phase: room.phase,
+            version: room.version || 0,
+            changedAt: Date.now(),
+          });
+        }
+        if (action === "start-voting") {
           // إشعار صريح ومخصص لبدء التصويت. لا يحتوي أسماء أدوار أو بيانات سرية.
           // عميل اللاعب يجلب إسقاطه الخاص فور استلامه بدل انتظار دورة المزامنة.
           io.to(`room:${room.code}`).emit("room:voting-started", {
@@ -164,19 +174,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         else if (action === "select-night-target") selectNightTarget(room, player, payload.targetId);
         else if (action === "skip-king-pardon") skipKingPardon(room, player);
         else if (action === "confirm-night-action") confirmNightAction(room, player);
-        else if (action === "ready-to-vote") markReadyToVote(room, player);
         else if (action === "cast-vote") castVote(room, player, payload.targetId);
         else throw new Error("UNKNOWN_ACTION");
         await store.set(room); await emitRoom(room);
-        if (action === "ready-to-vote" && room.phase === "voting") {
-          emitPhaseChanged(room);
-          io.to(`room:${room.code}`).emit("room:voting-started", {
-            code: room.code,
-            phase: room.phase,
-            version: room.version || 0,
-            changedAt: Date.now(),
-          });
-        }
         ack({ ok: true, room: playerProjection(room, player) });
       } catch (error) { ack(safeError(error)); }
     });

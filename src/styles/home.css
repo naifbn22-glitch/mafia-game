@@ -5619,3 +5619,31 @@
   .rules-flow-card:last-child { grid-column: auto; }
   .rules-player-count-strip { align-items: flex-start; }
 }
+
+
+/* === Arabic shaping fixes === */
+.brand h1,
+.hero h2,
+.setup-brand span,
+.home-page .hero h2,
+.home-page .brand h1,
+.home-page button,
+.home-page h1,
+.home-page h2,
+.home-page h3,
+.home-page p,
+.home-page span,
+.home-page strong,
+.home-page small,
+.setup-page h1,
+.setup-page h2,
+.setup-page h3,
+.setup-page p,
+.setup-page span,
+.setup-page button{
+  letter-spacing:0!important;
+  font-kerning:normal;
+  font-variant-ligatures:common-ligatures contextual;
+  font-feature-settings:"liga" 1,"calt" 1;
+  text-rendering:optimizeLegibility;
+}
