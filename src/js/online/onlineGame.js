@@ -622,17 +622,39 @@ function startRoomViewSync({ code, mode = "public", playerId = null, draw, inter
     return false;
   };
 
-  const redrawIfNeeded = (room = null, force = false) => {
-    if (disposed) return;
-    const currentRoom = room || readRoom(normalizedCode);
-    if (!currentRoom) return;
+const redrawIfNeeded = (room = null, force = false) => {
+  if (disposed) return;
 
-    const signature = roomSignature(currentRoom);
-    const repairPlayerStage = playerStageNeedsRepair(currentRoom);
-    if (!force && !repairPlayerStage && signature === lastDrawSignature) return;
-    lastDrawSignature = signature;
-    draw();
-  };
+  const currentRoom =
+    room || readRoom(normalizedCode);
+
+  if (!currentRoom) return;
+
+  // مهم جدًا:
+  // نحفظ أحدث نسخة وصلت من الخادم قبل إعادة رسم الصفحة.
+  // بذلك draw() تقرأ نفس المرحلة الجديدة بدل نسخة قديمة.
+  if (room) {
+    cacheServerRoom(currentRoom);
+  }
+
+  const signature =
+    roomSignature(currentRoom);
+
+  const repairPlayerStage =
+    playerStageNeedsRepair(currentRoom);
+
+  if (
+    !force &&
+    !repairPlayerStage &&
+    signature === lastDrawSignature
+  ) {
+    return;
+  }
+
+  lastDrawSignature = signature;
+
+  draw();
+};
 
   const onRoomsUpdated = event => {
     const eventRoom = event?.detail?.room;
