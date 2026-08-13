@@ -439,10 +439,22 @@ socket.on("room:phase-changed", payload => {
     .filter(subscription => normalizeRoomCode(subscription.code) === code);
 
   for (const subscription of matches) {
-    [0, 180, 550].forEach(delay => {
+    // محاولات قصيرة ومتدرجة تضمن أن كل جهاز يحصل على المرحلة الجديدة حتى إذا
+    // وصل إشعار المرحلة قبل اكتمال مزامنة Redis/الخادم بجزء من الثانية.
+    [0, 100, 260, 600, 1200, 2200].forEach(delay => {
       window.setTimeout(async () => {
         try {
-          await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
+          const room = await fetchRoomFromServer(code, subscription.mode, subscription.playerId);
+          if (!room) return;
+          if (room.phase === "day") {
+            window.dispatchEvent(new CustomEvent("mafia-day-started", {
+              detail: { room, mode: subscription.mode, playerId: subscription.playerId },
+            }));
+          } else if (room.phase === "voting") {
+            window.dispatchEvent(new CustomEvent("mafia-voting-started", {
+              detail: { room, mode: subscription.mode, playerId: subscription.playerId },
+            }));
+          }
         } catch {
           // المزامنة الدورية الحالية ستعيد المحاولة تلقائيًا.
         }
@@ -1548,7 +1560,7 @@ function renderHostLobby({ app, onBack, code }) {
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
               ${renderOnlineVotingResult(room)}
-              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<button id="restartOnlineGame" class="online-primary-button large online-rematch-button" type="button">🔄 إعادة اللعبة بنفس الغرفة</button><small class="finish-night-hint">سيبقى المشاركون الحاليون وتفتح الغرفة مجددًا لانضمام لاعبين جدد حتى الحد الأعلى.</small>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
+              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<div class="online-final-actions"><button id="restartOnlineGame" class="online-primary-button large online-rematch-button" type="button">🔄 إعادة اللعبة</button><button id="newOnlineGame" class="online-secondary-button large online-new-game-button" type="button">✨ لعبة جديدة</button></div><small class="finish-night-hint">إعادة اللعبة تبقي نفس الغرفة والمشاركين وتعيد فتح الانضمام إذا كان هناك مكان. لعبة جديدة تعيدك إلى بوابة إنشاء أو دخول غرفة.</small>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
             ` : ""}
             <section class="host-live-timeline"><h3>سجل الأحداث المباشر</h3>${renderOnlineTimeline(room, 10)}</section>
           </aside>
@@ -1639,7 +1651,16 @@ function renderHostLobby({ app, onBack, code }) {
       try { await hostCommand(code, "eyes-closed"); } catch { showErrorToast("تعذر بدء مرحلة الليل.", "خطأ"); }
     });
     document.querySelectorAll("[data-role]").forEach(btn => btn.addEventListener("click", async () => {
-      try { await hostCommand(code, "wake-role", { role: btn.dataset.role }); } catch { showErrorToast("تعذر إيقاظ الدور.", "خطأ"); }
+      const role = btn.dataset.role;
+      // استجابة بصرية فورية عند المدير. تبقى حالة الخادم هي المصدر النهائي للحقيقة.
+      document.querySelectorAll(".role-wake-button").forEach(item => item.classList.remove("active"));
+      btn.classList.add("active");
+      try {
+        await hostCommand(code, "wake-role", { role });
+      } catch {
+        btn.classList.remove("active");
+        showErrorToast("تعذر إيقاظ الدور.", "خطأ");
+      }
     }));
     document.querySelector("#finishOnlineNight")?.addEventListener("click", async () => {
       try {
@@ -1676,6 +1697,13 @@ function renderHostLobby({ app, onBack, code }) {
       } catch {
         showErrorToast("تعذرت إعادة تجهيز الغرفة.", "خطأ في الخادم");
       }
+    });
+    document.querySelector("#newOnlineGame")?.addEventListener("click", () => {
+      // لعبة جديدة منفصلة: لا نحذف الغرفة من الخادم، بل ننهي حفظ الاستكمال المحلي
+      // ونعود إلى بوابة إنشاء/دخول غرفة جديدة.
+      deleteSavedOnlineGame();
+      history.replaceState({}, "", location.pathname);
+      openOnlinePortal({ app, onBack });
     });
   };
   draw();
@@ -1714,14 +1742,14 @@ function onlineRoleCard(player, { settled = false } = {}) {
               <p class="role-card-back-title">مافيا</p>
             </div>
             <div class="role-card-face role-card-front">
-              <img class="role-card-front-image" src="${image}" alt="بطاقة ${ROLE_LABELS[player.role]}" />
+              <img class="role-card-front-image" src="${image}" alt="بطاقة ${finalRoleName(player.role, player.gender)}" />
               <span class="role-card-shine"></span>
             </div>
           </div>
         </div>
       </div>
       <div class="role-card-details${settled ? " details-visible" : ""}" id="onlineRoleDetails">
-        <h2>${ROLE_LABELS[player.role]}</h2>
+        <h2>${finalRoleName(player.role, player.gender)}</h2>
         <p>${({
           thief: "استيقظ مع اللصوص ليلًا واختروا ضحية واحدة.",
           nurse: "احمِ لاعبًا واحدًا كل ليلة، ويمكنك حماية نفسك.",
@@ -2133,7 +2161,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
           </div>
 
           <h2>
-            استيقظ يا ${ROLE_LABELS[player.role]}
+            ${player.gender === "female" ? "استيقظي يا" : "استيقظ يا"} ${finalRoleName(player.role, player.gender)}
           </h2>
 
           <p>${actionDescription}</p>
@@ -2751,6 +2779,22 @@ function patchStableLiveDom(target, html) {
   syncNode(currentRoot, nextRoot);
 }
 
+function renderLiveBreakingNewsTicker(room) {
+  const phase = room?.phase || "waiting";
+  const items = [
+    "عاجل: فرق الشرطة تكثف دورياتها في أحياء المدينة بحثًا عن أي تحركات مشبوهة.",
+    "مصادر المدينة: التحقيقات مستمرة والسلطات تطلب من المواطنين توخي الحذر وعدم الثقة بالمعلومات غير المؤكدة.",
+    "غرفة العمليات: فرق البحث تجمع الأدلة وتراجع شهادات المواطنين للوصول إلى اللصوص.",
+    "عاجل: الشرطة تؤكد أن القبض على اللصوص يعتمد على دقة الملاحظات وقرارات التصويت القادمة.",
+    "مراسل المدينة: حالة من الترقب بين المواطنين مع استمرار التحقيقات السرية خلال الليل.",
+    "السلطات: أي معلومة صغيرة قد تساعد في كشف هوية اللصوص وإنهاء حالة الخطر في المدينة.",
+    "عاجل: فرق الأمن تنتشر في المداخل الرئيسية وتتابع تحركات المشتبه بهم دون الكشف عن تفاصيل التحقيق.",
+    phase === "voting" ? "الآن: المواطنون يتوجهون إلى التصويت وسط ترقب لنتيجة قد تغيّر مسار القضية." : "الشرطة تدعو الجميع إلى التعاون حتى تتم استعادة الأمن بالكامل.",
+  ];
+  const content = items.map(text => `<span class="live-news-ticker__item"><b>عاجل</b>${text}</span>`).join("");
+  return `<div class="live-news-ticker" role="marquee" aria-label="شريط أخبار المدينة"><div class="live-news-ticker__badge">أخبار المدينة</div><div class="live-news-ticker__viewport"><div class="live-news-ticker__track">${content}${content}</div></div></div>`;
+}
+
 export function openLiveRoom({ app, onBack, code }) {
   subscribeRoom(code, "public");
   const draw = () => {
@@ -2766,6 +2810,7 @@ export function openLiveRoom({ app, onBack, code }) {
     const liveMarkup = pageShell(`
       <div class="live-dashboard live-dashboard--${visualPhase}">
         ${renderLiveCinematicBackdrop(room)}
+        ${renderLiveBreakingNewsTicker(room)}
         <div class="live-broadcast-layout">
           ${renderLiveParticipantsRail(room)}
           <main class="live-broadcast-main">

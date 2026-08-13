@@ -1130,3 +1130,26 @@
 .live-vote-cinematic--tie{color:#d8a9ff;border-color:rgba(187,105,255,.58);background:radial-gradient(circle at 50% 25%,rgba(185,100,255,.22),transparent 34%),linear-gradient(155deg,#2d1541,#170d25 55%,#0a0711)}
 .live-vote-cinematic--abstain{color:#8be7ff;border-color:rgba(90,213,255,.55);background:radial-gradient(circle at 50% 25%,rgba(83,215,255,.18),transparent 34%),linear-gradient(155deg,#0b3040,#081923 55%,#050b0f)}
 @media(max-width:700px){.live-voting-result-overlay{padding:12px}.live-vote-cinematic{min-height:390px;padding:34px 20px}.live-vote-cinematic__avatar{width:104px;height:104px}.live-vote-cinematic__icon{font-size:62px}}
+
+/* === 2026-08-13 focused role/day/rematch/live-news enhancements === */
+.online-final-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.online-final-actions .large{width:100%;font-size:17px;padding:17px 16px}
+.online-new-game-button{background:linear-gradient(135deg,rgba(76,106,200,.25),rgba(79,44,160,.25));border-color:rgba(144,154,255,.28)}
+@media(max-width:620px){.online-final-actions{grid-template-columns:1fr}}
+
+/* الاستيقاظ يظهر أحمر فور الأمر، ويظل الأخضر مخصصًا للتأكيد الكامل كما في النظام الحالي. */
+.role-wake-button.active:not(.is-action-complete){
+  opacity:1!important;color:#fff4f4!important;
+  background:linear-gradient(135deg,#cf2c3f,#7b111f)!important;
+  border:1px solid rgba(255,116,128,.68)!important;
+  box-shadow:0 0 0 1px rgba(255,95,108,.1) inset,0 10px 30px rgba(201,31,51,.24),0 0 30px rgba(255,49,72,.3)!important;
+}
+
+.live-news-ticker{position:relative;z-index:5;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;min-height:48px;overflow:hidden;border:1px solid rgba(255,83,91,.35);border-radius:14px;background:linear-gradient(90deg,rgba(150,10,23,.96),rgba(91,6,16,.94));box-shadow:0 12px 40px rgba(96,0,11,.28);direction:rtl}
+.live-news-ticker__badge{height:100%;min-height:48px;display:flex;align-items:center;padding:0 20px;font-weight:900;color:#fff;background:linear-gradient(135deg,#ed2f42,#aa0e20);white-space:nowrap;box-shadow:-10px 0 26px rgba(40,0,5,.22)}
+.live-news-ticker__viewport{overflow:hidden;direction:ltr;mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
+.live-news-ticker__track{display:flex;width:max-content;align-items:center;gap:42px;white-space:nowrap;animation:mafiaNewsTicker 52s linear infinite;will-change:transform}
+.live-news-ticker__item{display:inline-flex;gap:9px;align-items:center;color:#fff;font-size:14px;font-weight:700;direction:rtl}
+.live-news-ticker__item b{padding:4px 8px;border-radius:7px;background:#fff;color:#b31223;font-size:11px}
+@keyframes mafiaNewsTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(max-width:700px){.live-news-ticker{grid-template-columns:1fr}.live-news-ticker__badge{min-height:34px;justify-content:center;padding:4px 12px}.live-news-ticker__track{animation-duration:64s}.live-news-ticker__item{font-size:12px}}
