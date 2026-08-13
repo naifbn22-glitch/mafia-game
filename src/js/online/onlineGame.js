@@ -1534,6 +1534,8 @@ function renderHostLobby({ app, onBack, code }) {
               ${renderOnlineNightSummary(room)}
               ${renderOnlineDayTimer(room, { compact: true })}
               ${renderOnlineVotingReadiness(room)}
+              <button id="forceStartOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ تجاوز الجاهزية والانتقال للتصويت</button>
+              <small class="finish-night-hint">ينقل جميع المتسابقين الأحياء مباشرة إلى صفحة التصويت حتى لو لم تكتمل الجاهزية.</small>
             ` : ""}
             ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
             ${room.status === "playing" && room.phase === "voting-result" ? `
@@ -1637,6 +1639,18 @@ function renderHostLobby({ app, onBack, code }) {
         showSuccessToast("اكتملت مهام الليل وبدأت مرحلة النهار.", "☀️ استيقظوا جميعًا");
       } catch {
         showErrorToast("لا يمكن الانتقال للنهار قبل اكتمال جميع مهام الليل.", "المهام غير مكتملة");
+      }
+    });
+    document.querySelector("#forceStartOnlineVoting")?.addEventListener("click", async event => {
+      const button = event.currentTarget;
+      if (button?.disabled) return;
+      button.disabled = true;
+      try {
+        await hostCommand(code, "start-voting");
+        showSuccessToast("تم تجاوز الجاهزية وبدأ التصويت لدى جميع المتسابقين.", "🗳️ بدأ التصويت");
+      } catch {
+        button.disabled = false;
+        showErrorToast("تعذر الانتقال المباشر إلى التصويت.", "خطأ في الخادم");
       }
     });
     document.querySelector("#startNextOnlineNight")?.addEventListener("click", async () => {
@@ -2140,7 +2154,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     }
     else if (room.phase === "night-role") content = `<div class="eyes-closed-screen"><div>🌙</div><h2>أبقِ عينيك مغمضتين</h2><p>الدور الحالي سري. انتظر حتى يوقظكم المدير.</p></div>`;
     else if (room.phase === "day") {
-      const discussionFinished = getDayRemainingSeconds(room) <= 0;
+      const discussionFinished = getOnlineDayRemaining(room) <= 0;
       const isReadyForVoting = Boolean(room.myVotingReady);
       content = `
         <div class="online-day-player-screen">

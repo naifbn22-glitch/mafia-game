@@ -1085,3 +1085,19 @@
   0%,100%{transform:translateY(0);box-shadow:0 0 18px rgba(56,189,248,.2),0 12px 30px rgba(37,99,235,.2)}
   50%{transform:translateY(-1px);box-shadow:0 0 34px rgba(56,189,248,.4),0 16px 38px rgba(37,99,235,.3)}
 }
+
+/* Voting readiness controls: keep the player action visible at the bottom of the day screen. */
+.online-day-player-screen .online-ready-vote-button{
+  display:flex!important;
+  width:100%;
+  min-height:64px;
+  margin-top:22px;
+  align-items:center;
+  justify-content:center;
+  position:sticky;
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:20;
+}
+.online-day-player-screen .online-ready-vote-button.is-locked{opacity:.42!important}
+.online-day-player-screen .online-ready-vote-button.is-ready{opacity:1!important;pointer-events:auto}
+.start-voting-button{width:100%;margin-top:16px}

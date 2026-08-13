@@ -1,0 +1,17 @@
+DAY BLACK SCREEN FIX
+Date: 2026-08-13
+
+Root cause:
+The online player day renderer called getDayRemainingSeconds(room), but that function does not exist in onlineGame.js.
+The valid timer function is getOnlineDayRemaining(room).
+Entering phase "day" therefore raised a ReferenceError before app.innerHTML was rendered, leaving the player page black. Refreshing repeated the same error because the room remained in phase "day".
+
+Fix:
+Replaced the invalid call with getOnlineDayRemaining(room).
+No room, socket, Redis, player-join, role, voting, or game-engine rules were changed.
+
+Validation performed:
+- node --check passed for onlineGame.js, server/gameEngine.js, server/socketServer.js, server.js
+- no references to getDayRemainingSeconds remain
+- server regression scenario passed: night -> day
+- host, public, and four player projections all returned phase=day with daySummary and dayEndsAt
