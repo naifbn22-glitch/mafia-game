@@ -1713,9 +1713,7 @@ function renderHostLobby({ app, onBack, code }) {
     });
 
     bindHostRoleRevealCountdown(code, room);
-    bindOnlineDayTimerTicker({ onFinish: () => {
-      if (readRoom(code)?.phase === "day") draw();
-    }});
+bindOnlineDayTimerTicker();
 
     document.querySelector("#skipRoleRevealWait")?.addEventListener("click", async () => {
       try { await hostCommand(code, "skip-role-reveal"); } catch { showErrorToast("تعذر تخطي الانتظار.", "خطأ"); }
@@ -2312,9 +2310,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
     attachBack(onBack);
-    bindOnlineDayTimerTicker({ onFinish: () => {
-      if (readRoom(code)?.phase === "day") draw();
-    }});
+bindOnlineDayTimerTicker();
     const revealButton = document.querySelector("#revealMyRole");
     const handleReveal = event => {
       const button = revealButton;
