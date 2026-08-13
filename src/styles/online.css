@@ -1151,7 +1151,7 @@
 .live-news-ticker__track{display:flex;width:max-content;align-items:center;gap:42px;white-space:nowrap;animation:mafiaNewsTicker 52s linear infinite;will-change:transform}
 .live-news-ticker__item{display:inline-flex;gap:9px;align-items:center;color:#fff;font-size:14px;font-weight:700;direction:rtl}
 .live-news-ticker__item b{padding:4px 8px;border-radius:7px;background:#fff;color:#b31223;font-size:11px}
-@keyframes mafiaNewsTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes mafiaNewsTicker{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 @media(max-width:700px){.live-news-ticker{grid-template-columns:1fr}.live-news-ticker__badge{min-height:34px;justify-content:center;padding:4px 12px}.live-news-ticker__track{animation-duration:64s}.live-news-ticker__item{font-size:12px}}
 
 /* نتيجة الليل تبقى واضحة وكبيرة طوال مرحلة النهار. لا تؤثر على منطق اللعبة. */
@@ -1191,3 +1191,15 @@
 .persistent-day-results--live .online-night-summary h3{
   font-size:clamp(38px,6vw,72px)!important;
 }
+
+
+/* مؤقت نقاش كبير في البث يظهر بعد عروض نتيجة الليل ويختفي بانتهاء الوقت. */
+.live-day-timer-overlay{position:fixed;inset:0;z-index:2190;display:grid;place-items:center;padding:20px;background:rgba(4,7,14,.54);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);opacity:0;pointer-events:none;transition:opacity .35s ease}
+.live-day-timer-overlay.is-visible{opacity:1}
+.live-day-timer-overlay__panel{width:min(620px,92vw);min-height:360px;border-radius:34px;border:1px solid rgba(255,255,255,.14);display:grid;place-items:center;text-align:center;padding:34px;background:radial-gradient(circle at 50% 38%,rgba(63,144,255,.22),transparent 42%),linear-gradient(155deg,rgba(11,18,34,.98),rgba(6,10,19,.98));box-shadow:0 28px 90px rgba(0,0,0,.48),0 0 50px rgba(67,145,255,.16)}
+.live-day-timer-overlay__label{font-size:18px;color:#c9d8ef;font-weight:800}
+.live-day-timer-overlay__clock{display:block;margin:18px 0 10px;font-size:clamp(74px,12vw,128px);line-height:1;color:#fff;font-weight:900;letter-spacing:1px;text-shadow:0 0 24px rgba(95,178,255,.35)}
+.live-day-timer-overlay__status{font-size:20px;color:#9db5d8;font-weight:700}
+.live-day-timer-overlay.timer-warning .live-day-timer-overlay__clock{color:#ffd85a;text-shadow:0 0 28px rgba(255,211,69,.42)}
+.live-day-timer-overlay.timer-danger .live-day-timer-overlay__clock{color:#ff666d;text-shadow:0 0 30px rgba(255,70,79,.5)}
+@media(max-width:700px){.live-day-timer-overlay__panel{min-height:300px;padding:28px 18px;border-radius:26px}.live-day-timer-overlay__label{font-size:15px}.live-day-timer-overlay__status{font-size:16px}}

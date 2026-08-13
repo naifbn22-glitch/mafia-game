@@ -28,6 +28,8 @@ const activeSubscriptions = new Map();
 const desiredSubscriptions = new Map();
 let onlineDayTimerIntervalId = null;
 const liveNightOverlayShown = new Map();
+let liveDayTimerOverlayIntervalId = null;
+let liveDayTimerOverlayKey = null;
 const liveNightPardonOverlayShown = new Map();
 const liveVotingPardonOverlayShown = new Map();
 const liveVotingResultOverlayShown = new Map();
@@ -302,6 +304,55 @@ async function playerCommand(code, playerId, action, payload = {}) {
   const response = await emitAck("player:command", { code, playerId, token: session.token, action, payload });
   cacheServerRoom(response.room);
   return response.room;
+}
+
+async function startVotingReliably(code) {
+  const normalized = normalizeRoomCode(code);
+  const session = hostSession(normalized);
+  if (!session?.token) throw new Error("HOST_SESSION_MISSING");
+
+  let lastError = null;
+
+  // المحاولة الأولى عبر Socket.IO، وهي المسار الأساسي الحالي.
+  try {
+    await hostCommand(normalized, "start-voting");
+  } catch (error) {
+    lastError = error;
+  }
+
+  const verifyVoting = async (attempts = 5) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const room = await fetchRoomFromServer(normalized, "host");
+      if (room?.phase === "voting") return room;
+      await new Promise(resolve => window.setTimeout(resolve, 180 + attempt * 160));
+    }
+    return null;
+  };
+
+  let confirmed = await verifyVoting(3);
+  if (confirmed) return confirmed;
+
+  // إذا ضاع أمر WebSocket أو ACK، نرسل نفس الأمر إلى مسار HTTP مخصص.
+  // startVoting في الخادم idempotent، لذلك هذا آمن حتى إذا نجحت المحاولة الأولى متأخرة.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/${encodeURIComponent(normalized)}/start-voting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: session.token }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || "START_VOTING_FAILED");
+      if (data?.room) cacheServerRoom(data.room);
+      confirmed = await verifyVoting(5);
+      if (confirmed) return confirmed;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 250 + attempt * 250));
+  }
+
+  throw lastError || new Error("START_VOTING_FAILED");
 }
 
 // تنفيذ مخصص وآمن لعملية "تمت مشاهدة الدور" فقط.
@@ -1676,8 +1727,8 @@ function renderHostLobby({ app, onBack, code }) {
       if (button?.disabled) return;
       button.disabled = true;
       try {
-        await hostCommand(code, "start-voting");
-        showSuccessToast("تم تجاوز الجاهزية وبدأ التصويت لدى جميع المتسابقين.", "🗳️ بدأ التصويت");
+        await startVotingReliably(code);
+        showSuccessToast("تم الانتقال إلى التصويت لدى جميع المتسابقين.", "🗳️ بدأ التصويت");
       } catch {
         button.disabled = false;
         showErrorToast("تعذر الانتقال المباشر إلى التصويت.", "خطأ في الخادم");
@@ -2550,6 +2601,80 @@ function showLiveNightResultOverlay(room) {
 }
 
 
+function stopLiveDayTimerOverlay() {
+  if (liveDayTimerOverlayIntervalId) {
+    window.clearInterval(liveDayTimerOverlayIntervalId);
+    liveDayTimerOverlayIntervalId = null;
+  }
+  liveDayTimerOverlayKey = null;
+  const overlay = document.querySelector(".live-day-timer-overlay");
+  if (overlay) {
+    overlay.classList.remove("is-visible");
+    window.setTimeout(() => overlay.remove(), 320);
+  }
+}
+
+function showLiveDayTimerOverlay(room) {
+  if (room?.phase !== "day") {
+    stopLiveDayTimerOverlay();
+    return;
+  }
+
+  const summary = room.daySummary || {};
+  const dayStartedAt = Number(room.dayStartedAt || 0);
+  const dayEndsAt = Number(room.dayEndsAt || 0);
+  if (!dayStartedAt || !dayEndsAt) return;
+
+  // يبدأ المؤقت الكبير بعد انتهاء عروض نتيجة الليل. إذا وُجد عفو ملكي
+  // ينتظر العرض الثاني كذلك، ثم يبقى حتى نهاية وقت النقاش.
+  const cinematicDuration = 7000 + (summary.kingPardonGranted ? 7000 : 0);
+  const timerStartAt = dayStartedAt + cinematicDuration;
+  const now = Date.now();
+  if (now < timerStartAt) {
+    const delay = timerStartAt - now;
+    window.setTimeout(() => showLiveDayTimerOverlay(readRoom(room.code) || room), delay + 20);
+    return;
+  }
+  if (now >= dayEndsAt) {
+    stopLiveDayTimerOverlay();
+    return;
+  }
+
+  const key = `${normalizeRoomCode(room.code)}:${Number(room.matchSequence || 0)}:${Number(room.roundNumber || 1)}:${dayStartedAt}`;
+  if (liveDayTimerOverlayKey === key && document.querySelector(".live-day-timer-overlay")) return;
+  stopLiveDayTimerOverlay();
+  liveDayTimerOverlayKey = key;
+
+  const overlay = document.createElement("div");
+  overlay.className = "live-day-timer-overlay";
+  overlay.innerHTML = `
+    <section class="live-day-timer-overlay__panel" role="timer" aria-live="polite">
+      <span class="live-day-timer-overlay__label">وقت النقاش المتبقي</span>
+      <strong class="live-day-timer-overlay__clock">${formatOnlineClock(Math.ceil((dayEndsAt - now) / 1000))}</strong>
+      <span class="live-day-timer-overlay__status">ناقشوا الأحداث واستعدوا للتصويت</span>
+    </section>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+
+  const tick = () => {
+    const currentRoom = readRoom(room.code);
+    if (currentRoom && currentRoom.phase !== "day") {
+      stopLiveDayTimerOverlay();
+      return;
+    }
+    const remaining = Math.max(0, Math.ceil((dayEndsAt - Date.now()) / 1000));
+    const clock = overlay.querySelector(".live-day-timer-overlay__clock");
+    if (clock) clock.textContent = formatOnlineClock(remaining);
+    overlay.classList.toggle("timer-warning", remaining > 5 && remaining <= 15);
+    overlay.classList.toggle("timer-danger", remaining <= 5);
+    if (remaining <= 0) stopLiveDayTimerOverlay();
+  };
+
+  tick();
+  liveDayTimerOverlayIntervalId = window.setInterval(tick, 250);
+}
+
+
 function renderLiveVotingResultOverlayContent(room) {
   const result = room?.votingResult;
   if (!result || result.outcome === "pardoned") return "";
@@ -2828,6 +2953,7 @@ export function openLiveRoom({ app, onBack, code }) {
     attachBack(onBack);
     bindOnlineDayTimerTicker();
     showLiveNightResultOverlay(room);
+    showLiveDayTimerOverlay(room);
     showLiveVotingResultOverlay(room);
     showLiveVotingPardonOverlay(room);
     showLiveFinalSequenceOverlay(room);
