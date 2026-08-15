@@ -2241,13 +2241,17 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
 
       content = `
         <div class="active-role-screen">
-          <div class="role-symbol">
-            ${ROLE_ICONS[player.role]}
-          </div>
+          <div class="role-symbol role-symbol--card-avatar">
+  <img
+    src="${getRoleCardImage(player.role, player.gender || "male")}"
+    alt="${finalRoleName(player.role, player.gender)}"
+    draggable="false"
+  />
+</div>
 
-          <h2>
-            ${player.gender === "female" ? "استيقظي يا" : "استيقظ يا"} ${finalRoleName(player.role, player.gender)}
-          </h2>
+<h2>
+  ${player.gender === "female" ? "استيقظي يا" : "استيقظ يا"} ${finalRoleName(player.role, player.gender)}
+</h2>
 
           <p>${actionDescription}</p>
 

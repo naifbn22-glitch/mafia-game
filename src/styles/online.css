@@ -1203,3 +1203,31 @@
 .live-day-timer-overlay.timer-warning .live-day-timer-overlay__clock{color:#ffd85a;text-shadow:0 0 28px rgba(255,211,69,.42)}
 .live-day-timer-overlay.timer-danger .live-day-timer-overlay__clock{color:#ff666d;text-shadow:0 0 30px rgba(255,70,79,.5)}
 @media(max-width:700px){.live-day-timer-overlay__panel{min-height:300px;padding:28px 18px;border-radius:26px}.live-day-timer-overlay__label{font-size:15px}.live-day-timer-overlay__status{font-size:16px}}
+.role-symbol.role-symbol--card-avatar {
+  width: 132px;
+  height: 132px;
+  margin: 0 auto 24px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 20, 35, 0.92);
+  border: 2px solid rgba(139, 92, 246, 0.55);
+  box-shadow:
+    0 0 0 7px rgba(139, 92, 246, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.role-symbol.role-symbol--card-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  user-select: none;
+  pointer-events: none;
+}
