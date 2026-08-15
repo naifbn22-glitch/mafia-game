@@ -1972,6 +1972,64 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     let content = "";
     if (room.winner) content = `${renderOnlineWinnerFinal(room)}${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>انتهت المباراة. بانتظار مدير اللعبة لإعادة فتح الغرفة للمباراة التالية...</p></div>`;
     else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
+    else if (!player.alive) {
+  const broadcastUrl = liveViewUrl(code);
+
+  content = `
+    <div class="eliminated-player-screen">
+
+      <div class="eliminated-live-icon">
+        <span>▶</span>
+      </div>
+
+      <h2>شكرًا لمشاركتك في اللعبة!</h2>
+
+      <p class="eliminated-description">
+        لقد خرجت من اللعبة، لكن يمكنك متابعة ما تبقى من الأحداث مباشرة
+        مع أصدقائك عبر البث المباشر.
+      </p>
+
+      <div class="eliminated-live-box">
+
+        <div class="eliminated-live-title">
+          <span class="live-label">LIVE</span>
+          <strong>توجه إلى البث المباشر الآن</strong>
+        </div>
+
+        <div class="eliminated-live-link">
+          <input
+            id="eliminatedLiveUrl"
+            type="text"
+            readonly
+            value="${broadcastUrl}"
+          />
+
+          <button
+            id="copyEliminatedLiveUrl"
+            type="button"
+            title="نسخ رابط البث"
+          >
+            📋
+          </button>
+        </div>
+
+        <button
+          id="openEliminatedLive"
+          class="online-primary-button large"
+          type="button"
+        >
+          📡 فتح البث المباشر
+        </button>
+
+      </div>
+
+      <small class="eliminated-live-note">
+        يمكنك متابعة جميع أحداث المباراة حتى نهايتها.
+      </small>
+
+    </div>
+  `;
+}
     else if (room.phase === "role-reveal" && !player.roleKnown && !revealStartedLocally) content = `
       <div class="role-envelope role-envelope--branded">
         <div class="role-reveal-emblem" aria-hidden="true">
@@ -2313,6 +2371,23 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     else if (room.phase === "voting-result") content = `${renderOnlineVotingResult(room)}<div class="player-wait-screen compact-result-wait"><p>بانتظار المدير لبدء الليلة التالية...</p></div>`;
     else content = `<div class="player-wait-screen"><img src="${player.avatar}" /><h2>${player.name}</h2><p>بانتظار المرحلة التالية...</p></div>`;
     app.innerHTML = pageShell(content, room.roomName);
+    document
+  .querySelector("#openEliminatedLive")
+  ?.addEventListener("click", () => {
+    window.location.href = liveViewUrl(code);
+  });
+
+document
+  .querySelector("#copyEliminatedLiveUrl")
+  ?.addEventListener("click", async () => {
+    const url = liveViewUrl(code);
+
+    const copied = await copyTextToClipboard(url);
+
+    if (copied) {
+      showSuccessToast("تم نسخ رابط البث المباشر.", "تم النسخ");
+    }
+  });
     attachBack(onBack);
 bindOnlineDayTimerTicker();
     const revealButton = document.querySelector("#revealMyRole");
