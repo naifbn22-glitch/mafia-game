@@ -2388,7 +2388,18 @@ document
       showSuccessToast("تم نسخ رابط البث المباشر.", "تم النسخ");
     }
   });
-    attachBack(onBack);
+    if (player.alive) {
+  attachBack(onBack);
+} else {
+  const backButton = document.querySelector("#onlineBackButton");
+  if (backButton) backButton.remove();
+
+  history.replaceState(
+    { eliminated: true },
+    "",
+    `?room=${normalizeRoomCode(code)}&player=${playerId}`
+  );
+}
 bindOnlineDayTimerTicker();
     const revealButton = document.querySelector("#revealMyRole");
     const handleReveal = event => {
