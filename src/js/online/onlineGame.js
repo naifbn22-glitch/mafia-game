@@ -1,3 +1,4 @@
+export const ONLINE_MODE_ENABLED = false;
 import { io } from "socket.io-client";
 import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
 import { getRoleCardImage } from "../ui/roleCards.js";
@@ -9,14 +10,22 @@ const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 const ONLINE_SERVER_URL = String(import.meta.env.VITE_SERVER_URL || window.location.origin).replace(/\/$/, "");
-const socket = io(ONLINE_SERVER_URL, {
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 400,
-  reconnectionDelayMax: 2500,
-  timeout: 10000,
-});
+const socket = ONLINE_MODE_ENABLED
+  ? io(ONLINE_SERVER_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 400,
+      reconnectionDelayMax: 2500,
+      timeout: 10000,
+    })
+  : {
+      connected: false,
+      on: () => {},
+      emit: () => {},
+      connect: () => {},
+      disconnect: () => {},
+    };
 let hostRoleRevealIntervalId = null;
 // حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
 const roleRevealUiState = new Map();
@@ -204,6 +213,8 @@ export function deleteSavedOnlineGame() {
 }
 
 export async function resumeSavedOnlineGame({ app, onBack }) {
+  if (!ONLINE_MODE_ENABLED) return false;
+
   const marker = readOnlineResumeMarker();
   if (!marker) return false;
 
@@ -956,6 +967,13 @@ function attachBack(onBack) {
 }
 
 export function openOnlinePortal({ app, onBack }) {
+  if (!ONLINE_MODE_ENABLED) {
+    stopRoomViewSync();
+    showInfoToast("اللعب أونلاين متوقف مؤقتًا وسيعود في تحديث قادم.", "قريبًا");
+    onBack?.();
+    return;
+  }
+
   stopRoomViewSync();
   const params = new URLSearchParams(location.search);
   const linkedRoom = params.get("room");
@@ -3043,6 +3061,12 @@ function renderLiveBreakingNewsTicker(room) {
 }
 
 export function openLiveRoom({ app, onBack, code }) {
+  if (!ONLINE_MODE_ENABLED) {
+    showInfoToast("البث المباشر للأونلاين متوقف مؤقتًا.", "قريبًا");
+    onBack?.();
+    return;
+  }
+
   subscribeRoom(code, "public");
   const draw = () => {
     const room = readRoom(code);
@@ -3084,6 +3108,8 @@ export function openLiveRoom({ app, onBack, code }) {
 }
 
 export function restoreOnlineRoute({ app, onBack }) {
+  if (!ONLINE_MODE_ENABLED) return false;
+
   const params = new URLSearchParams(location.search);
   const liveCode = normalizeRoomCode(params.get("live"));
   const hostCode = normalizeRoomCode(params.get("host"));
