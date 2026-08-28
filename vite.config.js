@@ -1,5 +1,4 @@
 import { defineConfig } from "vite";
-import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   server: {
@@ -7,18 +6,7 @@ export default defineConfig({
     port: 5173,
   },
 
-  plugins: [
-    VitePWA({
-      registerType: "autoUpdate",
-
-      injectRegister: "auto",
-
-      includeAssets: [
-        "favicon.ico",
-        "apple-touch-icon.png",
-        "pwa-192x192-transparent.png",
-        "pwa-512x512-transparent.png",
-      ],
+  plugins: [],
 
       manifest: {
         name: "Mafia Game",
