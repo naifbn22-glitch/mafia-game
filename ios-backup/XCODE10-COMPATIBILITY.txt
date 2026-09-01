@@ -1,0 +1,18 @@
+Xcode 10.1 compatibility pass
+=============================
+
+Changes made:
+- Xcode project objectVersion lowered from 60 to 51.
+- iOS deployment target lowered from 15.0 to 12.0.
+- Swift language version set to 4.2.
+- UIScene / SceneDelegate (iOS 13+) removed.
+- UIApplicationSceneManifest removed from Info.plist.
+- Native Swift Package Manager project references removed because Xcode 10 does not support Xcode-integrated Swift packages.
+- LaunchScreen storyboard tools version lowered for Xcode 10-era Interface Builder.
+
+IMPORTANT LIMITATION
+--------------------
+The uploaded project uses Capacitor 8.5.0 (swift-tools-version 5.9, iOS 15 minimum) through CapApp-SPM.
+That dependency cannot compile in Xcode 10.1 / Swift 4.2. This archive makes the Xcode project format and app lifecycle compatible enough to open in Xcode 10, but a successful build still requires replacing/downgrading the current Capacitor 8 dependencies with versions that support Xcode 10, then linking them through an Xcode-10-compatible dependency method (normally CocoaPods/manual frameworks rather than Xcode Swift Package integration).
+
+Original project.pbxproj is included as project.pbxproj.original.
