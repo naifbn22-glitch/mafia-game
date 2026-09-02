@@ -1,0 +1,38 @@
+workflows:
+  ios-build:
+    name: Mafia Game iOS Build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: lts
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor iOS
+        script: |
+          npx cap sync ios
+
+      - name: Build iOS app without signing
+        script: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+    artifacts:
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - /tmp/xcodebuild_logs/*.log
