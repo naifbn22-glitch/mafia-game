@@ -29,7 +29,7 @@ workflows:
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Debug \
-            -sdk iphonesimulator \
+            -sdk iphoneos \
             CODE_SIGNING_ALLOWED=NO \
             build
 
