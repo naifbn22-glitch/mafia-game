@@ -271,3 +271,41 @@
   padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
 }
+
+#mafia-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(180, 0, 0, 0.18), transparent 45%),
+    #050507;
+  transition: opacity 0.5s ease;
+}
+
+#mafia-splash.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mafia-splash-content {
+  text-align: center;
+  padding: 24px;
+}
+
+.mafia-splash-logo {
+  width: min(68vw, 320px);
+  height: auto;
+  border-radius: 28px;
+  box-shadow: 0 0 35px rgba(255, 30, 30, 0.35);
+}
+
+.mafia-splash-content h1 {
+  margin-top: 20px;
+  font-size: 42px;
+  letter-spacing: 4px;
+  color: #fff;
+  text-transform: uppercase;
+}
