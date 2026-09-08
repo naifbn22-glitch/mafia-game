@@ -1168,6 +1168,16 @@ function renderPlayersList() {
           ? "male"
           : player.gender ?? "male";
 
+      const playerAvatar =
+        typeof player === "string"
+          ? null
+          : player.avatar ?? null;
+
+      const playerId =
+        typeof player === "string"
+          ? `legacy-${index}`
+          : player.id ?? `player-${index}`;
+
       const genderLabel =
         playerGender === "female"
           ? "أنثى"
@@ -1179,11 +1189,27 @@ function renderPlayersList() {
           : "👨";
 
       return `
-        <div class="player-item">
+        <div
+          class="player-item"
+          data-player-id="${escapeHtml(playerId)}"
+        >
           <div class="player-information">
-            <span class="player-number">
-              ${index + 1}
-            </span>
+
+            ${
+              playerAvatar
+                ? `
+                  <img
+                    src="${escapeHtml(playerAvatar)}"
+                    alt="${escapeHtml(playerName)}"
+                    class="player-list-avatar"
+                  />
+                `
+                : `
+                  <span class="player-number">
+                    ${index + 1}
+                  </span>
+                `
+            }
 
             <div
               class="player-name-and-gender"
@@ -1214,7 +1240,6 @@ function renderPlayersList() {
     })
     .join("");
 }
-
 
 function renderRoleCard(
   icon,
@@ -1430,15 +1455,63 @@ function bindPlayersPageEvents() {
         return;
       }
 
-      gameState.players.push({
-     id: generatePlayerId(),
-     name: playerName,
-     gender: selectedGender,
-     avatar: selectedAvatar || null,
-   });
+      const newPlayer = {
+  id: generatePlayerId(),
+  name: playerName,
+  gender: selectedGender,
+  avatar: selectedAvatar || null,
+};
 
-      saveGame();
-      renderPlayersPage();
+gameState.players.push(newPlayer);
+
+saveGame();
+
+/*
+ * إخفاء كيبورد الهاتف بعد الإضافة.
+ */
+playerNameInput.blur();
+
+if (
+  document.activeElement &&
+  typeof document.activeElement.blur === "function"
+) {
+  document.activeElement.blur();
+}
+
+/*
+ * إعادة عرض الصفحة بعد إضافة اللاعب.
+ */
+renderPlayersPage();
+
+/*
+ * الانتقال تلقائيًا إلى اللاعب الجديد
+ * وإبرازه للتأكد من الاسم والشخصية.
+ */
+window.setTimeout(() => {
+  const newPlayerElement =
+    document.querySelector(
+      `[data-player-id="${CSS.escape(newPlayer.id)}"]`,
+    );
+
+  if (!newPlayerElement) {
+    return;
+  }
+
+  newPlayerElement.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+  });
+
+  newPlayerElement.classList.add(
+    "player-item-added",
+  );
+
+  window.setTimeout(() => {
+    newPlayerElement.classList.remove(
+      "player-item-added",
+    );
+  }, 1800);
+}, 150);
     },
   );
 
