@@ -28,5 +28,22 @@ async function initializeNativeApp() {
     console.info("Native platform features are not active in the browser.", error);
   }
 }
+function showSplashScreen() {
+  const splash = document.createElement("div");
+  splash.id = "mafia-splash";
+  splash.innerHTML = `
+    <div class="mafia-splash-content">
+      <img src="/mafia-logo.png" alt="Mafia Logo" class="mafia-splash-logo">
+      <h1>Mafia</h1>
+    </div>
+  `;
 
+  document.body.appendChild(splash);
+
+  setTimeout(() => {
+    splash.classList.add("hide");
+    setTimeout(() => splash.remove(), 500);
+  }, 1800);
+}
+showSplashScreen();
 initializeNativeApp();
