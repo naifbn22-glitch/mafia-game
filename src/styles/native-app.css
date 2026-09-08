@@ -309,3 +309,107 @@
   color: #fff;
   text-transform: uppercase;
 }
+
+body.mafia-rules-open {
+  overflow: hidden;
+}
+
+#mafia-rules-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  padding-top: env(safe-area-inset-top, 0px);
+  transition: opacity 0.35s ease;
+}
+
+#mafia-rules-overlay.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mafia-rules-sheet {
+  width: 100%;
+  max-width: 600px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #151518, #080809);
+  border-radius: 28px 28px 0 0;
+  border: 1px solid rgba(255, 50, 50, 0.3);
+  box-shadow: 0 -12px 45px rgba(0, 0, 0, 0.65);
+  padding: 12px 18px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  color: #fff;
+}
+
+.mafia-rules-handle {
+  width: 46px;
+  height: 5px;
+  margin: 0 auto 14px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.mafia-rules-sheet h2 {
+  margin: 4px 0 6px;
+  text-align: center;
+  font-size: 27px;
+}
+
+.mafia-rules-subtitle {
+  margin: 0 0 14px;
+  text-align: center;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.mafia-rules-scroll {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px 6px 14px;
+  text-align: right;
+  direction: rtl;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mafia-rules-scroll h3 {
+  margin: 18px 0 6px;
+  color: #ff4545;
+  font-size: 18px;
+}
+
+.mafia-rules-scroll p {
+  margin: 0;
+  color: #ddd;
+  line-height: 1.8;
+  font-size: 15px;
+}
+
+.mafia-rules-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.mafia-rules-actions button {
+  min-height: 50px;
+  border: 0;
+  border-radius: 15px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#mafia-rules-skip {
+  background: #26262a;
+  color: #ddd;
+}
+
+#mafia-rules-start {
+  background: linear-gradient(135deg, #e01c1c, #8d0000);
+  color: #fff;
+}
