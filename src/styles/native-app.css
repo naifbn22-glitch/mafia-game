@@ -413,3 +413,33 @@ body.mafia-rules-open {
   background: linear-gradient(135deg, #e01c1c, #8d0000);
   color: #fff;
 }
+
+.player-list-avatar {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+.player-item-added {
+  animation: playerAddedHighlight 1.8s ease;
+}
+
+@keyframes playerAddedHighlight {
+  0% {
+    transform: scale(0.97);
+    box-shadow: 0 0 0 rgba(255, 40, 40, 0);
+  }
+
+  35% {
+    transform: scale(1.02);
+    box-shadow: 0 0 26px rgba(255, 40, 40, 0.65);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255, 40, 40, 0);
+  }
+}
