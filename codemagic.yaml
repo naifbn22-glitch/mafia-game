@@ -23,33 +23,33 @@ workflows:
           npx cap sync ios
 
       - name: Build iOS IPA without signing
-  script: |
-    cd ios/App
+        script: |
+          cd ios/App
 
-    rm -rf build
-    rm -rf ipa
+          rm -rf build
+          rm -rf ipa
 
-    xcodebuild \
-      -workspace App.xcworkspace \
-      -scheme App \
-      -configuration Debug \
-      -sdk iphoneos \
-      -derivedDataPath build \
-      CODE_SIGNING_ALLOWED=NO \
-      build
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
-    mkdir -p ipa/Payload
+          mkdir -p ipa/Payload
 
-    cp -R \
-      build/Build/Products/Debug-iphoneos/App.app \
-      ipa/Payload/App.app
+          cp -R \
+            build/Build/Products/Debug-iphoneos/App.app \
+            ipa/Payload/App.app
 
-    cd ipa
+          cd ipa
 
-    /usr/bin/zip -qry Mafia.ipa Payload
+          /usr/bin/zip -qry Mafia.ipa Payload
 
-    ls -lh Mafia.ipa
+          ls -lh Mafia.ipa
 
     artifacts:
-  - ios/App/ipa/Mafia.ipa
-  - /tmp/xcodebuild_logs/*.log
+      - ios/App/ipa/Mafia.ipa
+      - /tmp/xcodebuild_logs/*.log
