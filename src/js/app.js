@@ -7841,5 +7841,13 @@ const restoredOnlineRoute = restoreOnlineRoute({
 });
 
 if (!restoredOnlineRoute) {
-  renderHomePage();
+  showSplashScreen();
+
+  window.setTimeout(() => {
+    renderHomePage();
+
+    window.setTimeout(() => {
+      showFirstRunRules();
+    }, 300);
+  }, 2100);
 }
