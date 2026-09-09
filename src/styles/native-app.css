@@ -63,17 +63,6 @@
   height: 46px;
 }
 
-.native-app-ios .online-back-button {
-  margin-top: 18px;
-}
-
-.native-app .online-back-button {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  margin-top: 14px;
-}
-
 .native-app .online-content {
   width: 100%;
   max-width: 560px;
@@ -275,4 +264,54 @@
 .native-app--ios .online-page {
   padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+}
+/* ===== iPhone Safe Top Controls ===== */
+
+.native-app-ios .setup-header,
+.native-app-ios .top-bar,
+.native-app-ios .day-header,
+.native-app-ios .voting-header,
+.native-app-ios .role-page-header {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
+  padding-left: 16px;
+  padding-right: 16px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 64px);
+  box-sizing: border-box;
+  align-items: center;
+}
+
+/* زر الرجوع في الصفحات العادية */
+.native-app-ios .back-button {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  touch-action: manipulation;
+}
+
+/* زر الرجوع في صفحات اللعب عبر الشبكة */
+.native-app-ios .online-back-button {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  margin-top: 0 !important;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
+/* أزرار أعلى الصفحة مثل الصوت */
+.native-app-ios .icon-button {
+  min-width: 46px;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
 }
