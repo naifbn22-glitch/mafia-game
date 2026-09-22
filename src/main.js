@@ -22,6 +22,9 @@ async function initializeNativeApp() {
     document.documentElement.classList.add("native-app", `native-app--${platform}`);
     document.body.classList.add("native-app", `native-app--${platform}`);
 
+    // Keep the web view below the iPhone status bar so top controls
+    // never collide with the clock, Dynamic Island, or notification area.
+    await StatusBar.setOverlaysWebView({ overlay: false });
     await StatusBar.setStyle({ style: Style.Dark });
     await StatusBar.setBackgroundColor({ color: "#050912" });
   } catch (error) {
