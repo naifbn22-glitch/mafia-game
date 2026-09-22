@@ -42,11 +42,14 @@ app.post("/api/rooms/:code/start-voting", async (req, res) => {
   try {
     const code = normalizeRoomCode(req.params.code);
     const token = String(req.body?.token || "");
-    const room = await store.get(code);
-    if (!room) return res.status(404).json({ ok: false, error: "ROOM_NOT_FOUND" });
-    requireHost(room, token);
-    startVoting(room);
-    await store.set(room);
+    const room = await store.withRoomLock(code, async () => {
+      const current = await store.get(code);
+      if (!current) throw new Error("ROOM_NOT_FOUND");
+      requireHost(current, token);
+      startVoting(current);
+      await store.set(current);
+      return current;
+    });
 
     // إشعار مرحلة عام فقط، ثم كل جهاز يجلب إسقاطه الخاص من الخادم.
     const payload = {
@@ -82,7 +85,8 @@ app.post("/api/rooms/:code/start-voting", async (req, res) => {
 
     res.json({ ok: true, room: hostProjection(room) });
   } catch (error) {
-    res.status(400).json({ ok: false, error: error?.message || "SERVER_ERROR" });
+    const message = error?.message || "SERVER_ERROR";
+    res.status(message === "ROOM_NOT_FOUND" ? 404 : 400).json({ ok: false, error: message });
   }
 });
 
