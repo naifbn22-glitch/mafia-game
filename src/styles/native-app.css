@@ -267,11 +267,11 @@
 }
 /* ===== iPhone Safe Top Controls ===== */
 
-.native-app-ios .setup-header,
-.native-app-ios .top-bar,
-.native-app-ios .day-header,
-.native-app-ios .voting-header,
-.native-app-ios .role-page-header {
+.native-app--ios .setup-header,
+.native-app--ios .top-bar,
+.native-app--ios .day-header,
+.native-app--ios .voting-header,
+.native-app--ios .role-page-header {
   padding-top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
   padding-left: 16px;
   padding-right: 16px;
@@ -281,7 +281,7 @@
 }
 
 /* زر الرجوع في الصفحات العادية */
-.native-app-ios .back-button {
+.native-app--ios .back-button {
   min-height: 46px;
   padding: 0 16px;
   border-radius: 14px;
@@ -293,7 +293,7 @@
 }
 
 /* زر الرجوع في صفحات اللعب عبر الشبكة */
-.native-app-ios .online-back-button {
+.native-app--ios .online-back-button {
   width: 46px;
   height: 46px;
   min-width: 46px;
@@ -307,11 +307,78 @@
 }
 
 /* أزرار أعلى الصفحة مثل الصوت */
-.native-app-ios .icon-button {
+.native-app--ios .icon-button {
   min-width: 46px;
   min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
+}
+
+/* iPhone extra top spacing for pages that have top controls near the clock area */
+.native-app--ios .home-page,
+.native-app--ios .setup-page,
+.native-app--ios .settings-page,
+.native-app--ios .role-page,
+.native-app--ios .day-page,
+.native-app--ios .night-page,
+.native-app--ios .night-intro-page,
+.native-app--ios .voting-page,
+.native-app--ios .voting-preparation-page,
+.native-app--ios .voting-result-page {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 34px) !important;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+}
+
+/* Push online pages slightly farther down as well */
+.native-app--ios .online-page {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 30px) !important;
+}
+
+/* Fill the top safe-area with a matching color/gradient instead of leaving it visually awkward */
+.native-app--ios .home-page::before,
+.native-app--ios .setup-page::before,
+.native-app--ios .settings-page::before,
+.native-app--ios .role-page::before,
+.native-app--ios .day-page::before,
+.native-app--ios .night-page::before,
+.native-app--ios .night-intro-page::before,
+.native-app--ios .voting-page::before,
+.native-app--ios .voting-preparation-page::before,
+.native-app--ios .voting-result-page::before,
+.native-app--ios .online-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(env(safe-area-inset-top, 0px) + 22px);
+  background: linear-gradient(180deg, rgba(32, 18, 78, 0.92), rgba(8, 10, 22, 0));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Keep headers clearly below the status-bar area */
+.native-app--ios .top-bar,
+.native-app--ios .setup-header,
+.native-app--ios .role-page-header,
+.native-app--ios .day-header,
+.native-app--ios .voting-header,
+.native-app--ios .online-header {
+  position: relative;
+  z-index: 3;
+  margin-top: 6px;
+}
+
+/* Make the back button easier to tap */
+.native-app--ios .back-button,
+.native-app--ios .match-details-back-button,
+.native-app--ios .online-back-button {
+  min-height: 52px;
+  padding: 14px 22px;
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
