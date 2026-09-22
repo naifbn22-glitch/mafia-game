@@ -9,10 +9,7 @@ const HOST_SESSION_KEY = "mafia_online_host_session_v2";
 const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
-const ONLINE_SERVER_URL = String(const ONLINE_SERVER_URL = String(
-  import.meta.env.VITE_SERVER_URL ||
-  "https://mafia-game-1-mo6i.onrender.com"
-).replace(/\/$/, "");).replace(/\/$/, "");
+const ONLINE_SERVER_URL = "https://mafia-game-1-mo6i.onrender.com";
 const socket = ONLINE_MODE_ENABLED
   ? io(ONLINE_SERVER_URL, {
       transports: ["websocket", "polling"],
