@@ -271,7 +271,8 @@
 .native-app--ios .top-bar,
 .native-app--ios .day-header,
 .native-app--ios .voting-header,
-.native-app--ios .role-page-header {
+.native-app--ios .role-page-header,
+.native-app--ios .online-header {
   padding-top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
   padding-left: 16px;
   padding-right: 16px;
