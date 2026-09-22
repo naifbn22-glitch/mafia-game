@@ -2,6 +2,26 @@ import crypto from "node:crypto";
 
 const ROLES = ["thief", "nurse", "king", "investigator", "citizen"];
 
+// Keep all user-provided labels as plain text.
+// These values are later rendered inside HTML templates, so characters that
+// can break out of text/attribute contexts are removed on the server.
+export function sanitizePublicText(value, maxLength = 32) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/[<>&"'`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+export function sanitizeAvatar(value) {
+  const avatar = String(value ?? "").trim();
+  return /^\/avatars\/avatar-(?:0[1-9]|1[0-2])\.png$/.test(avatar)
+    ? avatar
+    : "/avatars/avatar-01.png";
+}
+
 export function normalizeRoomCode(value) {
   return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -55,8 +75,8 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
   return {
     id: randomId("room"),
     code: generateRoomCode(),
-    roomName: String(roomName || "").trim().slice(0, 32),
-    hostName: String(hostName || "").trim().slice(0, 24),
+    roomName: sanitizePublicText(roomName, 32),
+    hostName: sanitizePublicText(hostName, 24),
     maxPlayers: Math.min(22, Math.max(4, Number(maxPlayers) || 10)),
     discussionDurationSeconds: Math.min(300, Math.max(30, Number(discussionDurationSeconds) || 60)),
     status: "waiting",
@@ -106,7 +126,7 @@ export function joinPlayer(room, { name, gender, avatar }) {
     touch(room);
     throw new Error("ROOM_FULL");
   }
-  const cleanName = String(name || "").trim().slice(0, 24);
+  const cleanName = sanitizePublicText(name, 24);
   if (!cleanName) throw new Error("INVALID_NAME");
   if (room.players.some(p => p.name.toLocaleLowerCase("ar") === cleanName.toLocaleLowerCase("ar"))) throw new Error("NAME_TAKEN");
   const player = {
@@ -114,7 +134,7 @@ export function joinPlayer(room, { name, gender, avatar }) {
     sessionToken: randomToken(),
     name: cleanName,
     gender: gender === "female" ? "female" : "male",
-    avatar: String(avatar || "").slice(0, 256),
+    avatar: sanitizeAvatar(avatar),
     online: true,
     alive: true,
     role: null,
