@@ -327,15 +327,13 @@
 .native-app--ios .voting-page,
 .native-app--ios .voting-preparation-page,
 .native-app--ios .voting-result-page {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
+  padding-top: 14px !important;
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
 }
-
 /* Push online pages slightly farther down as well */
 .native-app--ios .online-page {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
+  padding-top: 14px !important;
 }
-
 /* Fill the top safe-area with a matching color/gradient instead of leaving it visually awkward */
 .native-app--ios .home-page::before,
 .native-app--ios .setup-page::before,
@@ -368,7 +366,7 @@
 .native-app--ios .online-header {
   position: relative;
   z-index: 3;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 /* Make the back button easier to tap */
