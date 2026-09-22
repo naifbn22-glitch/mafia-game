@@ -66,14 +66,58 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     });
   }
 
+  function rememberPlayerSubscription(socket, subscription) {
+    socket.data.mafiaPlayerSubscriptions ||= {};
+    const key = `${subscription.code}:${subscription.playerId}`;
+    socket.data.mafiaPlayerSubscriptions[key] = subscription;
+  }
+
+  async function markPlayerOfflineIfDisconnected({ code, playerId, token }) {
+    const normalized = normalizeRoomCode(code);
+    const playerRoom = `room:${normalized}:player:${playerId}`;
+
+    // Give a fast reconnect a short window so the UI does not flicker offline/online.
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const remaining = await io.in(playerRoom).fetchSockets();
+    if (remaining.length) return;
+
+    const changedRoom = await store.withRoomLock(normalized, async () => {
+      // Re-check after acquiring the room lock. A new socket may have subscribed
+      // while this disconnect handler was waiting for another room mutation.
+      const stillConnected = await io.in(playerRoom).fetchSockets();
+      if (stillConnected.length) return null;
+
+      const room = await store.get(normalized);
+      if (!room) return null;
+      const player = room.players.find(item => item.id === playerId);
+      if (!player || player.sessionToken !== token || player.online === false) return null;
+
+      player.online = false;
+      player.lastSeenAt = Date.now();
+      touch(room);
+      await store.set(room);
+      return room;
+    });
+
+    if (changedRoom) await emitRoom(changedRoom);
+  }
+
   io.on("connection", socket => {
     socket.emit("server:ready", { now: Date.now() });
 
     socket.on("room:create", async (payload, ack = () => {}) => {
       try {
-        const room = createRoom(payload || {});
-        while (await store.get(room.code)) room.code = createRoom(payload || {}).code;
-        await store.set(room);
+        let room = null;
+        for (let attempt = 0; attempt < 20 && !room; attempt += 1) {
+          const candidate = createRoom(payload || {});
+          const created = await store.withRoomLock(candidate.code, async () => {
+            if (await store.get(candidate.code)) return false;
+            await store.set(candidate);
+            return true;
+          });
+          if (created) room = candidate;
+        }
+        if (!room) throw new Error("ROOM_CREATE_FAILED");
         ack({ ok: true, room: hostProjection(room), hostToken: room.hostToken });
       } catch (error) { ack(safeError(error)); }
     });
@@ -112,56 +156,97 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     socket.on("room:subscribe", async ({ code, mode = "public", playerId, token }, ack = () => {}) => {
       try {
         const normalized = normalizeRoomCode(code);
-        const room = await store.get(normalized);
-        if (!room) throw new Error("ROOM_NOT_FOUND");
-        // كل مشترك يدخل أيضًا قناة عامة داخلية خاصة بالغرفة.
-        // هذه القناة لا تحمل بيانات سرية، وتستخدم فقط لإشعارات تغيّر المرحلة
-        // حتى يصل انتقال التصويت لكل الأجهزة فورًا حتى بعد إعادة الاتصال.
-        await socket.join(`room:${normalized}`);
 
         if (mode === "host") {
+          const room = await store.get(normalized);
+          if (!room) throw new Error("ROOM_NOT_FOUND");
           requireHost(room, token);
+          await socket.join(`room:${normalized}`);
           await socket.join(`room:${normalized}:host`);
           ack({ ok: true, room: hostProjection(room) });
-        } else if (mode === "player") {
-          const player = requirePlayer(room, playerId, token);
-          player.online = true; player.lastSeenAt = Date.now(); touch(room); await store.set(room);
-          await socket.join(`room:${normalized}:player:${player.id}`);
-          ack({ ok: true, room: playerProjection(room, player) });
-          await emitRoom(room);
-        } else {
-          await socket.join(`room:${normalized}:public`);
-          ack({ ok: true, room: publicProjection(room) });
+          return;
         }
+
+        if (mode === "player") {
+          // Authenticate once before joining the private Socket.IO room. Joining first
+          // prevents an old disconnect event from marking a fast reconnect offline.
+          const initialRoom = await store.get(normalized);
+          if (!initialRoom) throw new Error("ROOM_NOT_FOUND");
+          const initialPlayer = requirePlayer(initialRoom, playerId, token);
+          await socket.join(`room:${normalized}`);
+          await socket.join(`room:${normalized}:player:${initialPlayer.id}`);
+
+          const result = await store.withRoomLock(normalized, async () => {
+            const room = await store.get(normalized);
+            if (!room) throw new Error("ROOM_NOT_FOUND");
+            const player = requirePlayer(room, playerId, token);
+            player.online = true;
+            player.lastSeenAt = Date.now();
+            touch(room);
+            await store.set(room);
+            return { room, player };
+          });
+
+          rememberPlayerSubscription(socket, {
+            code: normalized,
+            playerId: result.player.id,
+            token,
+          });
+          ack({ ok: true, room: playerProjection(result.room, result.player) });
+          await emitRoom(result.room);
+          return;
+        }
+
+        const room = await store.get(normalized);
+        if (!room) throw new Error("ROOM_NOT_FOUND");
+        await socket.join(`room:${normalized}`);
+        await socket.join(`room:${normalized}:public`);
+        ack({ ok: true, room: publicProjection(room) });
       } catch (error) { ack(safeError(error)); }
     });
 
     socket.on("player:join", async ({ code, name, gender, avatar }, ack = () => {}) => {
       try {
-        const room = await store.get(normalizeRoomCode(code));
-        if (!room) throw new Error("ROOM_NOT_FOUND");
-        const player = joinPlayer(room, { name, gender, avatar });
-        await store.set(room); await emitRoom(room);
-        ack({ ok: true, player: { id: player.id, sessionToken: player.sessionToken }, room: playerProjection(room, player) });
+        const normalized = normalizeRoomCode(code);
+        const result = await store.withRoomLock(normalized, async () => {
+          const room = await store.get(normalized);
+          if (!room) throw new Error("ROOM_NOT_FOUND");
+          const player = joinPlayer(room, { name, gender, avatar });
+          await store.set(room);
+          return { room, player };
+        });
+        await emitRoom(result.room);
+        ack({
+          ok: true,
+          player: { id: result.player.id, sessionToken: result.player.sessionToken },
+          room: playerProjection(result.room, result.player),
+        });
       } catch (error) { ack(safeError(error)); }
     });
 
     socket.on("host:command", async ({ code, token, action, payload = {} }, ack = () => {}) => {
       try {
-        const room = await store.get(normalizeRoomCode(code));
-        if (!room) throw new Error("ROOM_NOT_FOUND");
-        requireHost(room, token);
-        if (action === "remove-player") room.players = room.players.filter(p => p.id !== payload.playerId);
-        else if (action === "start-game") startGame(room);
-        else if (action === "skip-role-reveal") { room.roleRevealEndsAt = Date.now(); touch(room); }
-        else if (action === "eyes-closed") beginEyesClosed(room);
-        else if (action === "wake-role") wakeRole(room, payload.role);
-        else if (action === "finish-night") finishNight(room);
-        else if (action === "start-voting") startVoting(room);
-        else if (action === "next-night") beginNextNight(room);
-        else if (action === "rematch") resetForRematch(room);
-        else throw new Error("UNKNOWN_ACTION");
-        await store.set(room);
+        const normalized = normalizeRoomCode(code);
+        const room = await store.withRoomLock(normalized, async () => {
+          const current = await store.get(normalized);
+          if (!current) throw new Error("ROOM_NOT_FOUND");
+          requireHost(current, token);
+          if (action === "remove-player") {
+            current.players = current.players.filter(p => p.id !== payload.playerId);
+            touch(current);
+          } else if (action === "start-game") startGame(current);
+          else if (action === "skip-role-reveal") { current.roleRevealEndsAt = Date.now(); touch(current); }
+          else if (action === "eyes-closed") beginEyesClosed(current);
+          else if (action === "wake-role") wakeRole(current, payload.role);
+          else if (action === "finish-night") finishNight(current);
+          else if (action === "start-voting") startVoting(current);
+          else if (action === "next-night") beginNextNight(current);
+          else if (action === "rematch") resetForRematch(current);
+          else throw new Error("UNKNOWN_ACTION");
+          await store.set(current);
+          return current;
+        });
+
         await emitRoom(room);
         if (["start-game", "eyes-closed", "wake-role", "finish-night", "start-voting", "next-night", "rematch"].includes(action)) {
           emitPhaseChanged(room);
@@ -185,18 +270,32 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("player:command", async ({ code, playerId, token, action, payload = {} }, ack = () => {}) => {
       try {
-        const room = await store.get(normalizeRoomCode(code));
-        if (!room) throw new Error("ROOM_NOT_FOUND");
-        const player = requirePlayer(room, playerId, token);
-        if (action === "role-known") markRoleKnown(room, player);
-        else if (action === "select-night-target") selectNightTarget(room, player, payload.targetId);
-        else if (action === "skip-king-pardon") skipKingPardon(room, player);
-        else if (action === "confirm-night-action") confirmNightAction(room, player);
-        else if (action === "cast-vote") castVote(room, player, payload.targetId);
-        else throw new Error("UNKNOWN_ACTION");
-        await store.set(room); await emitRoom(room);
-        ack({ ok: true, room: playerProjection(room, player) });
+        const normalized = normalizeRoomCode(code);
+        const result = await store.withRoomLock(normalized, async () => {
+          const room = await store.get(normalized);
+          if (!room) throw new Error("ROOM_NOT_FOUND");
+          const player = requirePlayer(room, playerId, token);
+          if (action === "role-known") markRoleKnown(room, player);
+          else if (action === "select-night-target") selectNightTarget(room, player, payload.targetId);
+          else if (action === "skip-king-pardon") skipKingPardon(room, player);
+          else if (action === "confirm-night-action") confirmNightAction(room, player);
+          else if (action === "cast-vote") castVote(room, player, payload.targetId);
+          else throw new Error("UNKNOWN_ACTION");
+          await store.set(room);
+          return { room, player };
+        });
+        await emitRoom(result.room);
+        ack({ ok: true, room: playerProjection(result.room, result.player) });
       } catch (error) { ack(safeError(error)); }
+    });
+
+    socket.on("disconnect", () => {
+      const subscriptions = Object.values(socket.data.mafiaPlayerSubscriptions || {});
+      for (const subscription of subscriptions) {
+        markPlayerOfflineIfDisconnected(subscription).catch(error => {
+          console.error("Failed to update disconnected player", error);
+        });
+      }
     });
   });
 
