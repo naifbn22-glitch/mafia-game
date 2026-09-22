@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createClient } from "redis";
 import pg from "pg";
 
@@ -10,6 +11,7 @@ export class RoomStore {
     this.memory = new Map();
     this.redis = null;
     this.db = null;
+    this.localLocks = new Map();
   }
 
   async connect() {
@@ -38,6 +40,70 @@ export class RoomStore {
   }
 
   key(code) { return `mafia:room:${code}`; }
+
+  async withRoomLock(code, operation, { waitMs = 8000, leaseMs = 15000 } = {}) {
+    const normalizedCode = String(code || "").trim().toUpperCase();
+    if (!normalizedCode) throw new Error("INVALID_ROOM_CODE");
+
+    // Redis gives us a distributed lock when the app is running on more than one server.
+    if (this.redis) {
+      const lockKey = `mafia:lock:${normalizedCode}`;
+      const token = crypto.randomUUID();
+      const deadline = Date.now() + waitMs;
+
+      while (Date.now() < deadline) {
+        const acquired = await this.redis.set(lockKey, token, { NX: true, PX: leaseMs });
+        if (acquired) {
+          try {
+            return await operation();
+          } finally {
+            try {
+              await this.redis.eval(
+                `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+                { keys: [lockKey], arguments: [token] },
+              );
+            } catch (error) {
+              console.error("Redis room lock release error", error);
+            }
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      throw new Error("ROOM_BUSY");
+    }
+
+    // PostgreSQL advisory locks protect room mutations across multiple Node processes
+    // even when Redis is not configured.
+    if (this.db) {
+      const client = await this.db.connect();
+      const lockName = `mafia:${normalizedCode}`;
+      try {
+        await client.query("SELECT pg_advisory_lock(hashtext($1))", [lockName]);
+        return await operation();
+      } finally {
+        try {
+          await client.query("SELECT pg_advisory_unlock(hashtext($1))", [lockName]);
+        } finally {
+          client.release();
+        }
+      }
+    }
+
+    // Local queue for development or a single-server setup without Redis/Postgres.
+    const previous = this.localLocks.get(normalizedCode) || Promise.resolve();
+    let releaseCurrent;
+    const currentGate = new Promise(resolve => { releaseCurrent = resolve; });
+    const queued = previous.then(() => currentGate);
+    this.localLocks.set(normalizedCode, queued);
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      releaseCurrent();
+      if (this.localLocks.get(normalizedCode) === queued) this.localLocks.delete(normalizedCode);
+    }
+  }
 
   async get(code) {
     if (this.redis) {
