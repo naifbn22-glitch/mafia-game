@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createClient } from "redis";
 import pg from "pg";
 
@@ -9,14 +10,23 @@ export class RoomStore {
     this.databaseUrl = databaseUrl;
     this.memory = new Map();
     this.redis = null;
+    this.redisLock = null;
     this.db = null;
+    this.localLocks = new Map();
   }
 
   async connect() {
     if (this.redisUrl) {
       this.redis = createClient({ url: this.redisUrl });
-      this.redis.on("error", error => console.error("Redis error", error));
-      await this.redis.connect();
+      this.redisLock = this.redis.duplicate();
+
+      this.redis.on("error", error => console.error("Redis data client error", error));
+      this.redisLock.on("error", error => console.error("Redis lock client error", error));
+
+      await Promise.all([
+        this.redis.connect(),
+        this.redisLock.connect(),
+      ]);
     }
 
     if (this.databaseUrl) {
@@ -38,6 +48,79 @@ export class RoomStore {
   }
 
   key(code) { return `mafia:room:${code}`; }
+
+  async withRoomLock(code, operation, { waitMs = 20_000, leaseMs = 60_000 } = {}) {
+    const normalizedCode = String(code || "").trim().toUpperCase();
+    if (!normalizedCode) throw new Error("INVALID_ROOM_CODE");
+
+    // Always serialize mutations for the same room inside this Node process first.
+    // This prevents two commands from the same server from racing while Redis is
+    // under heavy load. Redis is then used as a second, distributed lock layer.
+    const previous = this.localLocks.get(normalizedCode) || Promise.resolve();
+    let releaseCurrent;
+    const currentGate = new Promise(resolve => { releaseCurrent = resolve; });
+    const queued = previous.then(() => currentGate);
+    this.localLocks.set(normalizedCode, queued);
+
+    await previous;
+
+    try {
+      if (this.redisLock) {
+        const lockKey = `mafia:lock:${normalizedCode}`;
+        const token = crypto.randomUUID();
+        const deadline = Date.now() + waitMs;
+        let acquired = false;
+
+        while (Date.now() < deadline) {
+          const reply = await this.redisLock.set(lockKey, token, { NX: true, PX: leaseMs });
+          if (reply) {
+            acquired = true;
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 35));
+        }
+
+        if (!acquired) throw new Error("ROOM_BUSY");
+
+        try {
+          return await operation();
+        } finally {
+          try {
+            await this.redisLock.eval(
+              `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+              { keys: [lockKey], arguments: [token] },
+            );
+          } catch (error) {
+            console.error("Redis room lock release error", error);
+          }
+        }
+      }
+
+      // PostgreSQL advisory locks protect mutations across multiple Node processes
+      // when Redis is not configured.
+      if (this.db) {
+        const client = await this.db.connect();
+        const lockName = `mafia:${normalizedCode}`;
+        try {
+          await client.query("SELECT pg_advisory_lock(hashtext($1))", [lockName]);
+          return await operation();
+        } finally {
+          try {
+            await client.query("SELECT pg_advisory_unlock(hashtext($1))", [lockName]);
+          } finally {
+            client.release();
+          }
+        }
+      }
+
+      return await operation();
+    } finally {
+      releaseCurrent();
+      if (this.localLocks.get(normalizedCode) === queued) {
+        this.localLocks.delete(normalizedCode);
+      }
+    }
+  }
 
   async get(code) {
     if (this.redis) {
