@@ -5748,3 +5748,62 @@
   font-feature-settings:"liga" 1,"calt" 1;
   text-rendering:optimizeLegibility;
 }
+/* ===== مسافة آمنة بين شركاء اللصوص وزر إخفاء الشخصية ===== */
+
+.role-thief .role-card-details {
+  margin-bottom: 34px;
+}
+
+.role-thief .role-partners {
+  width: 100%;
+  margin: 18px auto 0;
+  padding: 14px 16px;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(118, 71, 255, 0.22);
+  border-radius: var(--radius-small);
+
+  background: rgba(118, 71, 255, 0.08);
+}
+
+.role-thief .role-partners > span {
+  flex: 0 0 100%;
+
+  display: block;
+
+  margin: 0 0 4px;
+  padding: 0;
+
+  color: var(--muted);
+
+  font-size: 14px;
+  line-height: 1.5;
+
+  text-align: center;
+}
+
+.role-thief .role-partners strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 36px;
+
+  padding: 7px 12px;
+
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.role-thief #hideRoleButton {
+  margin-top: 0;
+}
