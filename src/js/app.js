@@ -4810,7 +4810,7 @@ function renderDayPage() {
                   </div>
 
                   <div
-                    class="timer-actions"
+                  class="discussion-actions"
                   >
                     <button
                       class="pause-timer-button ${
