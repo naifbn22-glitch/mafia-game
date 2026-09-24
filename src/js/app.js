@@ -324,7 +324,7 @@ function renderHomePage() {
       <header class="top-bar">
         <div class="brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             class="brand-logo-image"
             alt="شعار لعبة مافيا"
           />
@@ -358,7 +358,7 @@ function renderHomePage() {
             class="logo-circle logo-circle-image"
           >
             <img
-              src="/logo.png"
+              src="/mafia-logo-v2.png"
               alt="شعار لعبة مافيا"
             />
           </div>
@@ -874,7 +874,7 @@ function renderPlayersPage() {
 
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -1550,7 +1550,7 @@ function renderSettingsPage() {
 
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -2533,7 +2533,7 @@ function renderRoleHandoffPage() {
       <header class="role-page-header">
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -2654,7 +2654,7 @@ function renderRolePlayingCard(
           >
             <img
               class="role-card-back-logo"
-              src="/logo.png"
+              src="/mafia-logo-v2.png"
               alt=""
             />
 
@@ -2980,7 +2980,7 @@ function renderRolesReadyPage() {
       >
         <img
           class="ready-logo"
-          src="/logo.png"
+          src="/mafia-logo-v2.png"
           alt="شعار مافيا"
         />
 
@@ -3114,7 +3114,7 @@ function renderNightIntroPage() {
       <section class="night-card">
         <img
           class="night-logo"
-          src="/logo.png"
+          src="/mafia-logo-v2.png"
           alt="شعار مافيا"
         />
 
@@ -4456,7 +4456,7 @@ function renderNightResultPage(
         <div class="assassination-blood" aria-hidden="true"></div>
         <div class="assassination-knife" aria-hidden="true">🗡️</div>
         <div class="assassination-portrait-frame">
-          <img src="${escapeHtml(victim.avatar || "/logo.png")}" alt="${escapeHtml(victim.name)}" />
+          <img src="${escapeHtml(victim.avatar || "/mafia-logo-v2.png")}" alt="${escapeHtml(victim.name)}" />
           <span class="assassination-crack crack-a"></span>
           <span class="assassination-crack crack-b"></span>
           <span class="assassination-mourning-ribbon">تم الاغتيال</span>
@@ -4479,7 +4479,7 @@ function renderNightResultPage(
       <section class="night-card">
         <img
           class="night-logo"
-          src="/logo.png"
+          src="/mafia-logo-v2.png"
           alt="شعار مافيا"
         />
 
@@ -4641,7 +4641,7 @@ function renderDayPage() {
       <header class="day-header">
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -5619,7 +5619,7 @@ function renderVotingHandoffPage() {
       <header class="voting-header">
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -5744,7 +5744,7 @@ function renderCurrentVoterPage() {
       <header class="voting-header">
         <div class="setup-brand">
           <img
-            src="/logo.png"
+            src="/mafia-logo-v2.png"
             alt="شعار مافيا"
           />
 
@@ -6344,7 +6344,7 @@ function renderVotingResultsPage() {
       >
         <img
           class="voting-result-logo"
-          src="/logo.png"
+          src="/mafia-logo-v2.png"
           alt="شعار مافيا"
         />
 
@@ -6735,7 +6735,7 @@ function renderGameOverPage(
        >
         <img
           class="game-over-logo"
-          src="/logo.png"
+          src="/mafia-logo-v2.png"
           alt="شعار مافيا"
         />
 
