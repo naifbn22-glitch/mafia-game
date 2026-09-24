@@ -5789,21 +5789,3 @@
 
   text-align: center;
 }
-
-.role-thief .role-partners strong {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  min-height: 36px;
-
-  padding: 7px 12px;
-
-  border-radius: 10px;
-
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.role-thief #hideRoleButton {
-  margin-top: 0;
-}
