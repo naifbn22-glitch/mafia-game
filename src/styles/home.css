@@ -5661,3 +5661,65 @@
   font-feature-settings:"liga" 1,"calt" 1;
   text-rendering:optimizeLegibility;
 }
+/* ===== ضبط وتوسيط مؤقت الجولة داخل الدائرة ===== */
+
+.discussion-timer {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin-left: auto;
+  margin-right: auto;
+  display: grid;
+  place-items: center;
+}
+
+.timer-progress-ring {
+  position: absolute;
+  inset: 0;
+  width: 240px;
+  height: 240px;
+  margin: auto;
+  box-sizing: border-box;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.timer-content {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  margin: 0;
+  padding: 0;
+
+  gap: 8px;
+
+  transform: translateY(-2px);
+  pointer-events: none;
+}
+
+.timer-content span {
+  display: block;
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.timer-content strong {
+  display: block;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  text-align: center;
+}
