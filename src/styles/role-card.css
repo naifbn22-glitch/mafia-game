@@ -351,3 +351,46 @@
   color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
+/* مسافة آمنة بين شركاء اللصوص وزر إخفاء الشخصية */
+
+.role-partners {
+  width: 100%;
+  box-sizing: border-box;
+
+  margin: 18px 0 0;
+  padding: 14px 12px 32px;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  text-align: center;
+}
+
+.role-partners > span {
+  flex: 0 0 100%;
+
+  display: block;
+
+  margin: 0 0 8px;
+  padding: 0;
+
+  line-height: 1.5;
+}
+
+.role-partners strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 7px 12px;
+
+  border-radius: 10px;
+}
+
+#roleCardDetails:has(.role-partners) + #hideRoleButton {
+  margin-top: 18px !important;
+}
