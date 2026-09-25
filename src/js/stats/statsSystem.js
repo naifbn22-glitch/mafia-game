@@ -1,7 +1,8 @@
 const createEmptyMatchStats = () => ({
   votes: [],
   successfulNurseSaves: [],
-  kingThiefReveals: [],
+  investigatorThiefFinds: [],
+  kingPardonsUsed: [],
   eliminationRounds: {},
   finalResults: null,
   applied: false,
@@ -23,8 +24,12 @@ export function ensureMatchStats(gameState) {
     gameState.matchStats.successfulNurseSaves = [];
   }
 
-  if (!Array.isArray(gameState.matchStats.kingThiefReveals)) {
-    gameState.matchStats.kingThiefReveals = [];
+  if (!Array.isArray(gameState.matchStats.investigatorThiefFinds)) {
+    gameState.matchStats.investigatorThiefFinds = [];
+  }
+
+  if (!Array.isArray(gameState.matchStats.kingPardonsUsed)) {
+    gameState.matchStats.kingPardonsUsed = [];
   }
 
   if (
