@@ -8,6 +8,7 @@ export const nurseRole = Object.freeze({
 
   icon: "✚",
   colorClass: "role-nurse",
+  className: "role-nurse",
 
   description:
     "اختر لاعبًا واحدًا لحمايته من هجوم اللصوص أثناء الليل.",
