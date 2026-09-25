@@ -1,12 +1,14 @@
 import { thiefRole } from "./thief.js";
 import { nurseRole } from "./nurse.js";
 import { kingRole } from "./king.js";
+import { investigatorRole } from "./investigator.js";
 import { citizenRole } from "./citizen.js";
 
 export const ROLE_IDS = Object.freeze({
   THIEF: "thief",
   NURSE: "nurse",
   KING: "king",
+  INVESTIGATOR: "investigator",
   CITIZEN: "citizen",
 });
 
@@ -19,6 +21,7 @@ export const ROLE_DEFINITIONS = Object.freeze({
   [ROLE_IDS.THIEF]: thiefRole,
   [ROLE_IDS.NURSE]: nurseRole,
   [ROLE_IDS.KING]: kingRole,
+  [ROLE_IDS.INVESTIGATOR]: investigatorRole,
   [ROLE_IDS.CITIZEN]: citizenRole,
 });
 
