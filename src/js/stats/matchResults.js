@@ -25,7 +25,7 @@ function calculateCitizenPoints(player, totalRounds) {
 
 function calculateThiefPoints(player, totalRounds) {
 
-    if (player.isAlive) {
+    if (player.alive) {
         return SCORING_RULES.THIEF.SURVIVED;
     }
 
@@ -59,6 +59,7 @@ function calculateBasePoints(player, totalRounds) {
         case "citizen":
         case "king":
         case "nurse":
+        case "investigator":
             return calculateCitizenPoints(player, totalRounds);
 
         default:
@@ -92,46 +93,71 @@ function calculateNurseBonus(gameState, player) {
     );
 }
 
+function calculateInvestigatorBonus(gameState, player) {
+    if (player.role !== "investigator") {
+        return 0;
+    }
+
+    const finds =
+        gameState.matchStats?.investigatorThiefFinds ?? [];
+
+    const differentThievesCount = new Set(
+        finds
+            .filter((record) => {
+                if (typeof record === "string") {
+                    return true;
+                }
+
+                return (
+                    record.investigatorId === player.id ||
+                    record.playerId === player.id
+                );
+            })
+            .map((record) => {
+                if (typeof record === "string") {
+                    return record;
+                }
+
+                return (
+                    record.thiefId ??
+                    record.targetId ??
+                    record.revealedPlayerId
+                );
+            })
+            .filter(Boolean),
+    ).size;
+
+    return (
+        differentThievesCount *
+        SCORING_RULES.BONUS.INVESTIGATOR_FIND_THIEF
+    );
+}
+
 function calculateKingBonus(gameState, player) {
     if (player.role !== "king") {
         return 0;
     }
 
-    const reveals =
-        gameState.matchStats?.kingThiefReveals ?? [];
+    const pardons =
+        gameState.matchStats?.kingPardonsUsed ?? [];
 
-    const revealedThiefIds = reveals
-        .filter((reveal) => {
-            if (typeof reveal === "string") {
-                return true;
-            }
+    const usedCount = pardons.filter((record) => {
+        if (typeof record === "string") {
+            return record === player.id;
+        }
 
-            return (
-                reveal.kingId === player.id ||
-                reveal.playerId === player.id
-            );
-        })
-        .map((reveal) => {
-            if (typeof reveal === "string") {
-                return reveal;
-            }
-
-            return (
-                reveal.thiefId ??
-                reveal.targetId ??
-                reveal.revealedPlayerId
-            );
-        })
-        .filter(Boolean);
-
-    const differentThievesCount =
-        new Set(revealedThiefIds).size;
+        return (
+            record.kingId === player.id ||
+            record.playerId === player.id
+        );
+    }).length;
 
     return (
-        differentThievesCount *
-        SCORING_RULES.BONUS.KING_REVEAL_THIEF
+        usedCount *
+        SCORING_RULES.BONUS.KING_PARDON_USED
     );
 }
+
 function calculateVoteBonus(gameState, playerId) {
 
     return gameState.matchStats.votes
@@ -155,7 +181,7 @@ export function calculateMatchResults(gameState) {
 
         const basePoints = calculateBasePoints(
             player,
-            gameState.round
+            gameState.roundNumber
         );
 
         const voteBonus = calculateVoteBonus(
@@ -164,6 +190,11 @@ export function calculateMatchResults(gameState) {
         );
 
         const nurseBonus = calculateNurseBonus(
+            gameState,
+            player
+        );
+
+        const investigatorBonus = calculateInvestigatorBonus(
             gameState,
             player
         );
@@ -177,6 +208,7 @@ export function calculateMatchResults(gameState) {
             basePoints +
             voteBonus +
             nurseBonus +
+            investigatorBonus +
             kingBonus;
 
         addPoints(
