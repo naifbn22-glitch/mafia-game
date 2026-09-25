@@ -153,7 +153,10 @@ const GAME_PHASES = Object.freeze({
 
   KING_HANDOFF: "king-handoff",
   KING_SELECTION: "king-selection",
-  KING_RESULT: "king-result",
+
+  INVESTIGATOR_HANDOFF: "investigator-handoff",
+  INVESTIGATOR_SELECTION: "investigator-selection",
+  INVESTIGATOR_RESULT: "investigator-result",
 
   NIGHT_RESULT: "night-result",
 
@@ -180,26 +183,22 @@ const NIGHT_ROLE_PHASES = Object.freeze({
 
   [ROLE_IDS.KING]:
     GAME_PHASES.KING_HANDOFF,
+
+  [ROLE_IDS.INVESTIGATOR]:
+    GAME_PHASES.INVESTIGATOR_HANDOFF,
 });
 
 
 function getRolesDistribution(playerCount) {
-  let thieves = 0;
-
-  if (
-    playerCount >= 4 &&
+  const thieves =
     playerCount <= 6
-  ) {
-    thieves = 1;
-  } else if (playerCount <= 10) {
-    thieves = 2;
-  } else if (playerCount <= 14) {
-    thieves = 3;
-  } else if (playerCount <= 18) {
-    thieves = 4;
-  } else if (playerCount <= 22) {
-    thieves = 5;
-  }
+      ? 1
+      : playerCount <= 10
+        ? 2
+        : Math.max(
+            3,
+            Math.floor(playerCount / 4),
+          );
 
   const king =
     playerCount >= 4 ? 1 : 0;
@@ -207,11 +206,15 @@ function getRolesDistribution(playerCount) {
   const nurse =
     playerCount >= 4 ? 1 : 0;
 
+  const investigator =
+    playerCount >= 6 ? 1 : 0;
+
   const citizens = Math.max(
     playerCount -
       thieves -
       king -
-      nurse,
+      nurse -
+      investigator,
     0,
   );
 
@@ -219,10 +222,10 @@ function getRolesDistribution(playerCount) {
     thieves,
     king,
     nurse,
+    investigator,
     citizens,
   };
 }
-
 
 function renderHomePage() {
   const savedOnlineGame = getSavedOnlineGame();
@@ -1104,6 +1107,12 @@ function renderPlayersPage() {
             )}
 
             ${renderRoleCard(
+              "🕵️",
+              "المحقق",
+              roles.investigator,
+            )}
+
+            ${renderRoleCard(
               "👥",
               "المواطنون",
               roles.citizens,
@@ -1168,16 +1177,6 @@ function renderPlayersList() {
           ? "male"
           : player.gender ?? "male";
 
-      const playerAvatar =
-        typeof player === "string"
-          ? null
-          : player.avatar ?? null;
-
-      const playerId =
-        typeof player === "string"
-          ? `legacy-${index}`
-          : player.id ?? `player-${index}`;
-
       const genderLabel =
         playerGender === "female"
           ? "أنثى"
@@ -1189,27 +1188,11 @@ function renderPlayersList() {
           : "👨";
 
       return `
-        <div
-          class="player-item"
-          data-player-id="${escapeHtml(playerId)}"
-        >
+        <div class="player-item">
           <div class="player-information">
-
-            ${
-              playerAvatar
-                ? `
-                  <img
-                    src="${escapeHtml(playerAvatar)}"
-                    alt="${escapeHtml(playerName)}"
-                    class="player-list-avatar"
-                  />
-                `
-                : `
-                  <span class="player-number">
-                    ${index + 1}
-                  </span>
-                `
-            }
+            <span class="player-number">
+              ${index + 1}
+            </span>
 
             <div
               class="player-name-and-gender"
@@ -1240,6 +1223,7 @@ function renderPlayersList() {
     })
     .join("");
 }
+
 
 function renderRoleCard(
   icon,
@@ -1455,63 +1439,15 @@ function bindPlayersPageEvents() {
         return;
       }
 
-      const newPlayer = {
-  id: generatePlayerId(),
-  name: playerName,
-  gender: selectedGender,
-  avatar: selectedAvatar || null,
-};
+      gameState.players.push({
+     id: generatePlayerId(),
+     name: playerName,
+     gender: selectedGender,
+     avatar: selectedAvatar || null,
+   });
 
-gameState.players.push(newPlayer);
-
-saveGame();
-
-/*
- * إخفاء كيبورد الهاتف بعد الإضافة.
- */
-playerNameInput.blur();
-
-if (
-  document.activeElement &&
-  typeof document.activeElement.blur === "function"
-) {
-  document.activeElement.blur();
-}
-
-/*
- * إعادة عرض الصفحة بعد إضافة اللاعب.
- */
-renderPlayersPage();
-
-/*
- * الانتقال تلقائيًا إلى اللاعب الجديد
- * وإبرازه للتأكد من الاسم والشخصية.
- */
-window.setTimeout(() => {
-  const newPlayerElement =
-    document.querySelector(
-      `[data-player-id="${CSS.escape(newPlayer.id)}"]`,
-    );
-
-  if (!newPlayerElement) {
-    return;
-  }
-
-  newPlayerElement.scrollIntoView({
-    behavior: "smooth",
-    block: "center",
-  });
-
-  newPlayerElement.classList.add(
-    "player-item-added",
-  );
-
-  window.setTimeout(() => {
-    newPlayerElement.classList.remove(
-      "player-item-added",
-    );
-  }, 1800);
-}, 150);
+      saveGame();
+      renderPlayersPage();
     },
   );
 
@@ -1781,6 +1717,12 @@ function renderSettingsPage() {
               "🏥",
               "الممرضة",
               roles.nurse,
+            )}
+
+            ${renderRoleCard(
+              "🕵️",
+              "المحقق",
+              roles.investigator,
             )}
 
             ${renderRoleCard(
@@ -2226,44 +2168,19 @@ function formatDuration(totalSeconds) {
 
 
 function getThiefCount(playerCount) {
-  if (
-    playerCount >= 4 &&
-    playerCount <= 6
-  ) {
+  if (playerCount <= 6) {
     return 1;
   }
 
-  if (
-    playerCount >= 7 &&
-    playerCount <= 10
-  ) {
+  if (playerCount <= 10) {
     return 2;
   }
 
-  if (
-    playerCount >= 11 &&
-    playerCount <= 14
-  ) {
-    return 3;
-  }
-
-  if (
-    playerCount >= 15 &&
-    playerCount <= 18
-  ) {
-    return 4;
-  }
-
-  if (
-    playerCount >= 19 &&
-    playerCount <= 22
-  ) {
-    return 5;
-  }
-
-  return 0;
+  return Math.max(
+    3,
+    Math.floor(playerCount / 4),
+  );
 }
-
 
 function assignRoles() {
   const playerCount =
@@ -2280,6 +2197,12 @@ function assignRoles() {
     ROLE_IDS.NURSE,
     ROLE_IDS.KING,
   ];
+
+  if (playerCount >= 6) {
+    roles.push(
+      ROLE_IDS.INVESTIGATOR,
+    );
+  }
 
   while (
     roles.length < playerCount
@@ -2319,6 +2242,19 @@ function assignRoles() {
           alive: true,
           revealed: false,
           eliminatedRound: null,
+
+          royalPardonsRemaining:
+            shuffledRoles[index] ===
+            ROLE_IDS.KING
+              ? 3
+              : 0,
+
+          performance: {
+            nurseCorrectSaves: 0,
+            investigatorThiefFinds: 0,
+            kingPardonsUsed: 0,
+            roundsSurvived: 0,
+          },
         };
       },
     );
@@ -2782,6 +2718,11 @@ function getGenderedRoleName(
       female: "الممرضة",
     },
 
+    [ROLE_IDS.INVESTIGATOR]: {
+      male: "المحقق",
+      female: "المحققة",
+    },
+
     [ROLE_IDS.CITIZEN]: {
       male: "المواطن",
       female: "المواطنة",
@@ -3125,10 +3066,15 @@ function renderRolesReadyPage() {
 function startNight() {
   stopActiveTimer();
 
+  gameState.currentPardonPlayerId =
+    null;
+
   gameState.nightAction = {
     victimId: null,
     savedPlayerId: null,
-    inspectedPlayerId: null,
+    kingTargetId: null,
+    kingSkipped: false,
+    investigatorTargetId: null,
   };
 
   prepareNightSequence();
@@ -3438,20 +3384,11 @@ function getThiefTargets() {
     return eligiblePlayers;
   }
 
-  const filteredPlayers =
-    eligiblePlayers.filter(
-      (player) =>
-        player.id !==
-        previousVictimId,
-    );
-
-  /*
-   * إذا لم يبقَ سوى اللاعب السابق،
-   * نسمح باختياره حتى لا تتعطل اللعبة.
-   */
-  return filteredPlayers.length > 0
-    ? filteredPlayers
-    : eligiblePlayers;
+  return eligiblePlayers.filter(
+    (player) =>
+      player.id !==
+      previousVictimId,
+  );
 }
 
 
@@ -3581,20 +3518,11 @@ function getNurseTargets() {
     return alivePlayers;
   }
 
-  const filteredPlayers =
-    alivePlayers.filter(
-      (player) =>
-        player.id !==
-        previousSavedPlayerId,
-    );
-
-  /*
-   * عند عدم وجود بديل، نسمح بنفس
-   * اللاعب حتى تستمر الجولة.
-   */
-  return filteredPlayers.length > 0
-    ? filteredPlayers
-    : alivePlayers;
+  return alivePlayers.filter(
+    (player) =>
+      player.id !==
+      previousSavedPlayerId,
+  );
 }
 
 
@@ -3678,10 +3606,10 @@ function renderKingHandoffPage() {
       "يستيقظ الملك",
 
     description:
-      "افتح عينيك واختر لاعبًا واحدًا لتعرف حقيقته سرًا.",
+      "لديك 3 أوسمة عفو طوال المباراة. امنح لاعبًا عفوًا لهذه الجولة أو احتفظ بالوسام.",
 
     buttonText:
-      "اختيار لاعب للكشف",
+      "إدارة العفو الملكي",
 
     nextPhase:
       GAME_PHASES.KING_SELECTION,
@@ -3699,6 +3627,14 @@ function getKingTargets() {
     return [];
   }
 
+  const remaining = Number(
+    king.royalPardonsRemaining ?? 0,
+  );
+
+  if (remaining <= 0) {
+    return [];
+  }
+
   return gameState.assignedPlayers.filter(
     (player) =>
       player.alive &&
@@ -3712,25 +3648,45 @@ function renderKingSelectionPage() {
     GAME_PHASES.KING_SELECTION,
   );
 
-  const targets =
-    getKingTargets();
+  const king =
+    getAliveRolePlayer(
+      ROLE_IDS.KING,
+    );
 
-  if (targets.length === 0) {
-    gameState.nightAction
-      .inspectedPlayerId = null;
-
-    saveGame();
+  if (!king) {
     goToNextNightRole();
-
     return;
   }
 
+  const remaining = Math.max(
+    0,
+    Number(
+      king.royalPardonsRemaining ?? 0,
+    ),
+  );
+
+  const targets =
+    getKingTargets();
+
+  const medals = [0, 1, 2]
+    .map(
+      (index) =>
+        index < remaining
+          ? "🛡️"
+          : "◌",
+    )
+    .join(" ");
+
   renderNightPlayerSelection({
     title:
-      "اختر لاعبًا لكشف حقيقته",
+      remaining > 0
+        ? "امنح عفوًا ملكيًا"
+        : "نفدت أوسمة العفو",
 
     description:
-      "ستظهر النتيجة على هذه الشاشة بصورة سرية. احفظها جيدًا ولا تكشفها مباشرة.",
+      remaining > 0
+        ? "اختر لاعبًا واحدًا لحمايته من الإقصاء بالتصويت في هذه الجولة، أو احتفظ بالوسام لليلة أخرى. لا يمكنك اختيار نفسك."
+        : "استخدمت أوسمة العفو الثلاثة. تابع الليلة دون منح عفو.",
 
     icon: "👑",
 
@@ -3738,10 +3694,217 @@ function renderKingSelectionPage() {
 
     selectedPlayerId:
       gameState.nightAction
-        .inspectedPlayerId,
+        .kingTargetId,
 
     buttonText:
-      "كشف الشخصية",
+      "اعتماد قرار العفو",
+
+    extraContent: `
+      <div class="night-privacy-warning">
+        <span>👑</span>
+        <p>
+          أوسمة العفو المتبقية:
+          <strong>${remaining} من 3</strong>
+          <br />
+          ${medals}
+        </p>
+      </div>
+    `,
+
+    secondaryButtonText:
+      remaining > 0
+        ? "الاحتفاظ بالوسام وعدم اختيار أحد"
+        : "متابعة بدون عفو",
+
+    onSecondary() {
+      gameState.nightAction
+        .kingTargetId = null;
+
+      gameState.nightAction
+        .kingSkipped = true;
+
+      gameState.currentPardonPlayerId =
+        null;
+
+      saveGame();
+      goToNextNightRole();
+    },
+
+    onConfirm(playerId) {
+      if (remaining <= 0) {
+        showWarningToast(
+          "نفدت أوسمة العفو الملكي.",
+          "لا يوجد عفو متبقٍ",
+        );
+        return;
+      }
+
+      const selectedPlayer =
+        targets.find(
+          (player) =>
+            player.id === playerId,
+        );
+
+      if (!selectedPlayer) {
+        showErrorToast(
+          "اللاعب المحدد غير متاح.",
+          "تعذر اعتماد العفو",
+        );
+        return;
+      }
+
+      gameState.nightAction
+        .kingTargetId = playerId;
+
+      gameState.nightAction
+        .kingSkipped = false;
+
+      gameState.currentPardonPlayerId =
+        playerId;
+
+      king.royalPardonsRemaining =
+        Math.max(0, remaining - 1);
+
+      king.performance ||= {};
+      king.performance.kingPardonsUsed =
+        Number(
+          king.performance
+            .kingPardonsUsed || 0,
+        ) + 1;
+
+      ensureMatchStatsStructure();
+
+      const alreadyRecorded =
+        gameState.matchStats
+          .kingPardonsUsed
+          .some((record) =>
+            record.round ===
+              gameState.roundNumber &&
+            record.kingId === king.id,
+          );
+
+      if (!alreadyRecorded) {
+        gameState.matchStats
+          .kingPardonsUsed
+          .push({
+            round:
+              gameState.roundNumber,
+
+            kingId: king.id,
+            targetId: playerId,
+          });
+
+        addTimelineEvent(
+          gameState,
+          {
+            type: "king-pardon",
+
+            title:
+              `منح الملك ${selectedPlayer.name} وسام عفو`,
+
+            description:
+              "تم منح عفو ملكي لهذا اللاعب في هذه الجولة.",
+
+            icon: "👑",
+
+            round:
+              gameState.roundNumber,
+
+            phase: "night",
+
+            playerId: king.id,
+            targetId: playerId,
+          },
+        );
+      }
+
+      saveGame();
+      goToNextNightRole();
+    },
+  });
+}
+
+
+function renderInvestigatorHandoffPage() {
+  setCurrentScreen(
+    GAME_PHASES.INVESTIGATOR_HANDOFF,
+  );
+
+  renderNightRoleHandoff({
+    roleId: ROLE_IDS.INVESTIGATOR,
+
+    pageClass:
+      "investigator-night",
+
+    icon: "🕵️",
+
+    title:
+      "يستيقظ المحقق",
+
+    description:
+      "افتح عينيك واختر لاعبًا واحدًا للتحقيق في هويته سرًا.",
+
+    buttonText:
+      "اختيار لاعب للتحقيق",
+
+    nextPhase:
+      GAME_PHASES.INVESTIGATOR_SELECTION,
+  });
+}
+
+
+function getInvestigatorTargets() {
+  const investigator =
+    getAliveRolePlayer(
+      ROLE_IDS.INVESTIGATOR,
+    );
+
+  if (!investigator) {
+    return [];
+  }
+
+  return gameState.assignedPlayers.filter(
+    (player) =>
+      player.alive &&
+      player.id !== investigator.id,
+  );
+}
+
+
+function renderInvestigatorSelectionPage() {
+  setCurrentScreen(
+    GAME_PHASES.INVESTIGATOR_SELECTION,
+  );
+
+  const targets =
+    getInvestigatorTargets();
+
+  if (targets.length === 0) {
+    gameState.nightAction
+      .investigatorTargetId = null;
+
+    saveGame();
+    goToNextNightRole();
+    return;
+  }
+
+  renderNightPlayerSelection({
+    title:
+      "اختر لاعبًا للتحقيق",
+
+    description:
+      "اختر لاعبًا واحدًا فقط. يظهر الملك والممرض والمواطن للمحقق كمواطنين حفاظًا على سرية الأدوار.",
+
+    icon: "🕵️",
+
+    players: targets,
+
+    selectedPlayerId:
+      gameState.nightAction
+        .investigatorTargetId,
+
+    buttonText:
+      "تأكيد وبدء التحقيق",
 
     onConfirm(playerId) {
       const selectedPlayer =
@@ -3753,193 +3916,174 @@ function renderKingSelectionPage() {
       if (!selectedPlayer) {
         showErrorToast(
           "اللاعب المحدد غير متاح.",
-          "تعذر تنفيذ الكشف",
+          "تعذر تنفيذ التحقيق",
         );
-
         return;
       }
 
       gameState.nightAction
-        .inspectedPlayerId =
+        .investigatorTargetId =
         playerId;
 
       saveGame();
 
       transitionTo(
-        GAME_PHASES.KING_RESULT,
+        GAME_PHASES.INVESTIGATOR_RESULT,
       );
     },
   });
 }
 
 
-function getKingInspectionDetails(
+function getInvestigationDetails(
   player,
 ) {
-  const role =
-    getPlayerRole(player);
-
-  if (!role) {
+  if (!player) {
     return {
-      title:
-        "غير معروف",
-
+      role: "unknown",
+      title: "غير معروف",
       description:
         "تعذر التعرف على شخصية هذا اللاعب.",
-
       icon: "❔",
-
       className:
         "inspection-unknown",
     };
   }
 
   if (
-    role.team ===
-    TEAMS.THIEVES
+    player.role ===
+    ROLE_IDS.THIEF
   ) {
     return {
+      role: "thief",
       title:
-        "هذا اللاعب لص",
-
+        player.gender === "female"
+          ? "هذه اللاعبة لصة"
+          : "هذا اللاعب لص",
       description:
         "هذا اللاعب ينتمي إلى فريق اللصوص.",
-
       icon: "🗡️",
-
       className:
         "inspection-thief",
     };
   }
 
   if (
-    role.id ===
-    ROLE_IDS.NURSE
+    player.role ===
+    ROLE_IDS.INVESTIGATOR
   ) {
     return {
+      role: "investigator",
       title:
-        "هذه هي الممرضة",
-
+        player.gender === "female"
+          ? "هذه اللاعبة محققة"
+          : "هذا اللاعب محقق",
       description:
-        "هذا اللاعب هو الممرضة التي تحمي اللاعبين أثناء الليل.",
-
-      icon: "✚",
-
+        "هذا اللاعب يحمل دور المحقق.",
+      icon: "🕵️",
       className:
-        "inspection-nurse",
+        "inspection-citizen",
     };
   }
 
   return {
+    role: "citizen",
     title:
-      "هذا اللاعب مواطن",
-
+      player.gender === "female"
+        ? "هذه اللاعبة مواطنة"
+        : "هذا اللاعب مواطن",
     description:
-      "لم يظهر أن هذا اللاعب لص أو ممرضة.",
-
-    icon: "👤",
-
+      "يظهر الملك والممرض والمواطن للمحقق كمواطنين حفاظًا على سرية أدوارهم.",
+    icon: "🏙️",
     className:
       "inspection-citizen",
   };
 }
 
 
-function renderKingInspectionResult(
+function renderInvestigatorResult(
   playerId,
 ) {
   setCurrentScreen(
-    GAME_PHASES.KING_RESULT,
+    GAME_PHASES.INVESTIGATOR_RESULT,
   );
 
-  const inspectedPlayer =
+  const investigatedPlayer =
     gameState.assignedPlayers.find(
       (player) =>
         player.id === playerId,
     );
 
-  if (!inspectedPlayer) {
-    console.error(
-      "لم يتم العثور على اللاعب الذي فحصه الملك.",
-    );
-
+  if (!investigatedPlayer) {
     goToNextNightRole();
-
     return;
   }
 
-  const inspection =
-    getKingInspectionDetails(
-      inspectedPlayer,
+  const investigation =
+    getInvestigationDetails(
+      investigatedPlayer,
     );
 
-  const king =
+  const investigator =
     getAliveRolePlayer(
-      ROLE_IDS.KING,
+      ROLE_IDS.INVESTIGATOR,
     );
 
-  const inspectedPlayerIsThief =
-    isPlayerTeam(
-      inspectedPlayer,
-      TEAMS.THIEVES,
-    );
+  if (
+    investigatedPlayer.role ===
+    ROLE_IDS.THIEF
+  ) {
+    ensureMatchStatsStructure();
 
-  if (inspectedPlayerIsThief) {
-    if (!gameState.matchStats) {
-      gameState.matchStats = {};
-    }
-
-    if (
-      !Array.isArray(
-        gameState.matchStats
-          .kingThiefReveals,
-      )
-    ) {
+    const alreadyRecorded =
       gameState.matchStats
-        .kingThiefReveals = [];
-    }
+        .investigatorThiefFinds
+        .some((record) =>
+          record.round ===
+            gameState.roundNumber &&
+          record.investigatorId ===
+            investigator?.id &&
+          record.targetId ===
+            investigatedPlayer.id,
+        );
 
-    const revealAlreadyRecorded =
+    if (!alreadyRecorded) {
       gameState.matchStats
-        .kingThiefReveals
-        .some((record) => {
-          return (
-            record.round ===
-              gameState.roundNumber &&
-            record.kingId ===
-              king?.id &&
-            record.targetId ===
-              inspectedPlayer.id
-          );
-        });
-
-    if (!revealAlreadyRecorded) {
-      gameState.matchStats
-        .kingThiefReveals
+        .investigatorThiefFinds
         .push({
           round:
             gameState.roundNumber,
 
-          kingId:
-            king?.id ?? null,
+          investigatorId:
+            investigator?.id ?? null,
 
           targetId:
-            inspectedPlayer.id,
+            investigatedPlayer.id,
         });
+
+      if (investigator) {
+        investigator.performance ||= {};
+        investigator.performance
+          .investigatorThiefFinds =
+          Number(
+            investigator.performance
+              .investigatorThiefFinds || 0,
+          ) + 1;
+      }
 
       addTimelineEvent(
         gameState,
         {
           type:
-            "king-reveal",
+            "investigator-find",
 
           title:
-            `كشف الملك أن ${inspectedPlayer.name} لص`,
+            `كشف المحقق أن ${investigatedPlayer.name} لص`,
 
           description:
-            "استخدم الملك قدرته ونجح في كشف أحد اللصوص.",
+            "نجح المحقق في كشف أحد اللصوص أثناء التحقيق السري.",
 
-          icon: "👑",
+          icon: "🕵️",
 
           round:
             gameState.roundNumber,
@@ -3947,10 +4091,10 @@ function renderKingInspectionResult(
           phase: "night",
 
           playerId:
-            king?.id ?? null,
+            investigator?.id ?? null,
 
           targetId:
-            inspectedPlayer.id,
+            investigatedPlayer.id,
         },
       );
 
@@ -3960,45 +4104,43 @@ function renderKingInspectionResult(
 
   app.innerHTML = `
     <main
-      class="night-page king-night"
+      class="night-page investigator-night"
     >
       <div
-        class="night-background-glow night-background-glow-gold"
+        class="night-background-glow night-background-glow-blue"
       ></div>
 
       <section
-        class="night-card inspection-result-card ${inspection.className}"
+        class="night-card inspection-result-card ${investigation.className}"
       >
         <div class="night-role-icon">
-          ${inspection.icon}
+          ${investigation.icon}
         </div>
 
         <p class="night-round">
-          نتيجة الكشف السرية
+          نتيجة التحقيق السرية
         </p>
 
         <h1>
           ${escapeHtml(
-            inspectedPlayer.name,
+            investigatedPlayer.name,
           )}
         </h1>
 
         <p class="inspection-role">
           ${escapeHtml(
-            inspection.title,
+            investigation.title,
           )}
         </p>
 
         <p class="night-description">
           ${escapeHtml(
-            inspection.description,
+            investigation.description,
           )}
         </p>
 
         <div class="night-privacy-warning">
-          <span>
-            🤫
-          </span>
+          <span>🤫</span>
 
           <p>
             احفظ النتيجة ولا تكشفها
@@ -4008,7 +4150,7 @@ function renderKingInspectionResult(
 
         <button
           class="night-primary-button"
-          id="finishKingTurnButton"
+          id="finishInvestigatorTurnButton"
           type="button"
         >
           فهمت، أخفِ النتيجة
@@ -4017,12 +4159,10 @@ function renderKingInspectionResult(
     </main>
   `;
 
-  const finishKingTurnButton =
-    document.querySelector(
-      "#finishKingTurnButton",
-    );
-
-  finishKingTurnButton
+  document
+    .querySelector(
+      "#finishInvestigatorTurnButton",
+    )
     ?.addEventListener(
       "click",
       () => {
@@ -4040,6 +4180,9 @@ function renderNightPlayerSelection({
   selectedPlayerId,
   buttonText,
   onConfirm,
+  extraContent = "",
+  secondaryButtonText = "",
+  onSecondary = null,
 }) {
   const safePlayers =
     Array.isArray(players)
@@ -4073,6 +4216,8 @@ function renderNightPlayerSelection({
         <p class="night-description">
           ${description}
         </p>
+
+        ${extraContent}
 
         <div
           class="night-players-grid"
@@ -4145,6 +4290,20 @@ function renderNightPlayerSelection({
         >
           ${buttonText}
         </button>
+
+        ${
+          secondaryButtonText
+            ? `
+              <button
+                class="night-secondary-button"
+                id="secondaryNightSelectionButton"
+                type="button"
+              >
+                ${secondaryButtonText}
+              </button>
+            `
+            : ""
+        }
       </section>
     </main>
   `;
@@ -4166,6 +4325,21 @@ function renderNightPlayerSelection({
     document.querySelector(
       "#nightSelectionMessage",
     );
+
+  const secondaryButton =
+    document.querySelector(
+      "#secondaryNightSelectionButton",
+    );
+
+  secondaryButton?.addEventListener(
+    "click",
+    () => {
+      if (typeof onSecondary === "function") {
+        secondaryButton.disabled = true;
+        onSecondary();
+      }
+    },
+  );
 
   options.forEach((option) => {
     option.addEventListener(
@@ -4280,11 +4454,21 @@ function ensureMatchStatsStructure() {
   if (
     !Array.isArray(
       gameState.matchStats
-        .kingThiefReveals,
+        .investigatorThiefFinds,
     )
   ) {
     gameState.matchStats
-      .kingThiefReveals = [];
+      .investigatorThiefFinds = [];
+  }
+
+  if (
+    !Array.isArray(
+      gameState.matchStats
+        .kingPardonsUsed,
+    )
+  ) {
+    gameState.matchStats
+      .kingPardonsUsed = [];
   }
 
   if (
@@ -4435,6 +4619,13 @@ function resolveNight() {
     );
   }
 
+  gameState.currentPardonPlayerId =
+    gameState.nightAction
+      .kingSkipped
+      ? null
+      : gameState.nightAction
+          .kingTargetId ?? null;
+
   /*
    * الاحتفاظ باختيارات الليلة لاستخدام
    * قواعد منع التكرار في الجولة القادمة.
@@ -4448,9 +4639,19 @@ function resolveNight() {
       gameState.nightAction
         .savedPlayerId ?? null,
 
-    inspectedPlayerId:
+    kingTargetId:
       gameState.nightAction
-        .inspectedPlayerId ?? null,
+        .kingTargetId ?? null,
+
+    kingSkipped:
+      Boolean(
+        gameState.nightAction
+          .kingSkipped,
+      ),
+
+    investigatorTargetId:
+      gameState.nightAction
+        .investigatorTargetId ?? null,
 
     round:
       gameState.roundNumber,
@@ -4484,6 +4685,15 @@ function renderNightResultPage(
 
   const noVictimSelected =
     !victim;
+
+  const pardonedPlayer =
+    gameState.currentPardonPlayerId
+      ? gameState.assignedPlayers.find(
+          (player) =>
+            player.id ===
+            gameState.currentPardonPlayerId,
+        ) ?? null
+      : null;
 
   let resultContent = "";
 
@@ -4541,6 +4751,19 @@ function renderNightResultPage(
     `;
   }
 
+  const pardonContent = pardonedPlayer
+    ? `
+      <div class="night-active-roles">
+        <span>العفو الملكي</span>
+        <strong>
+          حصل ${escapeHtml(
+            pardonedPlayer.name,
+          )} على وسام عفو ملكي لهذه الجولة
+        </strong>
+      </div>
+    `
+    : "";
+
   app.innerHTML = `
     <main
       class="night-page result-night"
@@ -4562,6 +4785,8 @@ function renderNightResultPage(
         </p>
 
         ${resultContent}
+
+        ${pardonContent}
 
         <button
           class="night-primary-button"
@@ -4810,7 +5035,7 @@ function renderDayPage() {
                   </div>
 
                   <div
-                  class="discussion-actions"
+                    class="discussion-actions"
                   >
                     <button
                       class="pause-timer-button ${
@@ -6337,6 +6562,19 @@ function calculateVotingResult() {
     };
   }
 
+  if (
+    gameState.currentPardonPlayerId ===
+    eliminatedPlayer.id
+  ) {
+    return {
+      outcome: "pardoned",
+      eliminatedPlayer,
+      highestVotes,
+      tiedTargetIds: [],
+      counts,
+    };
+  }
+
   return {
     outcome: "eliminated",
     eliminatedPlayer,
@@ -6354,6 +6592,44 @@ function renderVotingResultsPage() {
 
   const result =
     calculateVotingResult();
+
+  if (
+    result.outcome ===
+      "pardoned" &&
+    result.eliminatedPlayer
+  ) {
+    return `
+      <div
+        class="voting-outcome-icon"
+      >
+        👑
+      </div>
+
+      <h1>
+        عفو ملكي
+      </h1>
+
+      <p
+        class="voted-player-name"
+      >
+        ${escapeHtml(
+          result
+            .eliminatedPlayer
+            .name,
+        )}
+      </p>
+
+      <p
+        class="voting-description"
+      >
+        حصل على
+        ${result.highestVotes}
+        من الأصوات، لكنه يحمل عفو
+        الملك لهذه الجولة ولذلك يبقى
+        في المباراة.
+      </p>
+    `;
+  }
 
   if (
     result.outcome ===
@@ -6746,8 +7022,9 @@ function checkGameWinner() {
   }
 
   if (
-    aliveThieves >=
-    aliveCitizens
+    aliveThieves > 0 &&
+    aliveThieves ===
+      aliveCitizens
   ) {
     return TEAMS.THIEVES;
   }
@@ -7088,6 +7365,10 @@ function saveGame() {
       roundNumber:
         gameState.roundNumber,
 
+      currentPardonPlayerId:
+        gameState.currentPardonPlayerId ??
+        null,
+
       nightSequence:
         gameState.nightSequence,
 
@@ -7199,6 +7480,58 @@ function loadSavedGame() {
       )
         ? parsedState
             .assignedPlayers
+            .map((player) => ({
+              ...player,
+
+              royalPardonsRemaining:
+                Number.isFinite(
+                  Number(
+                    player
+                      .royalPardonsRemaining,
+                  ),
+                )
+                  ? Math.max(
+                      0,
+                      Number(
+                        player
+                          .royalPardonsRemaining,
+                      ),
+                    )
+                  : player.role ===
+                    ROLE_IDS.KING
+                    ? 3
+                    : 0,
+
+              performance: {
+                nurseCorrectSaves:
+                  Number(
+                    player.performance
+                      ?.nurseCorrectSaves ||
+                    0,
+                  ),
+
+                investigatorThiefFinds:
+                  Number(
+                    player.performance
+                      ?.investigatorThiefFinds ||
+                    0,
+                  ),
+
+                kingPardonsUsed:
+                  Number(
+                    player.performance
+                      ?.kingPardonsUsed ||
+                    0,
+                  ),
+
+                roundsSurvived:
+                  Number(
+                    player.performance
+                      ?.roundsSurvived ||
+                    0,
+                  ),
+              },
+            }))
         : [];
 
     gameState.currentRevealIndex =
@@ -7218,6 +7551,11 @@ function loadSavedGame() {
         ? parsedState.roundNumber
         : 1;
 
+    gameState.currentPardonPlayerId =
+      parsedState
+        .currentPardonPlayerId ??
+      null;
+
     gameState.nightAction = {
       victimId:
         parsedState.nightAction
@@ -7229,9 +7567,19 @@ function loadSavedGame() {
           ?.savedPlayerId ??
         null,
 
-      inspectedPlayerId:
+      kingTargetId:
         parsedState.nightAction
-          ?.inspectedPlayerId ??
+          ?.kingTargetId ??
+        null,
+
+      kingSkipped:
+        parsedState.nightAction
+          ?.kingSkipped ??
+        false,
+
+      investigatorTargetId:
+        parsedState.nightAction
+          ?.investigatorTargetId ??
         null,
     };
 
@@ -7441,15 +7789,26 @@ function loadSavedGame() {
               .successfulNurseSaves
           : [],
 
-      kingThiefReveals:
+      investigatorThiefFinds:
         Array.isArray(
           parsedState
             .matchStats
-            ?.kingThiefReveals,
+            ?.investigatorThiefFinds,
         )
           ? parsedState
               .matchStats
-              .kingThiefReveals
+              .investigatorThiefFinds
+          : [],
+
+      kingPardonsUsed:
+        Array.isArray(
+          parsedState
+            .matchStats
+            ?.kingPardonsUsed,
+        )
+          ? parsedState
+              .matchStats
+              .kingPardonsUsed
           : [],
 
       eliminationRounds: {
@@ -7682,18 +8041,24 @@ const phaseRenderers = {
   [GAME_PHASES.KING_SELECTION]:
     renderKingSelectionPage,
 
-  [GAME_PHASES.KING_RESULT]:
+  [GAME_PHASES.INVESTIGATOR_HANDOFF]:
+    renderInvestigatorHandoffPage,
+
+  [GAME_PHASES.INVESTIGATOR_SELECTION]:
+    renderInvestigatorSelectionPage,
+
+  [GAME_PHASES.INVESTIGATOR_RESULT]:
     () => {
       const playerId =
         gameState.nightAction
-          .inspectedPlayerId;
+          .investigatorTargetId;
 
       if (!playerId) {
         goToNextNightRole();
         return;
       }
 
-      renderKingInspectionResult(
+      renderInvestigatorResult(
         playerId,
       );
     },
@@ -7827,112 +8192,6 @@ function scrollPageToTop() {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
 }
-function showFirstRunRules() {
-  const rulesSeen = localStorage.getItem("mafia_rules_seen");
-
-  if (rulesSeen === "1") {
-    return;
-  }
-
-  const overlay = document.createElement("div");
-  overlay.id = "mafia-rules-overlay";
-
-  overlay.innerHTML = `
-    <div class="mafia-rules-sheet">
-      <div class="mafia-rules-handle"></div>
-
-      <h2>قوانين لعبة Mafia</h2>
-      <p class="mafia-rules-subtitle">
-        اقرأ القواعد قبل بدء اللعب
-      </p>
-
-      <div class="mafia-rules-scroll">
-        <h3>1. هدف اللعبة</h3>
-        <p>
-          تنقسم اللعبة إلى فريق المافيا وفريق المواطنين.
-          يحاول فريق المافيا التخلص من بقية اللاعبين، بينما يحاول المواطنون كشف أعضاء المافيا وإخراجهم.
-        </p>
-
-        <h3>2. الأدوار سرية</h3>
-        <p>
-          يجب على كل لاعب الاحتفاظ بدوره لنفسه وعدم إظهاره لبقية اللاعبين إلا عندما تطلب اللعبة ذلك.
-        </p>
-
-        <h3>3. مرحلة الليل</h3>
-        <p>
-          أثناء الليل ينفذ كل دور مهمته حسب التعليمات الظاهرة في التطبيق.
-          يجب عدم النظر إلى شاشة لاعب آخر أو كشف القرارات.
-        </p>
-
-        <h3>4. مرحلة النهار</h3>
-        <p>
-          يناقش اللاعبون ما حدث ويحاولون معرفة أعضاء المافيا.
-          بعد النقاش يتم التصويت حسب نظام الجولة.
-        </p>
-
-        <h3>5. التصويت</h3>
-        <p>
-          يلتزم كل لاعب بنتيجة التصويت المسجلة داخل اللعبة.
-          اللاعب الذي يتم إخراجه لا يشارك في قرارات الجولات التالية.
-        </p>
-
-        <h3>6. اللعب النزيه</h3>
-        <p>
-          يمنع كشف الأدوار سرًا أو مشاركة معلومات من شاشة لاعب آخر أو تعطيل سير الجولة.
-        </p>
-
-        <h3>7. الفوز</h3>
-        <p>
-          يفوز المواطنون عند التخلص من جميع أعضاء المافيا.
-          وتفوز المافيا عندما تصبح قادرة على السيطرة على عدد اللاعبين المتبقين.
-        </p>
-      </div>
-
-      <div class="mafia-rules-actions">
-        <button id="mafia-rules-skip" type="button">تخطي</button>
-        <button id="mafia-rules-start" type="button">دخول اللعبة</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-  document.body.classList.add("mafia-rules-open");
-
-  function closeRules() {
-    localStorage.setItem("mafia_rules_seen", "1");
-    overlay.classList.add("hide");
-
-    setTimeout(() => {
-      overlay.remove();
-      document.body.classList.remove("mafia-rules-open");
-    }, 350);
-  }
-
-  document
-    .getElementById("mafia-rules-skip")
-    .addEventListener("click", closeRules);
-
-  document
-    .getElementById("mafia-rules-start")
-    .addEventListener("click", closeRules);
-}
-function showSplashScreen() {
-  const splash = document.createElement("div");
-  splash.id = "mafia-splash";
-  splash.innerHTML = `
-    <div class="mafia-splash-content">
-      <img src="/mafia-logo.png" alt="Mafia Logo" class="mafia-splash-logo">
-      <h1>Mafia</h1>
-    </div>
-  `;
-
-  document.body.appendChild(splash);
-
-  setTimeout(() => {
-    splash.classList.add("hide");
-    setTimeout(() => splash.remove(), 500);
-  }, 1800);
-}
 
 registerTemporaryAdminShortcut();
 
@@ -7947,13 +8206,5 @@ const restoredOnlineRoute = restoreOnlineRoute({
 });
 
 if (!restoredOnlineRoute) {
-  showSplashScreen();
-
-  window.setTimeout(() => {
-    renderHomePage();
-
-    window.setTimeout(() => {
-      showFirstRunRules();
-    }, 300);
-  }, 2100);
+  renderHomePage();
 }
