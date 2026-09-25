@@ -103,7 +103,10 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
   }
 
   io.on("connection", socket => {
-    socket.emit("server:ready", { now: Date.now() });
+    socket.emit("server:ready", {
+      now: Date.now(),
+      serverId: String(process.env.SERVER_ID || "R").trim().toUpperCase(),
+    });
 
     socket.on("room:create", async (payload, ack = () => {}) => {
       try {
