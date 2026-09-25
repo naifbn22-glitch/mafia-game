@@ -8,6 +8,7 @@ export const citizenRole = Object.freeze({
 
   icon: "👤",
   colorClass: "role-citizen",
+  className: "role-citizen",
 
   description:
     "ناقش الأدلة وصوّت لإخراج اللاعب الذي تعتقد أنه لص.",
