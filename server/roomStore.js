@@ -49,6 +49,19 @@ export class RoomStore {
 
   key(code) { return `mafia:room:${code}`; }
 
+  getStats() {
+    const rooms = [...this.memory.values()];
+    const active = rooms.filter(room => !room?.winner);
+    return {
+      totalRooms: rooms.length,
+      activeRooms: active.length,
+      activePlayers: active.reduce(
+        (total, room) => total + (Array.isArray(room?.players) ? room.players.length : 0),
+        0,
+      ),
+    };
+  }
+
   async withRoomLock(code, operation, { waitMs = 20_000, leaseMs = 60_000 } = {}) {
     const normalizedCode = String(code || "").trim().toUpperCase();
     if (!normalizedCode) throw new Error("INVALID_ROOM_CODE");

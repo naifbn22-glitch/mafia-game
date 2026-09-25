@@ -12,6 +12,7 @@ import { hostProjection, normalizeRoomCode, requireHost, startVoting } from "./s
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
+const SERVER_ID = String(process.env.SERVER_ID || "R").trim().toUpperCase();
 const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "*").split(",").map(v => v.trim()).filter(Boolean);
 const app = express();
 
@@ -25,7 +26,22 @@ app.use("/api", rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: "draf
 const store = new RoomStore({ redisUrl: process.env.REDIS_URL || "", databaseUrl: process.env.DATABASE_URL || "" });
 await store.connect();
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, realtime: "socket.io", redis: Boolean(process.env.REDIS_URL), now: Date.now() }));
+let io = null;
+
+app.get("/api/health", (_req, res) => {
+  const stats = store.getStats();
+  res.json({
+    ok: true,
+    serverId: SERVER_ID,
+    realtime: "socket.io",
+    redis: Boolean(process.env.REDIS_URL),
+    activeRooms: stats.activeRooms,
+    totalRooms: stats.totalRooms,
+    activePlayers: stats.activePlayers,
+    connections: Number(io?.engine?.clientsCount || 0),
+    now: Date.now(),
+  });
+});
 app.use(express.static(path.join(__dirname, "dist"), { maxAge: "1h", etag: true }));
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
@@ -33,7 +49,7 @@ app.use((req, res, next) => {
 });
 
 const server = http.createServer(app);
-const io = await createSocketServer(server, store, { allowedOrigins });
+io = await createSocketServer(server, store, { allowedOrigins });
 
 // مسار احتياطي مخصص لأمر الانتقال إلى التصويت.
 // لا يغيّر أي قاعدة في اللعبة، ويستخدم نفس startVoting المعتمد في Socket.IO.
