@@ -1,6 +1,6 @@
 export const ONLINE_MODE_ENABLED = true;
-import { io } from "socket.io-client";
 import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
+import { createRoutedSocket, serverUrlForRoomCode } from "./serverRouter.js";
 import { getRoleCardImage } from "../ui/roleCards.js";
 
 const STORAGE_KEY = "mafia_online_rooms_v2";
@@ -9,9 +9,8 @@ const HOST_SESSION_KEY = "mafia_online_host_session_v2";
 const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
-const ONLINE_SERVER_URL = "https://mafia-game-1-mo6i.onrender.com";
 const socket = ONLINE_MODE_ENABLED
-  ? io(ONLINE_SERVER_URL, {
+  ? createRoutedSocket({
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -21,10 +20,14 @@ const socket = ONLINE_MODE_ENABLED
     })
   : {
       connected: false,
+      serverUrl: "",
       on: () => {},
+      off: () => {},
       emit: () => {},
       connect: () => {},
       disconnect: () => {},
+      useServerForRoom: () => ({ changed: false }),
+      useBestServerForNewRoom: async () => ({ changed: false }),
     };
 let hostRoleRevealIntervalId = null;
 // حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
@@ -68,7 +71,26 @@ function cacheServerRoom(room) {
   return true;
 }
 
-function emitAck(eventName, payload) {
+async function routeSocketForRequest(eventName, payload = {}) {
+  if (!ONLINE_MODE_ENABLED) return;
+
+  const previousServerUrl = socket.serverUrl;
+
+  if (eventName === "room:create") {
+    await socket.useBestServerForNewRoom();
+  } else if (payload?.code) {
+    socket.useServerForRoom(payload.code);
+  }
+
+  if (previousServerUrl && previousServerUrl !== socket.serverUrl) {
+    activeSubscriptions.clear();
+    desiredSubscriptions.clear();
+  }
+}
+
+async function emitAck(eventName, payload) {
+  await routeSocketForRequest(eventName, payload);
+
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error("SERVER_TIMEOUT")), 12000);
     socket.emit(eventName, payload, response => {
@@ -347,7 +369,7 @@ async function startVotingReliably(code) {
   // startVoting في الخادم idempotent، لذلك هذا آمن حتى إذا نجحت المحاولة الأولى متأخرة.
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/${encodeURIComponent(normalized)}/start-voting`, {
+      const response = await fetch(`${serverUrlForRoomCode(normalized)}/api/rooms/${encodeURIComponent(normalized)}/start-voting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: session.token }),
@@ -1040,7 +1062,7 @@ function renderJoinCode({ app, onBack }) {
     <div class="online-form-card compact-form-card">
       <div class="online-form-heading"><span>🚪</span><div><h2>الانضمام إلى غرفة</h2><p>ألصق رابط الدعوة أو اكتب رمز الغرفة.</p></div></div>
       <form id="joinCodeForm" class="online-form">
-        <label>رابط أو رمز الغرفة<input id="roomCodeInput" required placeholder="مثال: AB7K9P" /></label>
+        <label>رابط أو رمز الغرفة<input id="roomCodeInput" required placeholder="مثال: A8K2PM9" /></label>
         <button class="online-primary-button" type="submit">متابعة</button>
       </form>
     </div>
