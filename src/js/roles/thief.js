@@ -8,6 +8,7 @@ export const thiefRole = Object.freeze({
 
   icon: "🗡️",
   colorClass: "role-thief",
+  className: "role-thief",
 
   description:
     "استيقظ مع بقية اللصوص واختر لاعبًا لإخراجه أثناء الليل.",
