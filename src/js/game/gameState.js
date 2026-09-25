@@ -1,26 +1,30 @@
 export const gameState = {
   currentPhase: "home",
   currentScreen: "home",
-matchTimeline: [],
-matchStartedAt: null,
-matchEndedAt: null,
+
+  matchTimeline: [],
+  matchStartedAt: null,
+  matchEndedAt: null,
 
   players: [],
- assignedPlayers: [],
- playerProfiles: [],
+  assignedPlayers: [],
+  playerProfiles: [],
   currentRevealIndex: 0,
 
   roundNumber: 1,
+  currentPardonPlayerId: null,
 
   roundHistory: {
-  lastVictimId: null,
-  lastSavedPlayerId: null,
-},
+    lastVictimId: null,
+    lastSavedPlayerId: null,
+  },
 
   nightAction: {
     victimId: null,
     savedPlayerId: null,
-    inspectedPlayerId: null,
+    kingTargetId: null,
+    kingSkipped: false,
+    investigatorTargetId: null,
   },
 
   nightSequence: {
@@ -39,60 +43,68 @@ matchEndedAt: null,
     votes: [],
   },
 
+  matchStats: {
+    votes: [],
+    successfulNurseSaves: [],
+    investigatorThiefFinds: [],
+    kingPardonsUsed: [],
+    eliminationRounds: {},
+    finalResults: null,
+    applied: false,
+  },
+
   soundEnabled: true,
 
-settings: {
-  nightDuration: 45,
-  discussionDuration: 180,
-  votingDuration: 45,
-  showTimer: true,
-  vibrationEnabled: true,
+  settings: {
+    nightDuration: 45,
+    discussionDuration: 180,
+    votingDuration: 45,
+    showTimer: true,
+    vibrationEnabled: true,
 
-  advancedRules: {
-    preventRepeatVictim: true,
-    preventRepeatSave: true,
+    advancedRules: {
+      preventRepeatVictim: true,
+      preventRepeatSave: true,
+    },
   },
-},
 };
+
 export function resetGameState() {
   gameState.currentPhase = "home";
   gameState.currentScreen = "home";
-gameState.matchTimeline = [];
-gameState.matchStartedAt = null;
-gameState.matchEndedAt = null;
-  gameState.matchStats = {
-  votes: [],
-  successfulNurseSaves: [],
-  kingThiefReveals: [],
-  eliminationRounds: {},
-  finalResults: null,
-  applied: false,
-};
+
+  gameState.matchTimeline = [];
+  gameState.matchStartedAt = null;
+  gameState.matchEndedAt = null;
 
   gameState.players = [];
   gameState.assignedPlayers = [];
   gameState.currentRevealIndex = 0;
 
   gameState.roundNumber = 1;
-  
-gameState.matchStats = {
-  votes: [],
-  successfulNurseSaves: [],
-  kingThiefReveals: [],
-  eliminationRounds: {},
-  finalResults: null,
-  applied: false,
-};
+  gameState.currentPardonPlayerId = null;
+
+  gameState.matchStats = {
+    votes: [],
+    successfulNurseSaves: [],
+    investigatorThiefFinds: [],
+    kingPardonsUsed: [],
+    eliminationRounds: {},
+    finalResults: null,
+    applied: false,
+  };
 
   gameState.roundHistory = {
-  lastVictimId: null,
-  lastSavedPlayerId: null,
-};
+    lastVictimId: null,
+    lastSavedPlayerId: null,
+  };
 
   gameState.nightAction = {
     victimId: null,
     savedPlayerId: null,
-    inspectedPlayerId: null,
+    kingTargetId: null,
+    kingSkipped: false,
+    investigatorTargetId: null,
   };
 
   gameState.nightSequence = {
