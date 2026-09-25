@@ -1,5 +1,4 @@
 export const SCORING_RULES = Object.freeze({
-
   THIEF: {
     SURVIVED: 10,
     ONE_ROUND_BEFORE_END: 7,
@@ -17,7 +16,7 @@ export const SCORING_RULES = Object.freeze({
   BONUS: {
     CORRECT_THIEF_VOTE: 1,
     NURSE_SUCCESSFUL_SAVE: 3,
-    KING_REVEAL_THIEF: 3,
+    INVESTIGATOR_FIND_THIEF: 3,
+    KING_PARDON_USED: 1,
   },
-
 });
