@@ -37,6 +37,14 @@ function getRoleDetails(
       icon: "👑",
       className: "king",
     },
+
+    investigator: {
+      name: isFemale
+        ? "المحققة"
+        : "المحقق",
+      icon: "🕵️",
+      className: "investigator",
+    },
   };
 
   return (
