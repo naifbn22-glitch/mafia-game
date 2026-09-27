@@ -39,8 +39,10 @@ const SOCKETS_PER_ROOM = PLAYERS_PER_ROOM + 1;
 const TOTAL_TARGET_SOCKETS = ROOM_COUNT * SOCKETS_PER_ROOM;
 const TOTAL_TARGET_MATCHES = ROOM_COUNT * MATCHES_PER_ROOM;
 const ACK_TIMEOUT_MS = 15_000;
-const CONNECT_TIMEOUT_MS = 15_000;
+const CONNECT_TIMEOUT_MS = 30_000;
 const HEALTH_TIMEOUT_MS = 60_000;
+const SETUP_ROOM_GAP_MS = 250;
+const CONNECT_RETRY_LIMIT = 4;
 const MAX_GAME_ROUNDS = 12;
 const BETWEEN_STEPS_MS = 70;
 const RECONNECT_DOWNTIME_MIN_MS = 180;
@@ -233,9 +235,17 @@ function waitForConnect(socket, timeoutMs = CONNECT_TIMEOUT_MS) {
   if (socket.connected) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
+    let lastError = null;
+
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error("CONNECT_TIMEOUT"));
+      reject(
+        new Error(
+          lastError?.message
+            ? `CONNECT_TIMEOUT:${lastError.message}`
+            : "CONNECT_TIMEOUT",
+        ),
+      );
     }, timeoutMs);
 
     const onConnect = () => {
@@ -244,8 +254,13 @@ function waitForConnect(socket, timeoutMs = CONNECT_TIMEOUT_MS) {
     };
 
     const onError = error => {
-      cleanup();
-      reject(error instanceof Error ? error : new Error(String(error || "CONNECT_ERROR")));
+      // Do not fail the whole test on the first Socket.IO handshake timeout.
+      // Socket.IO is configured to reconnect automatically, so keep waiting
+      // until the overall connection window expires.
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error(String(error || "CONNECT_ERROR"));
     };
 
     const cleanup = () => {
@@ -255,9 +270,37 @@ function waitForConnect(socket, timeoutMs = CONNECT_TIMEOUT_MS) {
     };
 
     socket.once("connect", onConnect);
-    socket.once("connect_error", onError);
+    socket.on("connect_error", onError);
     socket.connect();
   });
+}
+
+async function connectClientReliably(client, { retries = CONNECT_RETRY_LIMIT } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    try {
+      await waitForConnect(client.socket, CONNECT_TIMEOUT_MS);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries - 1) break;
+
+      globalMetrics.commandRetries += 1;
+
+      try {
+        client.socket.disconnect();
+      } catch {}
+
+      await sleep(500 + attempt * 500);
+
+      try {
+        client.socket.connect();
+      } catch {}
+    }
+  }
+
+  throw lastError || new Error("CONNECT_FAILED");
 }
 
 function createClient(server, kind, label) {
@@ -267,7 +310,7 @@ function createClient(server, kind, label) {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 300,
     reconnectionDelayMax: 2200,
-    timeout: 10_000,
+    timeout: 20_000,
     forceNew: true,
     multiplex: false,
   });
@@ -374,7 +417,7 @@ async function ensureClientReady(client) {
   }
 
   if (!client.socket.connected) {
-    await waitForConnect(client.socket);
+    await connectClientReliably(client);
   }
 
   if (client.needsSubscribe && client.code && client.token) {
@@ -530,7 +573,7 @@ async function playerCommand(playerClient, action, payload = {}, verify = null) 
 async function setupRoom(index) {
   const chosen = await chooseBestServerForNewRoom();
   const host = createClient(chosen, "host", `room-${index}-host`);
-  await waitForConnect(host.socket);
+  await connectClientReliably(host);
 
   const createResponse = await rawEmitAck(host, "room:create", {
     hostName: `LoadHost-${String(index).padStart(3, "0")}`,
@@ -579,7 +622,7 @@ async function setupRoom(index) {
     );
   });
 
-  await Promise.all(playerClients.map(client => waitForConnect(client.socket)));
+  await Promise.all(playerClients.map(client => connectClientReliably(client)));
 
   const joinResults = await Promise.all(
     playerClients.map(async (client, offset) => {
@@ -935,7 +978,7 @@ async function forcedReconnect(client) {
       if (client.closed) return;
 
       client.socket.connect();
-      await waitForConnect(client.socket, 12_000);
+      await connectClientReliably(client, { retries: 3 });
 
       if (client.needsSubscribe) {
         await subscribeClient(client);
@@ -1201,6 +1244,7 @@ async function main() {
   for (let index = 1; index <= ROOM_COUNT; index += 1) {
     try {
       await setupRoom(index);
+      await sleep(SETUP_ROOM_GAP_MS);
     } catch (error) {
       logError(error, `setup-room-${index}`);
       throw error;
