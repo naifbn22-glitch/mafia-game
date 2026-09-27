@@ -59,6 +59,7 @@ const globalMetrics = {
   ackLatencyTotal: 0,
   ackLatencyMax: 0,
   commandRetries: 0,
+  syncRetries: 0,
   errors: 0,
   transportErrors: 0,
   reconnectAttempts: 0,
@@ -386,8 +387,38 @@ async function clientAck(client, eventName, payload, timeoutMs = ACK_TIMEOUT_MS)
   return rawEmitAck(client, eventName, payload, timeoutMs);
 }
 
+async function reliableSync(client, payload, { retries = 4 } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    try {
+      await ensureClientReady(client);
+      return await rawEmitAck(client, "room:sync", payload, ACK_TIMEOUT_MS);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= retries - 1) break;
+
+      globalMetrics.syncRetries += 1;
+
+      // A forced disconnect can make an already-sent ACK disappear even though
+      // the socket reconnect itself succeeds. Wait for the reconnect/subscription
+      // cycle, then repeat room:sync just like the production client does.
+      try {
+        await ensureClientReady(client);
+      } catch {
+        // The next retry will attempt recovery again.
+      }
+
+      await sleep(180 + attempt * 260);
+    }
+  }
+
+  throw lastError || new Error("ROOM_SYNC_FAILED");
+}
+
 async function syncHost(roomCtx) {
-  const response = await clientAck(roomCtx.host, "room:sync", {
+  const response = await reliableSync(roomCtx.host, {
     code: roomCtx.code,
     mode: "host",
     token: roomCtx.host.token,
@@ -398,7 +429,7 @@ async function syncHost(roomCtx) {
 }
 
 async function syncPlayer(playerClient) {
-  const response = await clientAck(playerClient, "room:sync", {
+  const response = await reliableSync(playerClient, {
     code: playerClient.code,
     mode: "player",
     playerId: playerClient.playerId,
