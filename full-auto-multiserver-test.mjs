@@ -2,9 +2,12 @@ import { io } from "socket.io-client";
 
 // Mafia SA multi-server stress test
 // Usage:
-//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS
-// Example:
-//   node full-auto-multiserver-test.mjs 30 1 10 10
+//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS [ALL|A|B|R]
+// Examples:
+//   node full-auto-multiserver-test.mjs 30 1 5 10 ALL
+//   node full-auto-multiserver-test.mjs 20 1 5 10 A
+//   node full-auto-multiserver-test.mjs 20 1 5 10 B
+//   node full-auto-multiserver-test.mjs 20 1 5 10 R
 //
 // 1 room = 1 host socket + 9 player sockets = 10 sockets.
 
@@ -33,6 +36,11 @@ const ROOM_COUNT = positiveInt(process.argv[2], 30);
 const MATCHES_PER_ROOM = positiveInt(process.argv[3], 1);
 const RECONNECT_PERCENT = clampNumber(process.argv[4], 10, 0, 100);
 const RECONNECT_INTERVAL_SECONDS = clampNumber(process.argv[5], 10, 1, 3600);
+const TARGET_SERVER = String(process.argv[6] || "ALL").trim().toUpperCase();
+
+if (!["ALL", "A", "B", "R"].includes(TARGET_SERVER)) {
+  throw new Error("INVALID_TARGET_SERVER: use ALL, A, B, or R");
+}
 
 const PLAYERS_PER_ROOM = 9;
 const SOCKETS_PER_ROOM = PLAYERS_PER_ROOM + 1;
@@ -190,7 +198,12 @@ async function fetchHealth(server, timeoutMs = HEALTH_TIMEOUT_MS) {
 async function preflight() {
   console.log("\n=== PRE-FLIGHT HEALTH CHECK ===");
 
-  for (const server of Object.values(SERVERS)) {
+  const serversToCheck =
+    TARGET_SERVER === "ALL"
+      ? Object.values(SERVERS)
+      : [SERVERS[TARGET_SERVER]];
+
+  for (const server of serversToCheck) {
     const result = await fetchHealth(server);
     const actualId = String(result.health?.serverId || "").toUpperCase();
     if (actualId !== server.id) {
@@ -207,6 +220,12 @@ async function preflight() {
 }
 
 async function chooseBestServerForNewRoom() {
+  if (TARGET_SERVER !== "ALL") {
+    const server = SERVERS[TARGET_SERVER];
+    const result = await fetchHealth(server, 12_000);
+    return result;
+  }
+
   const results = await Promise.allSettled(
     Object.values(SERVERS).map(server => fetchHealth(server, 12_000)),
   );
@@ -1233,7 +1252,11 @@ async function main() {
   console.log(
     `Reconnect           : ${RECONNECT_PERCENT}% every ${RECONNECT_INTERVAL_SECONDS}s`,
   );
-  console.log("Routing             : health/load weighted A=3, B=3, R=1");
+  console.log(
+    TARGET_SERVER === "ALL"
+      ? "Routing             : health/load weighted A=3, B=3, R=1"
+      : `Target server       : ${TARGET_SERVER} (${SERVERS[TARGET_SERVER].name})`,
+  );
   console.log("Discussion timer    : real 30-second production window");
   console.log("============================================================");
 
