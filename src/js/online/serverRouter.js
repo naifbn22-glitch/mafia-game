@@ -5,7 +5,6 @@ export const GAME_SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    tier: "primary",
     maxRooms: 38,
     maxConnections: 380,
   }),
@@ -13,7 +12,6 @@ export const GAME_SERVERS = Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    tier: "primary",
     maxRooms: 38,
     maxConnections: 380,
   }),
@@ -21,25 +19,22 @@ export const GAME_SERVERS = Object.freeze({
     id: "C",
     name: "Railway C",
     url: "https://mafia-game-c-production.up.railway.app",
-    tier: "primary",
     maxRooms: 40,
     maxConnections: 400,
   }),
-  R: Object.freeze({
-    id: "R",
-    name: "Render Backup",
-    url: "https://mafia-game-1-mo6i.onrender.com",
-    tier: "backup",
-    maxRooms: 20,
-    maxConnections: 200,
+  D: Object.freeze({
+    id: "D",
+    name: "Railway D",
+    url: "https://mafia-game-d-production.up.railway.app",
+    maxRooms: 40,
+    maxConnections: 400,
   }),
 });
 
-export const LEGACY_SERVER_ID = "R";
+export const LEGACY_SERVER_ID = "A";
 export const INITIAL_SERVER_ID = "A";
 
-const PRIMARY_SERVER_IDS = Object.freeze(["A", "B", "C"]);
-const BACKUP_SERVER_IDS = Object.freeze(["R"]);
+const PRIMARY_SERVER_IDS = Object.freeze(["A", "B", "C", "D"]);
 const PRIMARY_HEALTH_RETRIES = 3;
 
 function delay(ms) {
@@ -57,8 +52,8 @@ export function serverIdForRoomCode(code) {
   const normalized = normalizeCode(code);
 
   // New sharded room codes are seven characters:
-  // Axxxxxx, Bxxxxxx, Cxxxxxx, Rxxxxxx.
-  // Existing six-character room codes stay on Render for backward compatibility.
+  // Axxxxxx, Bxxxxxx, Cxxxxxx, Dxxxxxx.
+  // Legacy/unknown codes fall back to A because Render is no longer part of routing.
   if (normalized.length === 7 && GAME_SERVERS[normalized[0]]) {
     return normalized[0];
   }
@@ -147,17 +142,14 @@ async function fetchHealthyServers(serverIds, timeoutMs = 6500) {
 }
 
 export async function chooseBestServerForNewRoom() {
-  // Primary pool:
+  // Railway-only pool:
   // A = 38 rooms / 380 sockets
   // B = 38 rooms / 380 sockets
   // C = 40 rooms / 400 sockets
+  // D = 40 rooms / 400 sockets
   //
-  // IMPORTANT:
-  // A failed/slow health check is NOT treated as "primary is full".
-  // Render is allowed only after A, B and C all explicitly answer health
-  // checks and all three are confirmed at their configured capacity.
-  let primariesConfirmedFull = false;
-
+  // Health-check timeouts never redirect to another provider. We retry the
+  // Railway pool and choose the least-filled healthy server with capacity.
   for (let attempt = 0; attempt < PRIMARY_HEALTH_RETRIES; attempt += 1) {
     const healthyPrimaries = await fetchHealthyServers(
       PRIMARY_SERVER_IDS,
@@ -174,9 +166,7 @@ export async function chooseBestServerForNewRoom() {
       healthyPrimaries.length === PRIMARY_SERVER_IDS.length;
 
     if (allPrimariesAnswered) {
-      // Every primary answered successfully and none has capacity.
-      primariesConfirmedFull = true;
-      break;
+      throw new Error("NO_GAME_SERVER_CAPACITY");
     }
 
     if (attempt < PRIMARY_HEALTH_RETRIES - 1) {
@@ -184,25 +174,12 @@ export async function chooseBestServerForNewRoom() {
     }
   }
 
-  // Never spill rooms to Render merely because Railway health checks timed out.
-  // This prevents premature Render allocation under test/load spikes.
-  if (!primariesConfirmedFull) {
-    throw new Error("PRIMARY_HEALTH_UNCERTAIN");
-  }
-
-  const healthyBackups = await fetchHealthyServers(BACKUP_SERVER_IDS, 5000);
-  const backupServers = healthyBackups.filter(serverHasCapacity);
-
-  if (backupServers.length) {
-    return chooseLeastFilled(backupServers);
-  }
-
-  throw new Error("NO_GAME_SERVER_CAPACITY");
+  throw new Error("RAILWAY_POOL_UNAVAILABLE");
 }
 
 export function createRoutedSocket(options = {}) {
   const listeners = new Map();
-  // Never connect idle clients to the Render backup by default.
+  // Use Railway A as the initial idle connection; room routing may switch to B/C/D.
   let currentServer = GAME_SERVERS[INITIAL_SERVER_ID];
   let currentSocket = null;
 
