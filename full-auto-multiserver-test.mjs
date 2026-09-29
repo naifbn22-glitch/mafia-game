@@ -274,11 +274,12 @@ async function chooseBestServerForNewRoom() {
   }
 
   const primaryIds = ["A", "B", "C"];
+  let primariesConfirmedFull = false;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const results = await Promise.allSettled(
       primaryIds.map(id =>
-        fetchHealth(SERVERS[id], attempt === 0 ? 12_000 : 6_000),
+        fetchHealth(SERVERS[id], attempt === 0 ? 12_000 : 8_000),
       ),
     );
 
@@ -294,11 +295,20 @@ async function chooseBestServerForNewRoom() {
 
     const allPrimariesAnswered = healthyPrimaries.length === primaryIds.length;
 
-    if (allPrimariesAnswered) break;
+    if (allPrimariesAnswered) {
+      primariesConfirmedFull = true;
+      break;
+    }
 
     if (attempt < 2) {
-      await sleep(250 + attempt * 250);
+      await sleep(500 + attempt * 500);
     }
+  }
+
+  // In ALL mode, do not treat a health timeout as permission to use Render.
+  // Render is capacity backup only and starts after A/B/C are confirmed full.
+  if (!primariesConfirmedFull) {
+    throw new Error("PRIMARY_HEALTH_UNCERTAIN");
   }
 
   const backupResults = await Promise.allSettled([
