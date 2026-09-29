@@ -5,23 +5,38 @@ export const GAME_SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    capacityWeight: 3,
+    tier: "primary",
+    maxRooms: 38,
+    maxConnections: 380,
   }),
   B: Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    capacityWeight: 3,
+    tier: "primary",
+    maxRooms: 38,
+    maxConnections: 380,
+  }),
+  C: Object.freeze({
+    id: "C",
+    name: "Railway C",
+    url: "https://mafia-game-c-production.up.railway.app",
+    tier: "primary",
+    maxRooms: 40,
+    maxConnections: 400,
   }),
   R: Object.freeze({
     id: "R",
-    name: "Render",
+    name: "Render Backup",
     url: "https://mafia-game-1-mo6i.onrender.com",
-    capacityWeight: 1,
+    tier: "backup",
+    maxRooms: 20,
+    maxConnections: 200,
   }),
 });
 
 export const LEGACY_SERVER_ID = "R";
+export const INITIAL_SERVER_ID = "A";
 
 function normalizeCode(value) {
   return String(value || "")
@@ -34,7 +49,7 @@ export function serverIdForRoomCode(code) {
   const normalized = normalizeCode(code);
 
   // New sharded room codes are seven characters:
-  // Axxxxxx, Bxxxxxx, Rxxxxxx.
+  // Axxxxxx, Bxxxxxx, Cxxxxxx, Rxxxxxx.
   // Existing six-character room codes stay on Render for backward compatibility.
   if (normalized.length === 7 && GAME_SERVERS[normalized[0]]) {
     return normalized[0];
@@ -78,6 +93,37 @@ async function fetchServerHealth(server, timeoutMs = 6500) {
   }
 }
 
+function serverHasCapacity(server) {
+  return (
+    server.activeRooms < Number(server.maxRooms || 0) &&
+    server.connections < Number(server.maxConnections || 0)
+  );
+}
+
+function serverFillRatio(server) {
+  const roomRatio =
+    Number(server.maxRooms || 0) > 0
+      ? server.activeRooms / Number(server.maxRooms)
+      : 1;
+
+  const connectionRatio =
+    Number(server.maxConnections || 0) > 0
+      ? server.connections / Number(server.maxConnections)
+      : 1;
+
+  // Keep room distribution proportional to the configured room limits while
+  // still protecting a server whose live socket count is unusually high.
+  return Math.max(roomRatio, connectionRatio);
+}
+
+function chooseLeastFilled(servers) {
+  return [...servers].sort((a, b) => {
+    const difference = serverFillRatio(a) - serverFillRatio(b);
+    if (Math.abs(difference) > 0.02) return difference;
+    return Math.random() - 0.5;
+  })[0];
+}
+
 export async function chooseBestServerForNewRoom() {
   const results = await Promise.allSettled(
     Object.values(GAME_SERVERS).map(server => fetchServerHealth(server)),
@@ -88,29 +134,38 @@ export async function chooseBestServerForNewRoom() {
     .map(result => result.value);
 
   if (!available.length) {
-    // Preserve the old working behaviour if health checks are temporarily blocked.
-    return GAME_SERVERS[LEGACY_SERVER_ID];
+    throw new Error("NO_HEALTHY_GAME_SERVERS");
   }
 
-  // Room count is the main signal. Current connections are a secondary signal.
-  // The +1 prevents an empty low-capacity server from always tying a stronger one.
-  for (const server of available) {
-    const loadUnits = server.activeRooms + server.connections / 250 + 1;
-    server.score = loadUnits / Math.max(0.5, Number(server.capacityWeight || 1));
+  // Primary pool:
+  // A = 38 rooms / 380 sockets
+  // B = 38 rooms / 380 sockets
+  // C = 40 rooms / 400 sockets
+  const primaryServers = available.filter(
+    server => server.tier === "primary" && serverHasCapacity(server),
+  );
+
+  if (primaryServers.length) {
+    return chooseLeastFilled(primaryServers);
   }
 
-  available.sort((a, b) => {
-    const difference = a.score - b.score;
-    if (Math.abs(difference) > 0.08) return difference;
-    return Math.random() - 0.5;
-  });
+  // Render is backup-only and is used only when all healthy primary servers
+  // are unavailable or have reached their configured limits.
+  const backupServers = available.filter(
+    server => server.tier === "backup" && serverHasCapacity(server),
+  );
 
-  return available[0];
+  if (backupServers.length) {
+    return chooseLeastFilled(backupServers);
+  }
+
+  throw new Error("NO_GAME_SERVER_CAPACITY");
 }
 
 export function createRoutedSocket(options = {}) {
   const listeners = new Map();
-  let currentServer = GAME_SERVERS[LEGACY_SERVER_ID];
+  // Never connect idle clients to the Render backup by default.
+  let currentServer = GAME_SERVERS[INITIAL_SERVER_ID];
   let currentSocket = null;
 
   const bindListeners = socket => {
