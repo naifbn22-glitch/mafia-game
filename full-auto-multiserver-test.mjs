@@ -207,6 +207,10 @@ async function fetchHealth(server, timeoutMs = HEALTH_TIMEOUT_MS) {
       health: data,
       latencyMs: Date.now() - started,
       activeRooms: Math.max(0, Number(data.activeRooms || 0)),
+      liveRooms: Math.max(
+        0,
+        Number(data.liveRooms ?? data.activeRooms ?? 0),
+      ),
       connections: Math.max(0, Number(data.connections || 0)),
     };
   } finally {
@@ -233,14 +237,14 @@ async function preflight() {
 
     console.log(
       `[${server.id}] ${server.name} OK | ${formatMs(result.latencyMs)} | ` +
-      `activeRooms=${result.activeRooms} | connections=${result.connections} | redis=${Boolean(result.health?.redis)}`,
+      `activeRooms=${result.activeRooms} | liveRooms=${result.liveRooms} | connections=${result.connections} | redis=${Boolean(result.health?.redis)}`,
     );
   }
 }
 
 function serverHasCapacity(server) {
   return (
-    server.activeRooms < Number(server.maxRooms || 0) &&
+    server.liveRooms < Number(server.maxRooms || 0) &&
     server.connections < Number(server.maxConnections || 0)
   );
 }
@@ -248,7 +252,7 @@ function serverHasCapacity(server) {
 function serverFillRatio(server) {
   const roomRatio =
     Number(server.maxRooms || 0) > 0
-      ? server.activeRooms / Number(server.maxRooms)
+      ? server.liveRooms / Number(server.maxRooms)
       : 1;
 
   const connectionRatio =
