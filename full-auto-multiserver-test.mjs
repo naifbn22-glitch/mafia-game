@@ -2,13 +2,13 @@ import { io } from "socket.io-client";
 
 // Mafia SA multi-server stress test
 // Usage:
-//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS [ALL|A|B|C|R]
+//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS [ALL|A|B|C|D]
 // Examples:
 //   node full-auto-multiserver-test.mjs 30 1 5 10 ALL
 //   node full-auto-multiserver-test.mjs 20 1 5 10 A
 //   node full-auto-multiserver-test.mjs 20 1 5 10 B
 //   node full-auto-multiserver-test.mjs 20 1 5 10 C
-//   node full-auto-multiserver-test.mjs 20 1 5 10 R
+//   node full-auto-multiserver-test.mjs 20 1 5 10 D
 //
 // 1 room = 1 host socket + 9 player sockets = 10 sockets.
 
@@ -17,7 +17,6 @@ const SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    tier: "primary",
     maxRooms: 38,
     maxConnections: 380,
   }),
@@ -25,7 +24,6 @@ const SERVERS = Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    tier: "primary",
     maxRooms: 38,
     maxConnections: 380,
   }),
@@ -33,17 +31,15 @@ const SERVERS = Object.freeze({
     id: "C",
     name: "Railway C",
     url: "https://mafia-game-c-production.up.railway.app",
-    tier: "primary",
     maxRooms: 40,
     maxConnections: 400,
   }),
-  R: Object.freeze({
-    id: "R",
-    name: "Render Backup",
-    url: "https://mafia-game-1-mo6i.onrender.com",
-    tier: "backup",
-    maxRooms: 20,
-    maxConnections: 200,
+  D: Object.freeze({
+    id: "D",
+    name: "Railway D",
+    url: "https://mafia-game-d-production.up.railway.app",
+    maxRooms: 40,
+    maxConnections: 400,
   }),
 });
 
@@ -53,8 +49,8 @@ const RECONNECT_PERCENT = clampNumber(process.argv[4], 10, 0, 100);
 const RECONNECT_INTERVAL_SECONDS = clampNumber(process.argv[5], 10, 1, 3600);
 const TARGET_SERVER = String(process.argv[6] || "ALL").trim().toUpperCase();
 
-if (!["ALL", "A", "B", "C", "R"].includes(TARGET_SERVER)) {
-  throw new Error("INVALID_TARGET_SERVER: use ALL, A, B, C, or R");
+if (!["ALL", "A", "B", "C", "D"].includes(TARGET_SERVER)) {
+  throw new Error("INVALID_TARGET_SERVER: use ALL, A, B, C, or D");
 }
 
 const PLAYERS_PER_ROOM = 9;
@@ -159,7 +155,7 @@ function normalizeCode(value) {
 
 function serverForCode(code) {
   const id = normalizeCode(code)[0];
-  return SERVERS[id] || SERVERS.R;
+  return SERVERS[id] || SERVERS.A;
 }
 
 function logError(error, context = "", serverId = null) {
@@ -277,8 +273,7 @@ async function chooseBestServerForNewRoom() {
     return fetchHealth(server, 12_000);
   }
 
-  const primaryIds = ["A", "B", "C"];
-  let primariesConfirmedFull = false;
+  const primaryIds = ["A", "B", "C", "D"];
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const results = await Promise.allSettled(
@@ -300,8 +295,7 @@ async function chooseBestServerForNewRoom() {
     const allPrimariesAnswered = healthyPrimaries.length === primaryIds.length;
 
     if (allPrimariesAnswered) {
-      primariesConfirmedFull = true;
-      break;
+      throw new Error("NO_GAME_SERVER_CAPACITY");
     }
 
     if (attempt < 2) {
@@ -309,26 +303,7 @@ async function chooseBestServerForNewRoom() {
     }
   }
 
-  // In ALL mode, do not treat a health timeout as permission to use Render.
-  // Render is capacity backup only and starts after A/B/C are confirmed full.
-  if (!primariesConfirmedFull) {
-    throw new Error("PRIMARY_HEALTH_UNCERTAIN");
-  }
-
-  const backupResults = await Promise.allSettled([
-    fetchHealth(SERVERS.R, 8_000),
-  ]);
-
-  const backupServers = backupResults
-    .filter(result => result.status === "fulfilled")
-    .map(result => result.value)
-    .filter(serverHasCapacity);
-
-  if (backupServers.length) {
-    return chooseLeastFilled(backupServers);
-  }
-
-  throw new Error("NO_GAME_SERVER_CAPACITY");
+  throw new Error("RAILWAY_POOL_UNAVAILABLE");
 }
 
 function waitForConnect(socket, timeoutMs = CONNECT_TIMEOUT_MS) {
@@ -1267,7 +1242,7 @@ function printFinalReport() {
   console.log(`Elapsed              : ${elapsedSeconds}s`);
   console.log("");
 
-  for (const id of ["A", "B", "C", "R"]) {
+  for (const id of ["A", "B", "C", "D"]) {
     const metrics = serverMetrics[id];
     const latency = latencySummary(metrics);
 
@@ -1364,7 +1339,7 @@ function printFinalReport() {
     }
   }
 
-  const allServersUsed = ["A", "B", "C", "R"].every(
+  const allServersUsed = ["A", "B", "C", "D"].every(
     id => serverMetrics[id].rooms > 0,
   );
 
@@ -1380,7 +1355,7 @@ function printFinalReport() {
 
   if (TARGET_SERVER === "ALL" && !allServersUsed) {
     console.log(
-      "  WARNING: This run did not allocate at least one room to all A/B/C/R servers.",
+      "  WARNING: This run did not allocate at least one room to all A/B/C/D servers.",
     );
     console.log(
       "  Use more rooms to exercise every configured server.",
@@ -1406,7 +1381,7 @@ async function main() {
   );
   console.log(
     TARGET_SERVER === "ALL"
-      ? "Routing             : A=38 rooms, B=38, C=40, R backup=20"
+      ? "Routing             : A=38 rooms, B=38, C=40, D=40"
       : `Target server       : ${TARGET_SERVER} (${SERVERS[TARGET_SERVER].name})`,
   );
   console.log("Discussion timer    : real 30-second production window");
@@ -1430,7 +1405,7 @@ async function main() {
   console.log(`Rooms   : ${roomContexts.length}`);
   console.log(`Sockets : ${allClients.length}`);
   console.log(
-    `Distribution: A=${serverMetrics.A.rooms}, B=${serverMetrics.B.rooms}, C=${serverMetrics.C.rooms}, R=${serverMetrics.R.rooms}`,
+    `Distribution: A=${serverMetrics.A.rooms}, B=${serverMetrics.B.rooms}, C=${serverMetrics.C.rooms}, D=${serverMetrics.D.rooms}`,
   );
 
   startReconnectLoop();
