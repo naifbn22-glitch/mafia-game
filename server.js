@@ -21,7 +21,6 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { poli
 app.use(compression());
 app.use(cors({ origin: allowedOrigins.includes("*") ? true : allowedOrigins, credentials: false }));
 app.use(express.json({ limit: "512kb" }));
-app.use("/api", rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: "draft-7", legacyHeaders: false }));
 
 const store = new RoomStore({ redisUrl: process.env.REDIS_URL || "", databaseUrl: process.env.DATABASE_URL || "" });
 await store.connect();
@@ -42,6 +41,17 @@ app.get("/api/health", (_req, res) => {
     now: Date.now(),
   });
 });
+
+// Health checks are intentionally outside the /api rate limiter because the
+// client-side room router polls A/B/C while allocating rooms. Rate-limiting
+// /api/health can make all primaries return 429 during a large or repeated
+// stress test and incorrectly trigger the Render backup.
+app.use("/api", rateLimit({
+  windowMs: 60_000,
+  limit: 240,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+}));
 app.use(express.static(path.join(__dirname, "dist"), { maxAge: "1h", etag: true }));
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
