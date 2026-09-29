@@ -273,27 +273,42 @@ async function chooseBestServerForNewRoom() {
     return fetchHealth(server, 12_000);
   }
 
-  const results = await Promise.allSettled(
-    Object.values(SERVERS).map(server => fetchHealth(server, 12_000)),
-  );
+  const primaryIds = ["A", "B", "C"];
 
-  const available = results
-    .filter(result => result.status === "fulfilled")
-    .map(result => result.value);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const results = await Promise.allSettled(
+      primaryIds.map(id =>
+        fetchHealth(SERVERS[id], attempt === 0 ? 12_000 : 6_000),
+      ),
+    );
 
-  if (!available.length) throw new Error("NO_HEALTHY_GAME_SERVERS");
+    const healthyPrimaries = results
+      .filter(result => result.status === "fulfilled")
+      .map(result => result.value);
 
-  const primaryServers = available.filter(
-    server => server.tier === "primary" && serverHasCapacity(server),
-  );
+    const primaryServers = healthyPrimaries.filter(serverHasCapacity);
 
-  if (primaryServers.length) {
-    return chooseLeastFilled(primaryServers);
+    if (primaryServers.length) {
+      return chooseLeastFilled(primaryServers);
+    }
+
+    const allPrimariesAnswered = healthyPrimaries.length === primaryIds.length;
+
+    if (allPrimariesAnswered) break;
+
+    if (attempt < 2) {
+      await sleep(250 + attempt * 250);
+    }
   }
 
-  const backupServers = available.filter(
-    server => server.tier === "backup" && serverHasCapacity(server),
-  );
+  const backupResults = await Promise.allSettled([
+    fetchHealth(SERVERS.R, 8_000),
+  ]);
+
+  const backupServers = backupResults
+    .filter(result => result.status === "fulfilled")
+    .map(result => result.value)
+    .filter(serverHasCapacity);
 
   if (backupServers.length) {
     return chooseLeastFilled(backupServers);
