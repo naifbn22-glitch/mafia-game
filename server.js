@@ -35,10 +35,17 @@ app.get("/api/health", (_req, res) => {
   // router think a server is full after aborted stress tests or closed lobbies.
   const liveRooms = io
     ? [...io.sockets.adapter.rooms.entries()].filter(
-        ([name, members]) =>
-          String(name).startsWith("room:") &&
-          members &&
-          members.size > 0,
+        ([name, members]) => {
+          const roomName = String(name);
+          // Count only the base game room: "room:ABC1234".
+          // Do NOT count private Socket.IO subrooms such as:
+          // "room:ABC1234:host" or "room:ABC1234:player:<id>".
+          return (
+            /^room:[A-Z0-9]+$/i.test(roomName) &&
+            members &&
+            members.size > 0
+          );
+        },
       ).length
     : 0;
 
