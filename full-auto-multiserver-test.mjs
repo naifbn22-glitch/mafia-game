@@ -709,7 +709,7 @@ async function setupRoom(index) {
         gender: playerNumber % 2 === 0 ? "female" : "male",
         avatar:
           `/avatars/avatar-${String(((playerNumber - 1) % 12) + 1).padStart(2, "0")}.png`,
-      }, 20_000);
+      }, 35_000);
 
       client.code = code;
       client.playerId = response.player.id;
@@ -1392,13 +1392,45 @@ async function main() {
   console.log("\n=== ROOM/SOCKET SETUP ===");
 
   for (let index = 1; index <= ROOM_COUNT; index += 1) {
-    try {
-      await setupRoom(index);
-      await sleep(SETUP_ROOM_GAP_MS);
-    } catch (error) {
-      logError(error, `setup-room-${index}`);
-      throw error;
+    let completed = false;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 3 && !completed; attempt += 1) {
+      const clientStart = allClients.length;
+
+      try {
+        await setupRoom(index);
+        completed = true;
+      } catch (error) {
+        lastError = error;
+        globalMetrics.commandRetries += 1;
+
+        // Tear down every socket created by this failed setup attempt.
+        // The abandoned room may remain in server memory, but with zero live
+        // subscribers it is ignored by liveRooms-based routing.
+        const attemptClients = allClients.splice(clientStart);
+        for (const client of attemptClients) {
+          client.closed = true;
+          try { client.socket.removeAllListeners(); } catch {}
+          try { client.socket.disconnect(); } catch {}
+        }
+
+        console.warn(
+          `[SETUP RETRY] room-${index} attempt ${attempt}/3 failed: ${error?.message || error}`,
+        );
+
+        if (attempt < 3) {
+          await sleep(900 * attempt);
+        }
+      }
     }
+
+    if (!completed) {
+      logError(lastError, `setup-room-${index}`);
+      throw lastError;
+    }
+
+    await sleep(SETUP_ROOM_GAP_MS);
   }
 
   console.log("\n=== SETUP COMPLETE ===");
