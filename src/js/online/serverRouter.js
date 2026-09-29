@@ -94,6 +94,10 @@ async function fetchServerHealth(server, timeoutMs = 6500) {
       ...server,
       health: data,
       activeRooms: Math.max(0, Number(data.activeRooms || 0)),
+      liveRooms: Math.max(
+        0,
+        Number(data.liveRooms ?? data.activeRooms ?? 0),
+      ),
       connections: Math.max(0, Number(data.connections || 0)),
     };
   } finally {
@@ -103,7 +107,7 @@ async function fetchServerHealth(server, timeoutMs = 6500) {
 
 function serverHasCapacity(server) {
   return (
-    server.activeRooms < Number(server.maxRooms || 0) &&
+    server.liveRooms < Number(server.maxRooms || 0) &&
     server.connections < Number(server.maxConnections || 0)
   );
 }
@@ -111,7 +115,7 @@ function serverHasCapacity(server) {
 function serverFillRatio(server) {
   const roomRatio =
     Number(server.maxRooms || 0) > 0
-      ? server.activeRooms / Number(server.maxRooms)
+      ? server.liveRooms / Number(server.maxRooms)
       : 1;
 
   const connectionRatio =
