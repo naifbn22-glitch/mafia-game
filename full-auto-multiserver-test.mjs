@@ -2,11 +2,12 @@ import { io } from "socket.io-client";
 
 // Mafia SA multi-server stress test
 // Usage:
-//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS [ALL|A|B|R]
+//   node full-auto-multiserver-test.mjs ROOMS MATCHES_PER_ROOM RECONNECT_PERCENT RECONNECT_INTERVAL_SECONDS [ALL|A|B|C|R]
 // Examples:
 //   node full-auto-multiserver-test.mjs 30 1 5 10 ALL
 //   node full-auto-multiserver-test.mjs 20 1 5 10 A
 //   node full-auto-multiserver-test.mjs 20 1 5 10 B
+//   node full-auto-multiserver-test.mjs 20 1 5 10 C
 //   node full-auto-multiserver-test.mjs 20 1 5 10 R
 //
 // 1 room = 1 host socket + 9 player sockets = 10 sockets.
@@ -24,6 +25,12 @@ const SERVERS = Object.freeze({
     url: "https://mafia-game-production-5ac2.up.railway.app",
     capacityWeight: 3,
   }),
+  C: Object.freeze({
+    id: "C",
+    name: "Railway C",
+    url: "https://mafia-game-c-production.up.railway.app",
+    capacityWeight: 3,
+  }),
   R: Object.freeze({
     id: "R",
     name: "Render",
@@ -38,8 +45,8 @@ const RECONNECT_PERCENT = clampNumber(process.argv[4], 10, 0, 100);
 const RECONNECT_INTERVAL_SECONDS = clampNumber(process.argv[5], 10, 1, 3600);
 const TARGET_SERVER = String(process.argv[6] || "ALL").trim().toUpperCase();
 
-if (!["ALL", "A", "B", "R"].includes(TARGET_SERVER)) {
-  throw new Error("INVALID_TARGET_SERVER: use ALL, A, B, or R");
+if (!["ALL", "A", "B", "C", "R"].includes(TARGET_SERVER)) {
+  throw new Error("INVALID_TARGET_SERVER: use ALL, A, B, C, or R");
 }
 
 const PLAYERS_PER_ROOM = 9;
@@ -1138,7 +1145,7 @@ function printFinalReport() {
   console.log(`Elapsed              : ${elapsedSeconds}s`);
   console.log("");
 
-  for (const id of ["A", "B", "R"]) {
+  for (const id of ["A", "B", "C", "R"]) {
     const metrics = serverMetrics[id];
 
     console.log(
@@ -1254,7 +1261,7 @@ async function main() {
   );
   console.log(
     TARGET_SERVER === "ALL"
-      ? "Routing             : health/load weighted A=3, B=3, R=1"
+      ? "Routing             : health/load weighted A=3, B=3, C=3, R=1"
       : `Target server       : ${TARGET_SERVER} (${SERVERS[TARGET_SERVER].name})`,
   );
   console.log("Discussion timer    : real 30-second production window");
