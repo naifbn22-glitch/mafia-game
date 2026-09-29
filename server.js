@@ -29,12 +29,26 @@ let io = null;
 
 app.get("/api/health", (_req, res) => {
   const stats = store.getStats();
+
+  // liveRooms counts only rooms that currently have at least one Socket.IO
+  // subscriber. This prevents abandoned/stale in-memory rooms from making the
+  // router think a server is full after aborted stress tests or closed lobbies.
+  const liveRooms = io
+    ? [...io.sockets.adapter.rooms.entries()].filter(
+        ([name, members]) =>
+          String(name).startsWith("room:") &&
+          members &&
+          members.size > 0,
+      ).length
+    : 0;
+
   res.json({
     ok: true,
     serverId: SERVER_ID,
     realtime: "socket.io",
     redis: Boolean(process.env.REDIS_URL),
     activeRooms: stats.activeRooms,
+    liveRooms,
     totalRooms: stats.totalRooms,
     activePlayers: stats.activePlayers,
     connections: Number(io?.engine?.clientsCount || 0),
