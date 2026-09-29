@@ -75,6 +75,7 @@ const globalMetrics = {
   ackCount: 0,
   ackLatencyTotal: 0,
   ackLatencyMax: 0,
+  ackLatencySamples: [],
   commandRetries: 0,
   syncRetries: 0,
   errors: 0,
@@ -107,6 +108,7 @@ const serverMetrics = Object.fromEntries(
     ackCount: 0,
     ackLatencyTotal: 0,
     ackLatencyMax: 0,
+    ackLatencySamples: [],
     errors: 0,
     transportErrors: 0,
     reconnectAttempts: 0,
@@ -166,12 +168,14 @@ function recordLatency(serverId, latencyMs) {
   globalMetrics.ackCount += 1;
   globalMetrics.ackLatencyTotal += latencyMs;
   globalMetrics.ackLatencyMax = Math.max(globalMetrics.ackLatencyMax, latencyMs);
+  globalMetrics.ackLatencySamples.push(latencyMs);
 
   const metrics = serverMetrics[serverId];
   if (!metrics) return;
   metrics.ackCount += 1;
   metrics.ackLatencyTotal += latencyMs;
   metrics.ackLatencyMax = Math.max(metrics.ackLatencyMax, latencyMs);
+  metrics.ackLatencySamples.push(latencyMs);
 }
 
 async function fetchHealth(server, timeoutMs = HEALTH_TIMEOUT_MS) {
@@ -1124,6 +1128,54 @@ function averageLatency(metrics) {
     : 0;
 }
 
+function percentileLatency(metrics, percentile) {
+  const samples = Array.isArray(metrics.ackLatencySamples)
+    ? metrics.ackLatencySamples
+    : [];
+
+  if (!samples.length) return 0;
+
+  const sorted = [...samples].sort((a, b) => a - b);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil((percentile / 100) * sorted.length) - 1),
+  );
+
+  return sorted[index];
+}
+
+function countLatencyOver(metrics, thresholdMs) {
+  const samples = Array.isArray(metrics.ackLatencySamples)
+    ? metrics.ackLatencySamples
+    : [];
+
+  return samples.filter(value => value > thresholdMs).length;
+}
+
+function latencyPercent(count, total) {
+  if (!total) return "0.00%";
+  return `${((count / total) * 100).toFixed(2)}%`;
+}
+
+function latencySummary(metrics) {
+  const total = metrics.ackLatencySamples?.length || 0;
+  const over2s = countLatencyOver(metrics, 2_000);
+  const over5s = countLatencyOver(metrics, 5_000);
+  const over7s = countLatencyOver(metrics, 7_000);
+
+  return {
+    total,
+    p95: percentileLatency(metrics, 95),
+    p99: percentileLatency(metrics, 99),
+    over2s,
+    over5s,
+    over7s,
+    over2sPct: latencyPercent(over2s, total),
+    over5sPct: latencyPercent(over5s, total),
+    over7sPct: latencyPercent(over7s, total),
+  };
+}
+
 function printFinalReport() {
   const elapsedSeconds = Math.max(
     1,
@@ -1147,6 +1199,7 @@ function printFinalReport() {
 
   for (const id of ["A", "B", "C", "R"]) {
     const metrics = serverMetrics[id];
+    const latency = latencySummary(metrics);
 
     console.log(
       `${id} (${metrics.name})\n` +
@@ -1160,7 +1213,12 @@ function printFinalReport() {
       `  winners           : citizens=${metrics.winners.citizens}, thieves=${metrics.winners.thieves}\n` +
       `  reconnect         : attempts=${metrics.reconnectAttempts}, success=${metrics.reconnectSuccesses}, failed=${metrics.reconnectFailures}\n` +
       `  avg ack latency   : ${formatMs(averageLatency(metrics))}\n` +
+      `  p95 ack latency   : ${formatMs(latency.p95)}\n` +
+      `  p99 ack latency   : ${formatMs(latency.p99)}\n` +
       `  max ack latency   : ${formatMs(metrics.ackLatencyMax)}\n` +
+      `  ack > 2s          : ${latency.over2s}/${latency.total} (${latency.over2sPct})\n` +
+      `  ack > 5s          : ${latency.over5s}/${latency.total} (${latency.over5sPct})\n` +
+      `  ack > 7s          : ${latency.over7s}/${latency.total} (${latency.over7sPct})\n` +
       `  transport errors  : ${metrics.transportErrors}\n` +
       `  final errors      : ${metrics.errors}`,
     );
@@ -1198,11 +1256,28 @@ function printFinalReport() {
     `  reconnect failed   : ${globalMetrics.reconnectFailures}`,
   );
   console.log(`  command retries    : ${globalMetrics.commandRetries}`);
+  const totalLatency = latencySummary(globalMetrics);
+
   console.log(
     `  avg ack latency    : ${formatMs(averageLatency(globalMetrics))}`,
   );
   console.log(
+    `  p95 ack latency    : ${formatMs(totalLatency.p95)}`,
+  );
+  console.log(
+    `  p99 ack latency    : ${formatMs(totalLatency.p99)}`,
+  );
+  console.log(
     `  max ack latency    : ${formatMs(globalMetrics.ackLatencyMax)}`,
+  );
+  console.log(
+    `  ack > 2s           : ${totalLatency.over2s}/${totalLatency.total} (${totalLatency.over2sPct})`,
+  );
+  console.log(
+    `  ack > 5s           : ${totalLatency.over5s}/${totalLatency.total} (${totalLatency.over5sPct})`,
+  );
+  console.log(
+    `  ack > 7s           : ${totalLatency.over7s}/${totalLatency.total} (${totalLatency.over7sPct})`,
   );
   console.log(
     `  transport errors   : ${globalMetrics.transportErrors}`,
@@ -1219,7 +1294,7 @@ function printFinalReport() {
     }
   }
 
-  const allServersUsed = ["A", "B", "R"].every(
+  const allServersUsed = ["A", "B", "C", "R"].every(
     id => serverMetrics[id].rooms > 0,
   );
 
@@ -1233,12 +1308,12 @@ function printFinalReport() {
 
   console.log("\nRESULT");
 
-  if (!allServersUsed) {
+  if (TARGET_SERVER === "ALL" && !allServersUsed) {
     console.log(
-      "  WARNING: This run did not allocate at least one room to all A/B/R servers.",
+      "  WARNING: This run did not allocate at least one room to all A/B/C/R servers.",
     );
     console.log(
-      "  Use more rooms (normally 10+ is enough) to exercise all three servers.",
+      "  Use more rooms to exercise every configured server.",
     );
   }
 
@@ -1285,7 +1360,7 @@ async function main() {
   console.log(`Rooms   : ${roomContexts.length}`);
   console.log(`Sockets : ${allClients.length}`);
   console.log(
-    `Distribution: A=${serverMetrics.A.rooms}, B=${serverMetrics.B.rooms}, R=${serverMetrics.R.rooms}`,
+    `Distribution: A=${serverMetrics.A.rooms}, B=${serverMetrics.B.rooms}, C=${serverMetrics.C.rooms}, R=${serverMetrics.R.rooms}`,
   );
 
   startReconnectLoop();
