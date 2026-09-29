@@ -17,25 +17,33 @@ const SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    capacityWeight: 3,
+    tier: "primary",
+    maxRooms: 38,
+    maxConnections: 380,
   }),
   B: Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    capacityWeight: 3,
+    tier: "primary",
+    maxRooms: 38,
+    maxConnections: 380,
   }),
   C: Object.freeze({
     id: "C",
     name: "Railway C",
     url: "https://mafia-game-c-production.up.railway.app",
-    capacityWeight: 3,
+    tier: "primary",
+    maxRooms: 40,
+    maxConnections: 400,
   }),
   R: Object.freeze({
     id: "R",
-    name: "Render",
+    name: "Render Backup",
     url: "https://mafia-game-1-mo6i.onrender.com",
-    capacityWeight: 1,
+    tier: "backup",
+    maxRooms: 20,
+    maxConnections: 200,
   }),
 });
 
@@ -230,11 +238,39 @@ async function preflight() {
   }
 }
 
+function serverHasCapacity(server) {
+  return (
+    server.activeRooms < Number(server.maxRooms || 0) &&
+    server.connections < Number(server.maxConnections || 0)
+  );
+}
+
+function serverFillRatio(server) {
+  const roomRatio =
+    Number(server.maxRooms || 0) > 0
+      ? server.activeRooms / Number(server.maxRooms)
+      : 1;
+
+  const connectionRatio =
+    Number(server.maxConnections || 0) > 0
+      ? server.connections / Number(server.maxConnections)
+      : 1;
+
+  return Math.max(roomRatio, connectionRatio);
+}
+
+function chooseLeastFilled(servers) {
+  return [...servers].sort((a, b) => {
+    const difference = serverFillRatio(a) - serverFillRatio(b);
+    if (Math.abs(difference) > 0.02) return difference;
+    return Math.random() - 0.5;
+  })[0];
+}
+
 async function chooseBestServerForNewRoom() {
   if (TARGET_SERVER !== "ALL") {
     const server = SERVERS[TARGET_SERVER];
-    const result = await fetchHealth(server, 12_000);
-    return result;
+    return fetchHealth(server, 12_000);
   }
 
   const results = await Promise.allSettled(
@@ -247,18 +283,23 @@ async function chooseBestServerForNewRoom() {
 
   if (!available.length) throw new Error("NO_HEALTHY_GAME_SERVERS");
 
-  for (const server of available) {
-    const loadUnits = server.activeRooms + server.connections / 250 + 1;
-    server.score = loadUnits / Math.max(0.5, Number(server.capacityWeight || 1));
+  const primaryServers = available.filter(
+    server => server.tier === "primary" && serverHasCapacity(server),
+  );
+
+  if (primaryServers.length) {
+    return chooseLeastFilled(primaryServers);
   }
 
-  available.sort((a, b) => {
-    const difference = a.score - b.score;
-    if (Math.abs(difference) > 0.08) return difference;
-    return Math.random() - 0.5;
-  });
+  const backupServers = available.filter(
+    server => server.tier === "backup" && serverHasCapacity(server),
+  );
 
-  return available[0];
+  if (backupServers.length) {
+    return chooseLeastFilled(backupServers);
+  }
+
+  throw new Error("NO_GAME_SERVER_CAPACITY");
 }
 
 function waitForConnect(socket, timeoutMs = CONNECT_TIMEOUT_MS) {
@@ -1336,7 +1377,7 @@ async function main() {
   );
   console.log(
     TARGET_SERVER === "ALL"
-      ? "Routing             : health/load weighted A=3, B=3, C=3, R=1"
+      ? "Routing             : A=38 rooms, B=38, C=40, R backup=20"
       : `Target server       : ${TARGET_SERVER} (${SERVERS[TARGET_SERVER].name})`,
   );
   console.log("Discussion timer    : real 30-second production window");
