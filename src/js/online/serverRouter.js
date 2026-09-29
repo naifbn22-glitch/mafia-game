@@ -148,13 +148,16 @@ export async function chooseBestServerForNewRoom() {
   // B = 38 rooms / 380 sockets
   // C = 40 rooms / 400 sockets
   //
-  // Render is strict backup. A short health-check timeout on Railway must not
-  // immediately send a new room to Render, so the primary pool gets a few
-  // quick retries before failover.
+  // IMPORTANT:
+  // A failed/slow health check is NOT treated as "primary is full".
+  // Render is allowed only after A, B and C all explicitly answer health
+  // checks and all three are confirmed at their configured capacity.
+  let primariesConfirmedFull = false;
+
   for (let attempt = 0; attempt < PRIMARY_HEALTH_RETRIES; attempt += 1) {
     const healthyPrimaries = await fetchHealthyServers(
       PRIMARY_SERVER_IDS,
-      attempt === 0 ? 6500 : 3500,
+      attempt === 0 ? 6500 : 4500,
     );
 
     const primaryServers = healthyPrimaries.filter(serverHasCapacity);
@@ -166,13 +169,21 @@ export async function chooseBestServerForNewRoom() {
     const allPrimariesAnswered =
       healthyPrimaries.length === PRIMARY_SERVER_IDS.length;
 
-    // If all primaries answered and every one is at capacity, there is no
-    // reason to wait before checking the backup.
-    if (allPrimariesAnswered) break;
+    if (allPrimariesAnswered) {
+      // Every primary answered successfully and none has capacity.
+      primariesConfirmedFull = true;
+      break;
+    }
 
     if (attempt < PRIMARY_HEALTH_RETRIES - 1) {
-      await delay(250 + attempt * 250);
+      await delay(400 + attempt * 400);
     }
+  }
+
+  // Never spill rooms to Render merely because Railway health checks timed out.
+  // This prevents premature Render allocation under test/load spikes.
+  if (!primariesConfirmedFull) {
+    throw new Error("PRIMARY_HEALTH_UNCERTAIN");
   }
 
   const healthyBackups = await fetchHealthyServers(BACKUP_SERVER_IDS, 5000);
