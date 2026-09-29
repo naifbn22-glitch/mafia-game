@@ -38,6 +38,14 @@ export const GAME_SERVERS = Object.freeze({
 export const LEGACY_SERVER_ID = "R";
 export const INITIAL_SERVER_ID = "A";
 
+const PRIMARY_SERVER_IDS = Object.freeze(["A", "B", "C"]);
+const BACKUP_SERVER_IDS = Object.freeze(["R"]);
+const PRIMARY_HEALTH_RETRIES = 3;
+
+function delay(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
 function normalizeCode(value) {
   return String(value || "")
     .trim()
@@ -124,36 +132,51 @@ function chooseLeastFilled(servers) {
   })[0];
 }
 
-export async function chooseBestServerForNewRoom() {
+async function fetchHealthyServers(serverIds, timeoutMs = 6500) {
   const results = await Promise.allSettled(
-    Object.values(GAME_SERVERS).map(server => fetchServerHealth(server)),
+    serverIds.map(id => fetchServerHealth(GAME_SERVERS[id], timeoutMs)),
   );
 
-  const available = results
+  return results
     .filter(result => result.status === "fulfilled")
     .map(result => result.value);
+}
 
-  if (!available.length) {
-    throw new Error("NO_HEALTHY_GAME_SERVERS");
-  }
-
+export async function chooseBestServerForNewRoom() {
   // Primary pool:
   // A = 38 rooms / 380 sockets
   // B = 38 rooms / 380 sockets
   // C = 40 rooms / 400 sockets
-  const primaryServers = available.filter(
-    server => server.tier === "primary" && serverHasCapacity(server),
-  );
+  //
+  // Render is strict backup. A short health-check timeout on Railway must not
+  // immediately send a new room to Render, so the primary pool gets a few
+  // quick retries before failover.
+  for (let attempt = 0; attempt < PRIMARY_HEALTH_RETRIES; attempt += 1) {
+    const healthyPrimaries = await fetchHealthyServers(
+      PRIMARY_SERVER_IDS,
+      attempt === 0 ? 6500 : 3500,
+    );
 
-  if (primaryServers.length) {
-    return chooseLeastFilled(primaryServers);
+    const primaryServers = healthyPrimaries.filter(serverHasCapacity);
+
+    if (primaryServers.length) {
+      return chooseLeastFilled(primaryServers);
+    }
+
+    const allPrimariesAnswered =
+      healthyPrimaries.length === PRIMARY_SERVER_IDS.length;
+
+    // If all primaries answered and every one is at capacity, there is no
+    // reason to wait before checking the backup.
+    if (allPrimariesAnswered) break;
+
+    if (attempt < PRIMARY_HEALTH_RETRIES - 1) {
+      await delay(250 + attempt * 250);
+    }
   }
 
-  // Render is backup-only and is used only when all healthy primary servers
-  // are unavailable or have reached their configured limits.
-  const backupServers = available.filter(
-    server => server.tier === "backup" && serverHasCapacity(server),
-  );
+  const healthyBackups = await fetchHealthyServers(BACKUP_SERVER_IDS, 5000);
+  const backupServers = healthyBackups.filter(serverHasCapacity);
 
   if (backupServers.length) {
     return chooseLeastFilled(backupServers);
