@@ -5,29 +5,29 @@ export const GAME_SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    maxRooms: 38,
-    maxConnections: 380,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   B: Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    maxRooms: 38,
-    maxConnections: 380,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   C: Object.freeze({
     id: "C",
     name: "Railway C",
     url: "https://mafia-game-c-production.up.railway.app",
-    maxRooms: 40,
-    maxConnections: 400,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   D: Object.freeze({
     id: "D",
     name: "Railway D",
     url: "https://mafia-game-d-production.up.railway.app",
-    maxRooms: 40,
-    maxConnections: 400,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
 });
 
@@ -142,11 +142,9 @@ async function fetchHealthyServers(serverIds, timeoutMs = 6500) {
 }
 
 export async function chooseBestServerForNewRoom() {
-  // Railway-only pool:
-  // A = 38 rooms / 380 sockets
-  // B = 38 rooms / 380 sockets
-  // C = 40 rooms / 400 sockets
-  // D = 40 rooms / 400 sockets
+  // Railway-only production pool:
+  // A/B/C/D = 35 rooms / 350 sockets each.
+  // Total operating cap = 140 rooms / 1400 sockets.
   //
   // Health-check timeouts never redirect to another provider. We retry the
   // Railway pool and choose the least-filled healthy server with capacity.
