@@ -5789,3 +5789,28 @@
 
   text-align: center;
 }
+
+
+/* Transparent app-logo cleanup */
+.brand-logo-image,
+.setup-brand img,
+.logo-circle-image,
+.logo-circle-image img,
+.ready-logo,
+.night-logo,
+.voting-result-logo,
+.game-over-logo {
+  background: transparent !important;
+}
+
+.logo-circle.logo-circle-image {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none;
+}
+
+.logo-circle-image img,
+.brand-logo-image,
+.setup-brand img {
+  object-fit: contain;
+}
