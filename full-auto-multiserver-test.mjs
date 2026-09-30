@@ -17,29 +17,29 @@ const SERVERS = Object.freeze({
     id: "A",
     name: "Railway A",
     url: "https://naif-mafia-realtime-production-156f.up.railway.app",
-    maxRooms: 38,
-    maxConnections: 380,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   B: Object.freeze({
     id: "B",
     name: "Railway B",
     url: "https://mafia-game-production-5ac2.up.railway.app",
-    maxRooms: 38,
-    maxConnections: 380,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   C: Object.freeze({
     id: "C",
     name: "Railway C",
     url: "https://mafia-game-c-production.up.railway.app",
-    maxRooms: 40,
-    maxConnections: 400,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
   D: Object.freeze({
     id: "D",
     name: "Railway D",
     url: "https://mafia-game-d-production.up.railway.app",
-    maxRooms: 40,
-    maxConnections: 400,
+    maxRooms: 35,
+    maxConnections: 350,
   }),
 });
 
@@ -1381,7 +1381,7 @@ async function main() {
   );
   console.log(
     TARGET_SERVER === "ALL"
-      ? "Routing             : A=38 rooms, B=38, C=40, D=40"
+      ? "Routing             : A=35 rooms, B=35, C=35, D=35 (140 total)"
       : `Target server       : ${TARGET_SERVER} (${SERVERS[TARGET_SERVER].name})`,
   );
   console.log("Discussion timer    : real 30-second production window");
