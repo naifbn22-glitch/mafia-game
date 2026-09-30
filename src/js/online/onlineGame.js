@@ -1148,6 +1148,13 @@ function renderCreateRoom({ app, onBack }) {
         },
       });
     } catch (error) {
+      if (error?.message === "NO_GAME_SERVER_CAPACITY") {
+        showInfoToast(
+          "وصلت الغرف النشطة إلى الحد التشغيلي الحالي. انتظر قليلًا حتى تنتهي إحدى الغرف ثم حاول مرة أخرى.",
+          "الخوادم مشغولة الآن",
+        );
+        return;
+      }
       showErrorToast("تعذر إنشاء الغرفة. تحقق من اتصال الخادم.", "خطأ في الخادم");
     }
   });
