@@ -1600,3 +1600,82 @@ body.online-action-busy .online-page {
   border-left-color: #55d7ff;
   box-shadow: 0 0 18px rgba(224, 162, 72, .2);
 }
+
+
+/* Animated noir atmosphere - online */
+.online-page {
+  isolation: isolate;
+  background-size: 155% 155%, 160% 160%, 170% 170%, 100% 100%;
+  animation: onlineMafiaMood 20s ease-in-out infinite alternate;
+}
+
+.online-atmosphere::before,
+.online-atmosphere::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.online-atmosphere::before {
+  inset: -24%;
+  opacity: .28;
+  background:
+    radial-gradient(circle at 20% 32%, rgba(210, 42, 51, .2), transparent 22%),
+    radial-gradient(circle at 82% 28%, rgba(82, 205, 255, .1), transparent 20%),
+    radial-gradient(circle at 58% 78%, rgba(230, 163, 69, .12), transparent 24%);
+  filter: blur(34px);
+  animation: onlineMafiaLights 17s ease-in-out infinite alternate;
+}
+
+.online-atmosphere::after {
+  left: -15%;
+  right: -15%;
+  bottom: -2px;
+  height: 27vh;
+  opacity: .28;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(3, 3, 5, .94) 0 42px,
+      rgba(14, 8, 10, .95) 42px 70px,
+      rgba(4, 4, 6, .96) 70px 118px
+    );
+  clip-path: polygon(
+    0 58%, 5% 58%, 5% 25%, 10% 25%, 10% 67%,
+    16% 67%, 16% 38%, 21% 38%, 21% 72%,
+    28% 72%, 28% 18%, 34% 18%, 34% 60%,
+    41% 60%, 41% 34%, 48% 34%, 48% 69%,
+    55% 69%, 55% 23%, 62% 23%, 62% 57%,
+    69% 57%, 69% 40%, 76% 40%, 76% 73%,
+    83% 73%, 83% 28%, 90% 28%, 90% 61%,
+    96% 61%, 96% 45%, 100% 45%, 100% 100%, 0 100%
+  );
+  filter: drop-shadow(0 -16px 26px rgba(201, 47, 54, .05));
+}
+
+@keyframes onlineMafiaMood {
+  from {
+    background-position: 0% 0%, 100% 100%, 50% 40%, 0 0;
+  }
+  to {
+    background-position: 15% 12%, 82% 86%, 56% 30%, 0 0;
+  }
+}
+
+@keyframes onlineMafiaLights {
+  from {
+    transform: translate3d(-5%, -2%, 0) scale(1);
+    opacity: .22;
+  }
+  to {
+    transform: translate3d(7%, 4%, 0) scale(1.08);
+    opacity: .36;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online-page,
+  .online-atmosphere::before {
+    animation: none !important;
+  }
+}
