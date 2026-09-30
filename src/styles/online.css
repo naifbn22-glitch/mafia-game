@@ -1470,3 +1470,133 @@ body.online-action-busy .online-page {
     animation-duration: 1.8s;
   }
 }
+
+
+/* =========================================================
+   Mafia icon palette - online UI
+   ========================================================= */
+.online-page {
+  background:
+    radial-gradient(circle at 82% 8%, rgba(201, 47, 54, .2), transparent 36%),
+    radial-gradient(circle at 8% 92%, rgba(224, 162, 72, .11), transparent 34%),
+    radial-gradient(circle at 50% 45%, rgba(85, 215, 255, .045), transparent 40%),
+    #070608;
+}
+
+.online-kicker {
+  color: #f3b85d;
+}
+
+.online-logo {
+  background: transparent;
+  filter:
+    drop-shadow(0 0 14px rgba(201, 47, 54, .2))
+    drop-shadow(0 0 8px rgba(224, 162, 72, .12));
+}
+
+.online-action-card,
+.online-form-card,
+.room-preview-card,
+.host-room-hero,
+.invite-panel,
+.players-panel,
+.host-controls,
+.live-hero,
+.live-stats,
+.live-player-section {
+  background: rgba(18, 11, 14, .82);
+  border-color: rgba(255, 200, 116, .12);
+}
+
+.online-action-icon {
+  background:
+    linear-gradient(135deg, rgba(201, 47, 54, .28), rgba(224, 162, 72, .16));
+  box-shadow: inset 0 1px 0 rgba(255, 235, 203, .06);
+}
+
+.online-primary-button {
+  background: linear-gradient(135deg, #c92f36, #781820);
+  box-shadow: 0 12px 32px rgba(201, 47, 54, .28);
+}
+
+.online-primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e14047, #92212a);
+  box-shadow: 0 14px 38px rgba(201, 47, 54, .38);
+}
+
+.online-form input:focus,
+.online-form select:focus {
+  border-color: rgba(224, 162, 72, .58);
+  box-shadow: 0 0 0 3px rgba(224, 162, 72, .08);
+}
+
+.gender-options input:checked + span {
+  border-color: #c92f36;
+  background: rgba(201, 47, 54, .16);
+}
+
+.online-avatar-option.selected {
+  border-color: #e0a248;
+  box-shadow: 0 0 0 2px rgba(224, 162, 72, .1);
+}
+
+.live-dot,
+.live-status i,
+.connection-dot {
+  background: #f0b55d;
+  box-shadow: 0 0 14px rgba(240, 181, 93, .8);
+}
+
+.waiting-pulse b {
+  background: #d53840;
+}
+
+.waiting-pulse b:nth-child(2) {
+  background: #e0a248;
+}
+
+.waiting-pulse b:nth-child(3) {
+  background: #55d7ff;
+}
+
+.night-action-button {
+  background: linear-gradient(135deg, #391116, #17131d);
+  border: 1px solid rgba(201, 47, 54, .24);
+}
+
+.night-target.selected {
+  border-color: #e0a248;
+  box-shadow:
+    0 0 0 2px rgba(224, 162, 72, .2),
+    0 14px 35px rgba(0,0,0,.35);
+}
+
+.night-target.selected b {
+  color: #ffd27a;
+}
+
+.online-wait-overlay {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(201, 47, 54, .2), transparent 42%),
+    rgba(3, 3, 6, .8);
+}
+
+.online-wait-card {
+  border-color: rgba(224, 162, 72, .34);
+  background: linear-gradient(145deg, rgba(25, 11, 14, .98), rgba(8, 8, 11, .98));
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, .5),
+    0 0 38px rgba(201, 47, 54, .14);
+}
+
+.online-wait-spinner span:first-child {
+  border-top-color: #d83b43;
+  border-right-color: #d83b43;
+  box-shadow: 0 0 20px rgba(216, 59, 67, .3);
+}
+
+.online-wait-spinner span:last-child {
+  border-bottom-color: #f0b55d;
+  border-left-color: #55d7ff;
+  box-shadow: 0 0 18px rgba(224, 162, 72, .2);
+}
