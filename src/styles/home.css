@@ -5955,3 +5955,104 @@
     drop-shadow(0 0 20px rgba(201, 47, 54, .22))
     drop-shadow(0 0 10px rgba(224, 162, 72, .12));
 }
+
+
+/* =========================================================
+   Continuous Mafia atmosphere
+   The existing city, fog and particles now change mood slowly
+   without video or heavy assets.
+   ========================================================= */
+.home-page {
+  background-size: 150% 150%, 155% 155%, 165% 165%, 100% 100%;
+  animation: mafiaHomeMood 18s ease-in-out infinite alternate;
+}
+
+.mafia-cinematic-scene::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .46;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(224, 45, 55, .2), transparent 23%),
+    radial-gradient(circle at 78% 24%, rgba(85, 215, 255, .11), transparent 20%),
+    radial-gradient(circle at 62% 82%, rgba(235, 167, 70, .13), transparent 26%);
+  filter: blur(26px);
+  animation: mafiaAmbientPatrol 16s ease-in-out infinite alternate;
+}
+
+.mafia-cinematic-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: .18;
+  background:
+    linear-gradient(112deg, transparent 0 36%, rgba(255, 210, 140, .08) 44%, transparent 52%),
+    linear-gradient(72deg, transparent 0 58%, rgba(86, 205, 255, .055) 65%, transparent 72%);
+  transform: translateX(-18%);
+  animation: mafiaSearchLights 13s ease-in-out infinite alternate;
+}
+
+.mafia-building::before {
+  animation: mafiaWindowFlicker 7s steps(1, end) infinite;
+}
+
+@keyframes mafiaHomeMood {
+  0% {
+    background-position: 0% 0%, 100% 100%, 50% 20%, 0 0;
+  }
+  50% {
+    background-position: 12% 9%, 88% 91%, 46% 32%, 0 0;
+  }
+  100% {
+    background-position: 22% 14%, 76% 84%, 54% 42%, 0 0;
+  }
+}
+
+@keyframes mafiaAmbientPatrol {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+    opacity: .38;
+  }
+  48% {
+    transform: translate3d(4%, 3%, 0) scale(1.06);
+    opacity: .54;
+  }
+  100% {
+    transform: translate3d(8%, -1%, 0) scale(1.03);
+    opacity: .43;
+  }
+}
+
+@keyframes mafiaSearchLights {
+  0% {
+    transform: translateX(-20%) skewX(-4deg);
+    opacity: .1;
+  }
+  52% {
+    transform: translateX(2%) skewX(2deg);
+    opacity: .24;
+  }
+  100% {
+    transform: translateX(18%) skewX(-2deg);
+    opacity: .14;
+  }
+}
+
+@keyframes mafiaWindowFlicker {
+  0%, 13%, 22%, 46%, 71%, 100% { opacity: .28; }
+  14%, 21%, 47%, 52% { opacity: .42; }
+  72%, 77% { opacity: .18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page,
+  .mafia-cinematic-scene::before,
+  .mafia-cinematic-scene::after,
+  .mafia-building::before {
+    animation: none !important;
+  }
+}
