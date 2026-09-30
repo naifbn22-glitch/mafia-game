@@ -5814,3 +5814,144 @@
 .setup-brand img {
   object-fit: contain;
 }
+
+
+/* =========================================================
+   Mafia app-icon visual identity
+   Crimson / ember gold / cool blue highlights on black.
+   ========================================================= */
+.home-page {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(201, 47, 54, .22), transparent 35%),
+    radial-gradient(circle at 84% 76%, rgba(224, 162, 72, .14), transparent 36%),
+    radial-gradient(circle at 52% 28%, rgba(85, 215, 255, .07), transparent 32%),
+    linear-gradient(180deg, #0a0708 0%, #0b0809 50%, #040405 100%);
+}
+
+.home-page .hero-card {
+  border-color: rgba(224, 162, 72, .18);
+  background:
+    linear-gradient(145deg, rgba(18, 10, 12, .88), rgba(8, 8, 11, .84));
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, .52),
+    0 0 46px rgba(201, 47, 54, .08),
+    inset 0 1px 0 rgba(255, 214, 141, .035);
+}
+
+.home-page .brand h1 {
+  color: #fff6e8;
+  text-shadow: 0 0 22px rgba(201, 47, 54, .2);
+}
+
+.home-page .eyebrow {
+  color: var(--mafia-gold-light);
+}
+
+.mafia-glow-purple {
+  background:
+    radial-gradient(
+      circle,
+      rgba(214, 48, 57, .88) 0%,
+      rgba(156, 27, 35, .42) 38%,
+      rgba(86, 16, 22, .12) 66%,
+      transparent 76%
+    );
+}
+
+.mafia-glow-green {
+  background:
+    radial-gradient(
+      circle,
+      rgba(237, 171, 72, .72) 0%,
+      rgba(172, 102, 30, .32) 40%,
+      rgba(83, 47, 12, .08) 67%,
+      transparent 77%
+    );
+}
+
+.mafia-glow-center {
+  background:
+    radial-gradient(
+      circle,
+      rgba(85, 215, 255, .34),
+      rgba(42, 108, 132, .1) 52%,
+      transparent 72%
+    );
+}
+
+.mafia-light-ray-left {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 92, 95, .54) 0%,
+      rgba(177, 39, 45, .14) 42%,
+      transparent 82%
+    );
+}
+
+.mafia-light-ray-right {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 201, 101, .44) 0%,
+      rgba(169, 105, 31, .12) 42%,
+      transparent 82%
+    );
+}
+
+.mafia-building {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(29, 18, 20, .9),
+      rgba(5, 5, 7, .99)
+    );
+  border-top-color: rgba(255, 196, 107, .08);
+}
+
+.mafia-building::before {
+  opacity: .3;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 16px,
+      rgba(255, 176, 73, .34) 16px 18px,
+      transparent 18px 32px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 18px,
+      rgba(255, 94, 94, .16) 18px 20px,
+      transparent 20px 36px
+    );
+}
+
+.home-page .logo-circle-image::before {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgba(201, 47, 54, .04),
+      rgba(201, 47, 54, .9),
+      rgba(224, 162, 72, .78),
+      rgba(85, 215, 255, .52),
+      rgba(201, 47, 54, .04)
+    );
+}
+
+.home-page .logo-circle-image::after {
+  background:
+    radial-gradient(
+      circle,
+      rgba(201, 47, 54, .3),
+      rgba(224, 162, 72, .08) 46%,
+      rgba(85, 215, 255, .035) 58%,
+      transparent 74%
+    );
+}
+
+.home-page .logo-circle-image img {
+  filter:
+    drop-shadow(0 15px 28px rgba(0, 0, 0, .68))
+    drop-shadow(0 0 20px rgba(201, 47, 54, .22))
+    drop-shadow(0 0 10px rgba(224, 162, 72, .12));
+}
