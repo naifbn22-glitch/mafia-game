@@ -1679,3 +1679,20 @@ body.online-action-busy .online-page {
     animation: none !important;
   }
 }
+
+
+/* Permanent background for every online-game screen. */
+.online-page {
+  background:
+    linear-gradient(rgba(3, 3, 5, .62), rgba(3, 3, 5, .82)),
+    url("/mafia-bg-4.jpg") center center / cover fixed no-repeat !important;
+  animation: none !important;
+}
+.online-atmosphere {
+  opacity: .22;
+}
+@media (max-width: 900px) {
+  .online-page {
+    background-attachment: scroll !important;
+  }
+}
