@@ -13,6 +13,7 @@ const STORAGE_KEY = "mafia_online_rooms_v2";
 const PLAYER_SESSION_KEY = "mafia_online_player_session_v2";
 const HOST_SESSION_KEY = "mafia_online_host_session_v2";
 const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
+const PUBLIC_GAME_ORIGIN = "https://mafiagameplay.com";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 const socket = ONLINE_MODE_ENABLED
@@ -979,21 +980,28 @@ function createRoomRecord(hostName, roomName, maxPlayers) {
   return rooms[code];
 }
 
-function inviteUrl(code) {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("room", code);
-  url.searchParams.set("join", "1");
+function publicGameUrl(params = {}) {
+  const url = new URL("/", PUBLIC_GAME_ORIGIN);
+
+  Object.entries(params).forEach(([key, value]) => {
+    const normalizedValue = String(value ?? "").trim();
+    if (normalizedValue) url.searchParams.set(key, normalizedValue);
+  });
+
   return url.toString();
 }
 
+function inviteUrl(code) {
+  return publicGameUrl({
+    room: normalizeRoomCode(code),
+    join: "1",
+  });
+}
+
 function liveViewUrl(code) {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("live", normalizeRoomCode(code));
-  return url.toString();
+  return publicGameUrl({
+    live: normalizeRoomCode(code),
+  });
 }
 
 async function copyTextToClipboard(text, sourceInput = null) {
@@ -1823,7 +1831,7 @@ function renderHostLobby({ app, onBack, code }) {
           if (navigator.share) {
             await navigator.share({
               title: room.roomName,
-              text: "انضم إلى غرفة مافيا",
+              text: `انضم إلى غرفة مافيا عبر الرابط:\n${url}`,
               url,
             });
             return;
@@ -1878,7 +1886,7 @@ function renderHostLobby({ app, onBack, code }) {
         if (navigator.share) {
           await navigator.share({
             title: `البث المباشر - ${room.roomName}`,
-            text: "تابع أحداث مباراة مافيا مباشرة",
+            text: `تابع أحداث مباراة مافيا مباشرة:\n${broadcastUrl}`,
             url: broadcastUrl,
           });
           return;
