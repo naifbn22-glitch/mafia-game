@@ -1831,7 +1831,7 @@ function renderHostLobby({ app, onBack, code }) {
           if (navigator.share) {
             await navigator.share({
               title: room.roomName,
-              text: `انضم إلى غرفة مافيا عبر الرابط:\n${url}`,
+              text: `انضم إلى غرفة مافيا (${room.roomName})`,
               url,
             });
             return;
