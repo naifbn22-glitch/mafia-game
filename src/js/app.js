@@ -907,7 +907,7 @@ function renderPlayersPage() {
                 />
 
                 <span>
-                  👨 ذكر
+                  ذكر
                 </span>
               </label>
 
@@ -919,7 +919,7 @@ function renderPlayersPage() {
                 />
 
                 <span>
-                  👩 أنثى
+                  أنثى
                 </span>
               </label>
             </div>
@@ -1167,12 +1167,7 @@ function renderPlayersList() {
           ? "أنثى"
           : "ذكر";
 
-      const genderIcon =
-        playerGender === "female"
-          ? "👩"
-          : "👨";
-
-      return `
+       return `
         <div class="player-item">
           <div class="player-information">
             <span class="player-number">
@@ -1187,8 +1182,7 @@ function renderPlayersList() {
               </strong>
 
               <small>
-                ${genderIcon}
-                ${genderLabel}
+${genderLabel}
               </small>
             </div>
           </div>
@@ -4244,12 +4238,10 @@ function renderNightPlayerSelection({
                       : "false"
                   }"
                 >
-                  <span
-                    class="night-player-avatar"
-                  >
-                    ${escapeHtml(
-                      playerInitial,
-                    )}
+                  <span class="night-player-avatar">
+                    ${player.avatar
+                      ? `<img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.name)}" />`
+                      : escapeHtml(playerInitial)}
                   </span>
 
                   <strong>
@@ -6104,12 +6096,10 @@ function renderCurrentVoterPage() {
                   )}"
                   aria-pressed="false"
                 >
-                  <span
-                    class="vote-player-avatar"
-                  >
-                    ${escapeHtml(
-                      playerInitial,
-                    )}
+                  <span class="vote-player-avatar">
+                    ${player.avatar
+                      ? `<img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.name)}" />`
+                      : escapeHtml(playerInitial)}
                   </span>
 
                   <strong>
