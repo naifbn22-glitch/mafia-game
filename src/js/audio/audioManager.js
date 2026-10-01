@@ -205,9 +205,16 @@ export function syncOnlineAudio(room) {
   }
 
   const previous = onlineState.get(room.code) || {};
-  if (room.winner) setAudioScene("winner");
-  else if (room.status === "waiting") setAudioScene("menu");
-  else setAudioScene("game");
+  if (room.winner) {
+    setAudioScene("winner");
+  } else if (room.phase === "role-reveal" || room.status === "playing") {
+    // كشف الأدوار هو بداية اللعبة صوتيًا: نوقف موسيقى الخلفية قبل صوت قلب البطاقة.
+    setAudioScene("game");
+  } else if (room.status === "waiting") {
+    setAudioScene("menu");
+  } else {
+    setAudioScene("game");
+  }
 
   const phaseKey = `${room.code}:${Number(room.matchSequence || 0)}:${room.phase}:${Number(room.nightNumber || 0)}:${Number(room.roundNumber || 0)}`;
 
