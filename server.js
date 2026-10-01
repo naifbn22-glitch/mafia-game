@@ -13,13 +13,22 @@ import { hostProjection, normalizeRoomCode, requireHost, startVoting } from "./s
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const SERVER_ID = String(process.env.SERVER_ID || "R").trim().toUpperCase();
-const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "*").split(",").map(v => v.trim()).filter(Boolean);
+const defaultOrigins = process.env.NODE_ENV === "production"
+  ? "https://mafiagameplay.com,https://www.mafiagameplay.com"
+  : "http://localhost:5173,http://127.0.0.1:5173";
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS || defaultOrigins).split(",").map(v => v.trim()).filter(Boolean);
 const app = express();
 
 app.set("trust proxy", 1);
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
-app.use(cors({ origin: allowedOrigins.includes("*") ? true : allowedOrigins, credentials: false }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("ORIGIN_NOT_ALLOWED"));
+  },
+  credentials: false,
+}));
 app.use(express.json({ limit: "512kb" }));
 
 const store = new RoomStore({ redisUrl: process.env.REDIS_URL || "", databaseUrl: process.env.DATABASE_URL || "" });
