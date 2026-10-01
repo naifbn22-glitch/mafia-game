@@ -835,8 +835,9 @@ function renderHomePage() {
 
 
 function renderPrivacyPolicyPage() {
-  setCurrentScreen("privacy-policy");
-  history.pushState({ page: "privacy" }, "", "/privacy");
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  if (location.pathname !== "/privacy") history.pushState({ page: "privacy" }, "", "/privacy");
 
   app.innerHTML = `
     <main class="privacy-page">
