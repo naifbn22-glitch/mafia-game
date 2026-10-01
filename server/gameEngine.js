@@ -112,15 +112,15 @@ export function joinPlayer(room, { name, gender, avatar }) {
     touch(room);
     throw new Error("ROOM_FULL");
   }
-  const cleanName = String(name || "").trim().slice(0, 24);
-  if (!cleanName) throw new Error("INVALID_NAME");
+  const cleanName = String(name || "").trim().replace(/[<>\u0000-\u001F\u007F]/g, "").slice(0, 24);
+  if (!cleanName || cleanName.length < 2) throw new Error("INVALID_NAME");
   if (room.players.some(p => p.name.toLocaleLowerCase("ar") === cleanName.toLocaleLowerCase("ar"))) throw new Error("NAME_TAKEN");
   const player = {
     id: randomId("player"),
     sessionToken: randomToken(),
     name: cleanName,
     gender: gender === "female" ? "female" : "male",
-    avatar: String(avatar || "").slice(0, 256),
+    avatar: /^\/avatars\/[a-zA-Z0-9._-]+\.png$/.test(String(avatar || "")) ? String(avatar) : "",
     online: true,
     alive: true,
     role: null,
