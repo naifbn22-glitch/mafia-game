@@ -1302,7 +1302,7 @@ function renderJoinRoom({ app, onBack, code }) {
 }
 
 function playerCard(player, host = false) {
-  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${player.avatar}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
+  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
 }
 
 
@@ -1631,7 +1631,7 @@ function renderOnlineVotingStatus(room) {
       <div class="online-voting-status-list">
         ${alive.map(player => `
           <div class="online-vote-status-player ${voted.has(player.id) ? "has-voted" : "waiting-vote"}">
-            <img src="${player.avatar}" alt="${player.name}" />
+            <img src="${findPlayerAvatar(room, player)}" alt="${player.name}" />
             <span>${player.name}</span>
             <b>${voted.has(player.id) ? "✅ قام بالتصويت" : "⌛ لم يصوت بعد"}</b>
           </div>
@@ -1683,7 +1683,7 @@ function renderLiveFinalRoles(room) {
       <div class="live-final-roles__grid">
         ${room.finalRoles.map(player => `
           <article class="live-final-role live-final-role--${player.role}">
-            <img src="${player.avatar}" alt="${player.name}" />
+            <img src="${findPlayerAvatar(room, player)}" alt="${player.name}" />
             <div><strong>${player.name}</strong><span>${finalRoleIcon(player.role)} ${finalRoleName(player.role, player.gender)}</span></div>
             <i class="${player.alive ? "is-alive" : "is-out"}">${player.alive ? "حي" : "خرج"}</i>
           </article>`).join("")}
@@ -1695,7 +1695,7 @@ function renderOnlineBestPlayer(room, { live = false } = {}) {
   const best = room?.bestPlayer;
   if (!room?.winner || !best?.playerName) return "";
   const player = (room.players || []).find(item => item.id === best.playerId);
-  const avatar = best.avatar || player?.avatar || "";
+  const avatar = findPlayerAvatar(room, { playerId: best.playerId, playerName: best.playerName, avatar: best.avatar || player?.avatar || "" });
   return `<section class="online-best-player ${live ? "is-live" : ""}">
     <div class="online-best-player-medal">🥇</div>
     ${avatar ? `<div class="online-best-player-avatar"><img src="${avatar}" alt="${best.playerName}" /></div>` : ""}
@@ -1703,6 +1703,29 @@ function renderOnlineBestPlayer(room, { live = false } = {}) {
     <h2>${best.playerName}</h2>
     <p>${best.reason || "قدم أفضل أداء إجمالي في المباراة"}</p>
   </section>`;
+}
+
+function findPlayerAvatar(room, { playerId = "", playerName = "", avatar = "" } = {}) {
+  if (avatar) return avatar;
+  const players = [
+    ...(Array.isArray(room?.players) ? room.players : []),
+    ...(Array.isArray(room?.finalRoles) ? room.finalRoles : []),
+  ];
+  const player = players.find(item =>
+    (playerId && item?.id === playerId) ||
+    (playerName && item?.name === playerName)
+  );
+  return player?.avatar || "";
+}
+
+function renderPlayerIdentity(room, playerLike = {}, className = "online-player-identity") {
+  const name = playerLike?.playerName || playerLike?.name || "المتسابق";
+  const avatar = findPlayerAvatar(room, {
+    playerId: playerLike?.playerId || playerLike?.id || "",
+    playerName: name,
+    avatar: playerLike?.avatar || "",
+  });
+  return `<span class="${className}">${avatar ? `<img src="${avatar}" alt="${name}" />` : ""}<strong>${name}</strong></span>`;
 }
 
 function renderOnlineVotingResult(room) {
@@ -1730,7 +1753,8 @@ function renderOnlineVotingResult(room) {
     title = "الامتناع هو الأعلى";
     description = "حصل الامتناع على أعلى عدد من الأصوات، لذلك لم يخرج أحد.";
   }
-  return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small><h2>${title}</h2><p>${description}</p></section>`;
+  const identity = result.playerName ? renderPlayerIdentity(room, result, "online-voting-result-player") : "";
+  return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small>${identity}<h2>${title}</h2><p>${description}</p></section>`;
 }
 
 function isHostNightRoleComplete(room, role) {
@@ -2190,7 +2214,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
     const revealStartedLocally = revealUiState === "animating" || revealUiState === "settled";
     let content = "";
     if (room.winner) content = `${renderOnlineWinnerFinal(room)}${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>انتهت المباراة. بانتظار مدير اللعبة لإعادة فتح الغرفة للمباراة التالية...</p></div>`;
-    else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
+    else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
     else if (!player.alive) {
   const broadcastUrl = liveViewUrl(code);
 
@@ -2811,7 +2835,7 @@ function renderLiveParticipantsRail(room) {
       <div class="live-participants-list">
         ${ordered.map((player, index) => `
           <article class="live-participant ${player.alive ? "is-alive" : "is-out"}" style="--player-order:${index}">
-            <div class="live-participant__avatar"><img src="${player.avatar}" alt="${player.name}" /></div>
+            <div class="live-participant__avatar"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /></div>
             <div class="live-participant__info">
               <strong>${player.name}</strong>
               <span>${player.roleKnown ? "✓ تمت معرفة الدور" : "⌛ لم تتم معرفة الدور"}</span>
