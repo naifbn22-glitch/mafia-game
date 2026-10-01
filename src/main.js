@@ -6,7 +6,10 @@ import "./styles/role-card.css";
 import "./styles/online.css";
 import "./styles/native-app.css";
 
+import { installGlobalSoundButton } from "./js/audio/audioManager.js";
 import "./js/app.js";
+installGlobalSoundButton();
+
 async function initializeNativeApp() {
   try {
     const [{ Capacitor }, { StatusBar, Style }] = await Promise.all([
