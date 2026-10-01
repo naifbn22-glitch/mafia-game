@@ -1062,7 +1062,7 @@ function pageShell(content, title = "اللعب عبر الشبكة") {
           <span class="online-kicker">MAFIA ONLINE</span>
           <h1>${title}</h1>
         </div>
-        <img src="/pwa-192x192-transparent.png?v=20261001" alt="شعار مافيا" class="online-logo" />
+        <img src="/mafia-logo-v2.png?v=20261001b" alt="شعار مافيا" class="online-logo" />
       </header>
       <section class="online-content">${content}</section>
     </main>`;
@@ -1519,7 +1519,7 @@ function renderAssassinationScene({ name, avatar }) {
       <div class="assassination-blood" aria-hidden="true"></div>
       <div class="assassination-knife" aria-hidden="true">🗡️</div>
       <div class="assassination-portrait-frame">
-        <img src="${avatar || "/logo.png"}" alt="${name || "اللاعب"}" />
+        <img src="${avatar || "/mafia-logo-v2.png?v=20261001b"}" alt="${name || "اللاعب"}" />
         <span class="assassination-crack crack-a"></span>
         <span class="assassination-crack crack-b"></span>
         <span class="assassination-mourning-ribbon">تم الاغتيال</span>
@@ -2012,7 +2012,7 @@ function onlineRoleCard(player, { settled = false } = {}) {
         <div class="role-playing-card${settled ? " card-entered card-flipped" : ""}" id="onlineRoleCard">
           <div class="role-card-inner">
             <div class="role-card-face role-card-back">
-              <img class="role-card-back-logo" src="/pwa-192x192-transparent.png?v=20261001" alt="" />
+              <img class="role-card-back-logo" src="/mafia-logo-v2.png?v=20261001b" alt="" />
               <p class="role-card-back-title">مافيا</p>
             </div>
             <div class="role-card-face role-card-front">
@@ -2236,7 +2236,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
       <div class="role-envelope role-envelope--branded">
         <div class="role-reveal-emblem" aria-hidden="true">
           <span class="role-reveal-emblem-ring"></span>
-          <img src="/pwa-192x192-transparent.png?v=20261001" alt="" />
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="" />
         </div>
 
         <div class="role-reveal-title-wrap">
