@@ -8311,6 +8311,9 @@ registerTemporaryAdminShortcut();
 
 loadSavedGame();
 
+if (location.pathname === "/privacy") {
+  renderPrivacyPolicyPage();
+} else {
 const restoredOnlineRoute = restoreOnlineRoute({
   app,
   onBack: () => {
@@ -8321,4 +8324,5 @@ const restoredOnlineRoute = restoreOnlineRoute({
 
 if (!restoredOnlineRoute) {
   renderHomePage();
+}
 }
