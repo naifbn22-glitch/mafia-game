@@ -1684,7 +1684,7 @@ body.online-action-busy .online-page {
 /* Permanent background for every online-game screen. */
 .online-page {
   background:
-    linear-gradient(rgba(3, 3, 5, .62), rgba(3, 3, 5, .82)),
+    linear-gradient(rgba(2, 2, 4, .74), rgba(2, 2, 4, .88)),
     url("/mafia-bg-4.jpg") center center / cover fixed no-repeat !important;
   animation: none !important;
 }
