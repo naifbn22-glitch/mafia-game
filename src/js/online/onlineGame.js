@@ -1250,7 +1250,7 @@ function renderJoinRoom({ app, onBack, code }) {
       <form id="playerJoinForm" class="online-form-card online-form">
         <h2>بيانات المتسابق</h2>
         <label>اسم اللاعب<input id="playerNameInput" maxlength="24" required placeholder="اكتب اسمك" /></label>
-        <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>👨 ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>👩 أنثى</span></label></div></fieldset>
+        <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>أنثى</span></label></div></fieldset>
         <div><span class="field-label">الصورة الشخصية</span>${avatarPicker()}</div>
         <input id="selectedAvatar" type="hidden" value="${AVATARS[0].src}" />
         <button class="online-primary-button" type="submit" ${room.status !== "waiting" || room.joinLocked ? "disabled" : ""}>${room.joinLockedReason === "full" ? "اكتمل عدد اللاعبين" : room.status !== "waiting" || room.joinLocked ? "الغرفة مغلقة" : "الانضمام إلى الغرفة"}</button>
