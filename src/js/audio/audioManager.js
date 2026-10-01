@@ -1,4 +1,6 @@
 const AUDIO_ENABLED_KEY = "mafia:audio-enabled";
+const MUSIC_VOLUME_KEY = "mafia:music-volume";
+const DEFAULT_MUSIC_VOLUME = 0.32;
 
 const TRACKS = Object.freeze({
   music: "/audio/music/mafia-theme.mp3",
@@ -9,6 +11,10 @@ const TRACKS = Object.freeze({
 });
 
 let enabled = localStorage.getItem(AUDIO_ENABLED_KEY) !== "false";
+const storedMusicVolume = Number(localStorage.getItem(MUSIC_VOLUME_KEY));
+let musicVolume = Number.isFinite(storedMusicVolume)
+  ? Math.min(1, Math.max(0, storedMusicVolume))
+  : DEFAULT_MUSIC_VOLUME;
 let scene = "menu";
 let backgroundMusic = null;
 const sfxPool = new Map();
@@ -24,17 +30,29 @@ function audioFor(src, { loop = false, volume = 1 } = {}) {
 
 function ensureBackgroundMusic() {
   if (!backgroundMusic) {
-    backgroundMusic = audioFor(TRACKS.music, { loop: true, volume: 0.34 });
+    backgroundMusic = audioFor(TRACKS.music, { loop: true, volume: musicVolume });
   }
   return backgroundMusic;
 }
 
 function updateButton() {
   const button = document.querySelector("#globalSoundButton");
-  if (!button) return;
-  button.textContent = enabled ? "🔊" : "🔇";
-  button.setAttribute("aria-label", enabled ? "إيقاف جميع الأصوات" : "تشغيل جميع الأصوات");
-  button.title = enabled ? "إيقاف الصوت" : "تشغيل الصوت";
+  if (button) {
+    button.textContent = enabled ? "🔊" : "🔇";
+    button.setAttribute("aria-label", "التحكم بالصوت");
+    button.title = "التحكم بالصوت";
+  }
+
+  const muteButton = document.querySelector("#globalAudioMuteButton");
+  if (muteButton) {
+    muteButton.textContent = enabled ? "كتم الصوت" : "تشغيل الصوت";
+    muteButton.setAttribute("aria-pressed", enabled ? "false" : "true");
+  }
+
+  const slider = document.querySelector("#globalMusicVolume");
+  const value = document.querySelector("#globalMusicVolumeValue");
+  if (slider) slider.value = String(Math.round(musicVolume * 100));
+  if (value) value.textContent = `${Math.round(musicVolume * 100)}%`;
 }
 
 async function tryPlay(audio) {
@@ -63,12 +81,48 @@ export function installGlobalSoundButton() {
     updateButton();
     return;
   }
-  const button = document.createElement("button");
-  button.id = "globalSoundButton";
-  button.className = "global-sound-button";
-  button.type = "button";
-  document.body.appendChild(button);
-  button.addEventListener("click", () => setAudioEnabled(!enabled));
+  const control = document.createElement("div");
+  control.className = "global-audio-control";
+  control.innerHTML = `
+    <button id="globalSoundButton" class="global-sound-button" type="button" aria-expanded="false"></button>
+    <div id="globalAudioPanel" class="global-audio-panel" aria-hidden="true">
+      <div class="global-audio-panel-title">
+        <strong>الصوت</strong>
+        <span id="globalMusicVolumeValue">${Math.round(musicVolume * 100)}%</span>
+      </div>
+      <label class="global-volume-row" for="globalMusicVolume">
+        <span>موسيقى الخلفية</span>
+        <input id="globalMusicVolume" type="range" min="0" max="100" step="1" value="${Math.round(musicVolume * 100)}" />
+      </label>
+      <button id="globalAudioMuteButton" class="global-audio-mute-button" type="button"></button>
+    </div>
+  `;
+  document.body.appendChild(control);
+
+  const button = control.querySelector("#globalSoundButton");
+  const panel = control.querySelector("#globalAudioPanel");
+  const muteButton = control.querySelector("#globalAudioMuteButton");
+  const slider = control.querySelector("#globalMusicVolume");
+
+  button?.addEventListener("click", event => {
+    event.stopPropagation();
+    const open = !panel.classList.contains("is-open");
+    panel.classList.toggle("is-open", open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  muteButton?.addEventListener("click", () => setAudioEnabled(!enabled));
+  slider?.addEventListener("input", event => setMusicVolume(Number(event.target.value) / 100));
+
+  document.addEventListener("pointerdown", event => {
+    if (!control.contains(event.target)) {
+      panel.classList.remove("is-open");
+      panel.setAttribute("aria-hidden", "true");
+      button?.setAttribute("aria-expanded", "false");
+    }
+  });
+
   updateButton();
 
   const unlock = () => {
@@ -97,6 +151,15 @@ export function setAudioEnabled(value) {
   updateButton();
   syncMusic();
   window.dispatchEvent(new CustomEvent("mafia:audio-change", { detail: { enabled } }));
+}
+
+export function setMusicVolume(value) {
+  musicVolume = Math.min(1, Math.max(0, Number(value) || 0));
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+  ensureBackgroundMusic().volume = musicVolume;
+  updateButton();
+  if (musicVolume > 0 && !enabled) setAudioEnabled(true);
+  else syncMusic();
 }
 
 export function setAudioScene(nextScene) {
