@@ -1,0 +1,62 @@
+workflows:
+  ios-build:
+    name: Mafia iOS Build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: multi-server-sharding-v1
+          include: true
+      cancel_previous_builds: true
+      
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: lts
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor iOS
+        script: |
+          npx cap sync ios
+
+      - name: Build iOS IPA without signing
+        script: |
+          cd ios/App
+
+          rm -rf build
+          rm -rf ipa
+
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+          mkdir -p ipa/Payload
+
+          cp -R \
+            build/Build/Products/Debug-iphoneos/App.app \
+            ipa/Payload/App.app
+
+          cd ipa
+
+          /usr/bin/zip -qry Mafia.ipa Payload
+
+          ls -lh Mafia.ipa
+
+    artifacts:
+      - ios/App/ipa/Mafia.ipa
+      - /tmp/xcodebuild_logs/*.log
