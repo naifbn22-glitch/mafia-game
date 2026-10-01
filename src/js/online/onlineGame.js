@@ -2,6 +2,12 @@ export const ONLINE_MODE_ENABLED = true;
 import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
 import { createRoutedSocket, serverUrlForRoomCode } from "./serverRouter.js";
 import { getRoleCardImage } from "../ui/roleCards.js";
+import {
+  setAudioScene,
+  syncOnlineAudio,
+  playRoleCardFlip,
+  playDiscussionFinalFive,
+} from "../audio/audioManager.js";
 
 const STORAGE_KEY = "mafia_online_rooms_v2";
 const PLAYER_SESSION_KEY = "mafia_online_player_session_v2";
@@ -1078,6 +1084,7 @@ function attachBack(onBack) {
 }
 
 export function openOnlinePortal({ app, onBack }) {
+  setAudioScene("menu");
   if (!ONLINE_MODE_ENABLED) {
     stopRoomViewSync();
     showInfoToast("اللعب أونلاين متوقف مؤقتًا وسيعود في تحديث قادم.", "قريبًا");
@@ -1751,6 +1758,7 @@ function renderHostLobby({ app, onBack, code }) {
   subscribeRoom(code, "host");
   const draw = () => {
     const room = readRoom(code);
+    if (room) syncOnlineAudio(room);
     if (!room) {
       fetchRoomFromServer(code).then(foundRoom => {
         if (foundRoom) draw();
@@ -2167,6 +2175,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
   subscribeRoom(code, "player", playerId);
     const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
+    if (room) syncOnlineAudio(room);
     if (!room || !player) return renderJoinRoom({ app, onBack, code });
     const revealKey = `${code}:${playerId}`;
     const revealUiState = roleRevealUiState.get(revealKey) || "new";
@@ -2615,6 +2624,7 @@ bindOnlineDayTimerTicker();
       button.disabled = true;
       const session = playerSession(code, playerId);
       roleRevealUiState.set(revealKey, "animating");
+      playRoleCardFlip(`online-role-${code}-${playerId}-${Number(readRoom(code)?.matchSequence || 0)}`);
       draw();
 
       window.setTimeout(() => {
@@ -2817,6 +2827,7 @@ function stopOnlineDayTimerTicker() {
 function bindOnlineDayTimerTicker({ onFinish = null } = {}) {
   stopOnlineDayTimerTicker();
   let finishNotified = false;
+  let finalFiveKey = "";
 
   const tick = () => {
     const timers = [...document.querySelectorAll(".online-day-timer[data-day-ends-at]")];
@@ -2827,6 +2838,13 @@ function bindOnlineDayTimerTicker({ onFinish = null } = {}) {
       const endsAt = Number(timer.dataset.dayEndsAt || 0);
       const total = Math.max(30, Number(timer.dataset.dayTotal || 60));
       const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+      if (remaining === 5) {
+        const key = `online-discussion-${endsAt}`;
+        if (finalFiveKey !== key) {
+          finalFiveKey = key;
+          playDiscussionFinalFive(key);
+        }
+      }
       const percentage = Math.max(0, Math.min(100, (remaining / total) * 100));
       const stateClass = remaining <= 5 ? "timer-danger" : remaining <= 15 ? "timer-warning" : "timer-normal";
 
