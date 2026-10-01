@@ -11,6 +11,8 @@ const safeError = error => ({ ok: false, error: error?.message || "SERVER_ERROR"
 
 export async function createSocketServer(httpServer, store, { allowedOrigins = ["*"] } = {}) {
   const io = new Server(httpServer, {
+    serveClient: false,
+    perMessageDeflate: false,
     allowRequest: (req, callback) => {
       const origin = String(req.headers.origin || "");
       const allowed = allowedOrigins.includes("*") || !origin || allowedOrigins.includes(origin);
@@ -20,7 +22,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     transports: ["websocket", "polling"],
     pingInterval: 10000,
     pingTimeout: 20000,
-    maxHttpBufferSize: 1e6,
+    maxHttpBufferSize: 64 * 1024,
   });
 
   if (process.env.REDIS_URL) {
