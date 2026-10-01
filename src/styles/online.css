@@ -385,32 +385,7 @@
 }
 
 .role-reveal-emblem-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background:
-    conic-gradient(
-      from 210deg,
-      #7d4cff,
-      #a753ff 26%,
-      rgba(255, 255, 255, 0.08) 46%,
-      #00d68f 72%,
-      #42e0a7 88%,
-      #7d4cff
-    );
-  box-shadow:
-    0 0 28px rgba(125, 76, 255, 0.45),
-    0 0 42px rgba(0, 214, 143, 0.25);
-  animation: roleRevealRing 8s linear infinite;
-}
-
-.role-reveal-emblem-ring::after {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border-radius: inherit;
-  background: #0a0c16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: none;
 }
 
 .role-reveal-emblem img {
@@ -419,9 +394,7 @@
   width: 150px;
   height: 150px;
   object-fit: contain;
-  filter:
-    drop-shadow(0 0 18px rgba(125, 76, 255, 0.45))
-    drop-shadow(0 0 15px rgba(0, 214, 143, 0.22));
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.38));
 }
 
 .role-reveal-title-wrap {
