@@ -6056,3 +6056,46 @@
     animation: none !important;
   }
 }
+
+
+/* =========================================================
+   Permanent page backgrounds - 2026-10-01
+   Home=1, offline flow=3, game over=2.
+   ========================================================= */
+.home-page {
+  background:
+    linear-gradient(rgba(3, 3, 5, .58), rgba(3, 3, 5, .76)),
+    url("/mafia-bg-1.jpg") center center / cover fixed no-repeat !important;
+  animation: none !important;
+}
+.home-page .mafia-cinematic-scene {
+  opacity: .18;
+}
+
+.setup-page,
+.role-page,
+.night-page,
+.day-page,
+.voting-page {
+  background:
+    linear-gradient(rgba(3, 3, 5, .64), rgba(3, 3, 5, .82)),
+    url("/mafia-bg-3.jpg") center center / cover fixed no-repeat !important;
+}
+
+.game-over-page {
+  background:
+    linear-gradient(rgba(3, 3, 5, .58), rgba(3, 3, 5, .78)),
+    url("/mafia-bg-2.jpg") center center / cover fixed no-repeat !important;
+}
+
+@media (max-width: 900px) {
+  .home-page,
+  .setup-page,
+  .role-page,
+  .night-page,
+  .day-page,
+  .voting-page,
+  .game-over-page {
+    background-attachment: scroll !important;
+  }
+}
