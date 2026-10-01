@@ -4,7 +4,7 @@ export const GAME_SERVERS = Object.freeze({
   A: Object.freeze({
     id: "A",
     name: "Railway A",
-    url: "https://naif-mafia-realtime-production-156f.up.railway.app",
+    url: "https://mafiagameplay.com",
     maxRooms: 35,
     maxConnections: 350,
   }),
