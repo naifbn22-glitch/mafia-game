@@ -253,6 +253,8 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     socket.on("host:command", async ({ code, token, action, payload = {} }, ack = () => {}) => {
       try {
         enforceCommandRate("host:command", 90, 60_000);
+        const normalizedForAuth = normalizeRoomCode(code);
+        if (!socket.rooms.has(`room:${normalizedForAuth}:host`)) throw new Error("HOST_SUBSCRIPTION_REQUIRED");
         const normalized = normalizeRoomCode(code);
         const room = await store.withRoomLock(normalized, async () => {
           const current = await store.get(normalized);
@@ -298,6 +300,8 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     socket.on("player:command", async ({ code, playerId, token, action, payload = {} }, ack = () => {}) => {
       try {
         enforceCommandRate("player:command", 90, 60_000);
+        const normalizedForAuth = normalizeRoomCode(code);
+        if (!socket.rooms.has(`room:${normalizedForAuth}:player:${playerId}`)) throw new Error("PLAYER_SUBSCRIPTION_REQUIRED");
         const normalized = normalizeRoomCode(code);
         const result = await store.withRoomLock(normalized, async () => {
           const room = await store.get(normalized);
