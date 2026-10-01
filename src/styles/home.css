@@ -6137,3 +6137,96 @@
 .night-secondary-button:active:not(:disabled) {
   transform: scale(0.985);
 }
+
+
+/* Privacy policy — public and in-app for App Store requirements */
+.home-footer {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.home-privacy-link {
+  border: 0;
+  padding: 5px 8px;
+  color: #e0a248;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.privacy-page {
+  min-height: 100vh;
+  padding: max(28px, env(safe-area-inset-top)) 18px max(38px, env(safe-area-inset-bottom));
+  background: #09080a;
+  color: #fff;
+}
+.privacy-card {
+  width: min(940px, 100%);
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 48px);
+  border: 1px solid rgba(224, 162, 72, .18);
+  border-radius: 28px;
+  background: rgba(18, 11, 14, .92);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, .42);
+}
+.privacy-back-button {
+  min-height: 44px;
+  padding: 9px 18px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 13px;
+  color: #fff;
+  background: rgba(255,255,255,.06);
+  cursor: pointer;
+}
+.privacy-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 26px 0 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+.privacy-header img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+}
+.privacy-header span {
+  color: #e0a248;
+  letter-spacing: 3px;
+  font-size: 12px;
+}
+.privacy-header h1 {
+  margin: 4px 0;
+  font-size: clamp(28px, 5vw, 44px);
+}
+.privacy-header p {
+  margin: 0;
+  color: rgba(255,255,255,.6);
+}
+.privacy-language {
+  margin-top: 30px;
+  line-height: 2;
+}
+.privacy-language + .privacy-language {
+  margin-top: 46px;
+  padding-top: 38px;
+  border-top: 1px solid rgba(224, 162, 72, .2);
+}
+.privacy-language h2 {
+  color: #f0b55d;
+  margin-bottom: 10px;
+}
+.privacy-language h3 {
+  margin: 27px 0 6px;
+  color: #fff1d8;
+}
+.privacy-language p {
+  margin: 0;
+  color: rgba(255,255,255,.76);
+}
+@media (max-width: 600px) {
+  .privacy-card { border-radius: 20px; }
+  .privacy-header { align-items: flex-start; }
+  .privacy-header img { width: 64px; height: 64px; }
+}
