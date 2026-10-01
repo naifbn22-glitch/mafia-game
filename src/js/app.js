@@ -711,12 +711,14 @@ function renderHomePage() {
       </section>
 
       <footer class="home-footer">
-        <span>
-          الإصدار التجريبي 1.0
-        </span>
+        <span>الإصدار التجريبي 1.0</span>
+        <button id="privacyPolicyButton" class="home-privacy-link" type="button">سياسة الخصوصية · Privacy Policy</button>
       </footer>
     </main>
   `;
+
+  const privacyPolicyButton = document.querySelector("#privacyPolicyButton");
+  privacyPolicyButton?.addEventListener("click", renderPrivacyPolicyPage);
 
   const resumeGameButton =
     document.querySelector(
@@ -828,6 +830,118 @@ function renderHomePage() {
     },
   );
 
+}
+
+
+function renderPrivacyPolicyPage() {
+  setCurrentScreen("privacy-policy");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="privacyBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>سياسة الخصوصية</h1>
+            <p>Privacy Policy</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <h2>سياسة الخصوصية — العربية</h2>
+          <p><strong>آخر تحديث:</strong> 1 أكتوبر 2026</p>
+
+          <h3>1. نطاق السياسة</h3>
+          <p>توضح هذه السياسة كيفية تعامل لعبة Mafia وموقع mafiagameplay.com مع المعلومات عند استخدام اللعبة على الويب أو تطبيق iOS. باستخدام الخدمة، فإنك تقر بأن بعض المعلومات اللازمة لتشغيل خصائص اللعبة عبر الشبكة ستتم معالجتها كما هو موضح أدناه.</p>
+
+          <h3>2. المعلومات التي نعالجها</h3>
+          <p>في اللعب المحلي على الجهاز، تُحفظ إعدادات اللعبة والتقدم وتفضيلات الصوت محليًا على جهازك. عند استخدام اللعب عبر الشبكة، قد نعالج اسم اللاعب أو مدير الغرفة، الجنس الذي يختاره اللاعب لأغراض صياغة الدور داخل اللعبة، الصورة الرمزية المختارة من الصور المضمنة في اللعبة، رمز الغرفة، حالة المباراة والأدوار والأصوات والنتائج وسجل أحداث المباراة، ومعرّفات ورموز جلسة عشوائية لازمة لتأمين الغرفة واللاعب.</p>
+
+          <h3>3. لماذا نستخدم هذه المعلومات</h3>
+          <p>تُستخدم المعلومات فقط لتشغيل الغرف متعددة اللاعبين، مزامنة المباراة بين الأجهزة، استعادة الجلسة، حماية أوامر مدير الغرفة واللاعبين، عرض الأسماء والصور داخل المباراة، حساب النتائج، منع إساءة الاستخدام، وتشخيص الأعطال الفنية.</p>
+
+          <h3>4. التخزين والاحتفاظ</h3>
+          <p>قد تُحفظ بعض تفضيلات وجلسات اللعبة محليًا على جهاز المستخدم. وقد تُحفظ حالة الغرف عبر خوادم اللعبة والبنية التحتية المستضافة اللازمة لتقديم اللعب عبر الشبكة. لا نطلب من المستخدم إنشاء حساب شخصي للعب. نحتفظ ببيانات التشغيل فقط للمدة اللازمة لتقديم الخدمة والأمان والتشغيل، ويمكن إزالة الغرف المنتهية أو القديمة وفق آليات تشغيل الخدمة.</p>
+
+          <h3>5. المشاركة ومقدمو الخدمة</h3>
+          <p>لا نبيع المعلومات الشخصية. قد تمر بيانات التشغيل عبر مقدمي البنية التحتية والاستضافة الذين نستخدمهم لتشغيل Mafia، مثل خدمات استضافة الخادم وقاعدة البيانات عند تفعيلها. يقتصر استخدامهم للمعلومات على تقديم البنية التحتية والخدمات الفنية وفق شروطهم والتزاماتهم القانونية.</p>
+
+          <h3>6. الإعلانات والتحليلات والتتبع</h3>
+          <p>في الإصدار الحالي لا ندمج شبكة إعلانات أو SDK تحليلات تابعًا لجهة خارجية داخل التطبيق، ولا نستخدم معرّف الإعلانات من Apple، ولا نستخدم بيانات المستخدم للتتبع عبر تطبيقات أو مواقع شركات أخرى. إذا أضفنا مستقبلًا إعلانات أو تحليلات أو ممارسات تتبع، فسنحدّث هذه السياسة وإفصاحات App Store ونطلب الأذونات المطلوبة قبل استخدامها.</p>
+
+          <h3>7. الأذونات وموارد الجهاز</h3>
+          <p>الإصدار الحالي لا يحتاج إلى الوصول إلى الكاميرا أو الميكروفون أو الصور أو جهات الاتصال أو الموقع الجغرافي لتشغيل الوظائف الأساسية للعبة.</p>
+
+          <h3>8. الأطفال</h3>
+          <p>Mafia لا تطلب تاريخ الميلاد ولا تنشئ ملفات تعريف إعلانية للأطفال. إذا علمنا أن معلومات شخصية لطفل جُمعت بصورة غير مقصودة وبشكل يتطلب الحذف قانونًا، فسنقوم بمعالجة طلب الحذف وفق القانون المعمول به.</p>
+
+          <h3>9. الأمان</h3>
+          <p>نستخدم اتصالات HTTPS/WSS وإجراءات تقنية للحد من الوصول غير المصرح به، لكن لا توجد وسيلة نقل أو تخزين إلكترونية يمكن ضمان أمانها بصورة مطلقة.</p>
+
+          <h3>10. خياراتك وطلبات الخصوصية</h3>
+          <p>يمكنك حذف الحفظ المحلي من داخل اللعبة أو إزالة بيانات التطبيق من جهازك. لطلب معلومات عن بياناتك أو تصحيحها أو حذفها، أو لأي استفسار متعلق بالخصوصية، استخدم وسيلة التواصل المنشورة في الموقع. قد نطلب معلومات كافية للتحقق من الطلب وربطه بالغرفة أو الجلسة ذات الصلة دون طلب بيانات أكثر من اللازم.</p>
+
+          <h3>11. النقل الدولي</h3>
+          <p>قد تتم معالجة بيانات التشغيل في الدول التي توجد فيها البنية التحتية المستخدمة لتقديم الخدمة. عند انطباق متطلبات قانونية على عمليات النقل، نتعامل معها وفق المتطلبات المعمول بها.</p>
+
+          <h3>12. التغييرات</h3>
+          <p>قد نحدّث هذه السياسة عند تغيير خصائص اللعبة أو مزودي الخدمة أو المتطلبات القانونية. سيظهر تاريخ آخر تحديث في أعلى هذه الصفحة.</p>
+
+          <h3>13. التواصل</h3>
+          <p>سيتم نشر عنوان التواصل الرسمي الخاص بـ Mafia على هذه الصفحة فور تفعيل بريد النطاق. إلى ذلك الحين يمكن استخدام الموقع الرسمي mafiagameplay.com للحصول على أحدث معلومات التواصل.</p>
+        </div>
+
+        <div class="privacy-language" dir="ltr" lang="en">
+          <h2>Privacy Policy — English</h2>
+          <p><strong>Last updated:</strong> October 1, 2026</p>
+
+          <h3>1. Scope</h3>
+          <p>This Privacy Policy explains how Mafia and mafiagameplay.com handle information when you use the game on the web or through the iOS app.</p>
+
+          <h3>2. Information We Process</h3>
+          <p>For local gameplay, game settings, progress, and audio preferences are stored locally on your device. For online multiplayer, we may process the player or host name, the gender selected for in-game role wording, the built-in avatar selected by the player, room codes, game state, roles, votes, results and game-event history, and random session identifiers or tokens needed to secure rooms and player actions.</p>
+
+          <h3>3. How We Use Information</h3>
+          <p>We use this information to operate multiplayer rooms, synchronize games across devices, restore sessions, secure host and player actions, display participant names and avatars, calculate game results, prevent abuse, and diagnose technical problems.</p>
+
+          <h3>4. Storage and Retention</h3>
+          <p>Some preferences and session information may be stored locally on your device. Online room state may be processed and stored by the game servers and hosted infrastructure needed to provide multiplayer functionality. Mafia does not require a personal account to play. Operational data is retained only as needed for service delivery, security, and operation, and expired or old rooms may be removed under service operating procedures.</p>
+
+          <h3>5. Sharing and Service Providers</h3>
+          <p>We do not sell personal information. Operational data may pass through infrastructure and hosting providers used to operate Mafia, including server hosting and database services when enabled. Their access is limited to providing infrastructure and technical services subject to their applicable terms and legal obligations.</p>
+
+          <h3>6. Advertising, Analytics, and Tracking</h3>
+          <p>The current version does not integrate a third-party advertising network or analytics SDK, does not use Apple's advertising identifier, and does not use user data to track people across other companies' apps or websites. If advertising, analytics, or tracking practices are introduced later, this policy and the App Store privacy disclosures will be updated and any required permission will be requested before use.</p>
+
+          <h3>7. Device Permissions</h3>
+          <p>The current version does not require access to the camera, microphone, photo library, contacts, or precise location for the game's core functionality.</p>
+
+          <h3>8. Children</h3>
+          <p>Mafia does not request a date of birth and does not create advertising profiles for children. If we learn that a child's personal information was unintentionally collected in circumstances requiring deletion by applicable law, we will address a valid deletion request.</p>
+
+          <h3>9. Security</h3>
+          <p>We use HTTPS/WSS connections and technical safeguards designed to reduce unauthorized access. No method of electronic transmission or storage can be guaranteed to be completely secure.</p>
+
+          <h3>10. Your Choices and Privacy Requests</h3>
+          <p>You can remove locally saved game information through the game or by removing app data from your device. To request access, correction, or deletion of information associated with you, or to ask a privacy question, use the contact method published on the official website. We may request enough information to verify and locate the relevant room or session without requesting unnecessary data.</p>
+
+          <h3>11. International Processing</h3>
+          <p>Operational data may be processed in countries where the infrastructure used to provide the service is located. Where legal transfer requirements apply, we handle such transfers in accordance with applicable requirements.</p>
+
+          <h3>12. Changes</h3>
+          <p>We may update this policy when game features, service providers, or legal requirements change. The latest revision date will appear at the top of this page.</p>
+
+          <h3>13. Contact</h3>
+          <p>Mafia's official contact email will be published here after the domain email is activated. Until then, mafiagameplay.com is the official website for current contact information.</p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#privacyBackButton")?.addEventListener("click", renderHomePage);
 }
 
 
