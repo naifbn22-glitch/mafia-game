@@ -1302,7 +1302,7 @@ function renderJoinRoom({ app, onBack, code }) {
 }
 
 function playerCard(player, host = false) {
-  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
+  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${player.avatar || AVATARS[0].src}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
 }
 
 
