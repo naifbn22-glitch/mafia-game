@@ -14,8 +14,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const SERVER_ID = String(process.env.SERVER_ID || "R").trim().toUpperCase();
 const defaultOrigins = process.env.NODE_ENV === "production"
-  ? "https://mafiagameplay.com,https://www.mafiagameplay.com"
-  : "http://localhost:5173,http://127.0.0.1:5173";
+  ? "https://mafiagameplay.com,https://www.mafiagameplay.com,capacitor://localhost"
+  : "http://localhost:5173,http://127.0.0.1:5173,capacitor://localhost";
 const allowedOrigins = String(process.env.ALLOWED_ORIGINS || defaultOrigins).split(",").map(v => v.trim()).filter(Boolean);
 const app = express();
 
