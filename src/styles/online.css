@@ -7,6 +7,12 @@
   text-align: center;
 }
 .online-role-reveal-wrap .role-card-details h2 { margin: 4px 0 8px; font-size: 30px; }
+.online-role-reveal-wrap .role-card-back-logo {
+  width: 30%;
+  max-width: 96px;
+  height: auto;
+  object-fit: contain;
+}
 .online-role-reveal-wrap .role-card-details p { color: rgba(255,255,255,.7); }
 .night-target { position: relative; cursor: pointer; }
 .night-target.selected {
