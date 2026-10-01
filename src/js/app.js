@@ -56,6 +56,15 @@ import {
 } from "./ui/roleCards.js";
 
 import {
+  isAudioEnabled,
+  setAudioEnabled,
+  syncOfflineAudioPhase,
+  playRoleCardFlip,
+  playSfx,
+  playDiscussionFinalFive,
+} from "./audio/audioManager.js";
+
+import {
   openOnlinePortal,
   restoreOnlineRoute,
   getSavedOnlineGame,
@@ -172,6 +181,12 @@ const GAME_PHASES = Object.freeze({
 
   GAME_OVER: "game-over",
 });
+
+gameState.soundEnabled = isAudioEnabled();
+window.addEventListener("mafia:audio-change", (event) => {
+  gameState.soundEnabled = Boolean(event.detail?.enabled);
+});
+
 
 
 const NIGHT_ROLE_PHASES = Object.freeze({
@@ -341,18 +356,7 @@ function renderHomePage() {
           </div>
         </div>
 
-        <button
-          class="icon-button"
-          id="soundButton"
-          type="button"
-          aria-label="تشغيل أو إيقاف الصوت"
-        >
-          ${
-            gameState.soundEnabled
-              ? "🔊"
-              : "🔇"
-          }
-        </button>
+
       </header>
 
       <section class="hero">
@@ -744,11 +748,6 @@ function renderHomePage() {
       "#onlineButton",
     );
 
-  const soundButton =
-    document.querySelector(
-      "#soundButton",
-    );
-
   resumeGameButton?.addEventListener(
     "click",
     resumeSavedGame,
@@ -829,20 +828,6 @@ function renderHomePage() {
     },
   );
 
-  soundButton?.addEventListener(
-    "click",
-    () => {
-      gameState.soundEnabled =
-        !gameState.soundEnabled;
-
-      soundButton.textContent =
-        gameState.soundEnabled
-          ? "🔊"
-          : "🔇";
-
-      saveGame();
-    },
-  );
 }
 
 
@@ -2038,6 +2023,7 @@ function bindSettingsPageEvents() {
         ) {
           gameState.soundEnabled =
             input.checked;
+          setAudioEnabled(input.checked);
 
           saveGame();
 
@@ -2907,6 +2893,7 @@ function startRoleCardAnimation() {
       card.classList.add(
         "card-flipped",
       );
+      playRoleCardFlip();
     },
     850,
   );
@@ -3091,6 +3078,10 @@ function renderNightIntroPage() {
   setCurrentScreen(
     GAME_PHASES.NIGHT_INTRO,
   );
+  playSfx("nightStart", {
+    key: `offline-night-${gameState.roundNumber}`,
+    volume: 0.82,
+  });
 
   const activeNightRoles =
     gameState.nightSequence?.roleIds ??
@@ -4682,6 +4673,10 @@ function renderNightResultPage(
   setCurrentScreen(
     GAME_PHASES.NIGHT_RESULT,
   );
+  playSfx("morning", {
+    key: `offline-morning-${gameState.roundNumber}`,
+    volume: 0.82,
+  });
 
   const noVictimSelected =
     !victim;
@@ -5314,6 +5309,12 @@ function startDiscussionTimer() {
           );
 
         updateDiscussionTimerDisplay();
+
+        if (gameState.timer.remainingSeconds === 5) {
+          playDiscussionFinalFive(
+            `offline-discussion-${gameState.roundNumber}`,
+          );
+        }
 
         /*
          * يتم الحفظ كل خمس ثوانٍ
