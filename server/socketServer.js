@@ -11,6 +11,11 @@ const safeError = error => ({ ok: false, error: error?.message || "SERVER_ERROR"
 
 export async function createSocketServer(httpServer, store, { allowedOrigins = ["*"] } = {}) {
   const io = new Server(httpServer, {
+    allowRequest: (req, callback) => {
+      const origin = String(req.headers.origin || "");
+      const allowed = allowedOrigins.includes("*") || !origin || allowedOrigins.includes(origin);
+      callback(allowed ? null : new Error("ORIGIN_NOT_ALLOWED"), allowed);
+    },
     cors: { origin: allowedOrigins.includes("*") ? true : allowedOrigins, methods: ["GET", "POST"] },
     transports: ["websocket", "polling"],
     pingInterval: 10000,
@@ -103,6 +108,19 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
   }
 
   io.on("connection", socket => {
+    const commandWindow = new Map();
+    const enforceCommandRate = (bucket, limit, windowMs) => {
+      const now = Date.now();
+      const previous = commandWindow.get(bucket) || { startedAt: now, count: 0 };
+      if (now - previous.startedAt >= windowMs) {
+        previous.startedAt = now;
+        previous.count = 0;
+      }
+      previous.count += 1;
+      commandWindow.set(bucket, previous);
+      if (previous.count > limit) throw new Error("RATE_LIMITED");
+    };
+
     socket.emit("server:ready", {
       now: Date.now(),
       serverId: String(process.env.SERVER_ID || "R").trim().toUpperCase(),
@@ -110,6 +128,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:create", async (payload, ack = () => {}) => {
       try {
+        enforceCommandRate("room:create", 5, 60_000);
         let room = null;
         for (let attempt = 0; attempt < 20 && !room; attempt += 1) {
           const candidate = createRoom(payload || {});
@@ -127,6 +146,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:lookup", async ({ code }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:lookup", 60, 60_000);
         const room = await store.get(normalizeRoomCode(code));
         ack(room ? { ok: true, room: publicProjection(room) } : { ok: false, error: "ROOM_NOT_FOUND" });
       } catch (error) { ack(safeError(error)); }
@@ -134,6 +154,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:sync", async ({ code, mode = "public", playerId, token }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:sync", 120, 60_000);
         const normalized = normalizeRoomCode(code);
         const room = await store.get(normalized);
         if (!room) throw new Error("ROOM_NOT_FOUND");
@@ -158,6 +179,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:subscribe", async ({ code, mode = "public", playerId, token }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:subscribe", 60, 60_000);
         const normalized = normalizeRoomCode(code);
 
         if (mode === "host") {
@@ -210,6 +232,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("player:join", async ({ code, name, gender, avatar }, ack = () => {}) => {
       try {
+        enforceCommandRate("player:join", 12, 60_000);
         const normalized = normalizeRoomCode(code);
         const result = await store.withRoomLock(normalized, async () => {
           const room = await store.get(normalized);
@@ -229,6 +252,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("host:command", async ({ code, token, action, payload = {} }, ack = () => {}) => {
       try {
+        enforceCommandRate("host:command", 90, 60_000);
         const normalized = normalizeRoomCode(code);
         const room = await store.withRoomLock(normalized, async () => {
           const current = await store.get(normalized);
@@ -273,6 +297,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("player:command", async ({ code, playerId, token, action, payload = {} }, ack = () => {}) => {
       try {
+        enforceCommandRate("player:command", 90, 60_000);
         const normalized = normalizeRoomCode(code);
         const result = await store.withRoomLock(normalized, async () => {
           const room = await store.get(normalized);
