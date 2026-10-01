@@ -20,7 +20,26 @@ const allowedOrigins = String(process.env.ALLOWED_ORIGINS || defaultOrigins).spl
 const app = express();
 
 app.set("trust proxy", 1);
-app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.disable("x-powered-by");
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "data:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", "https:", "wss:"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  referrerPolicy: { policy: "no-referrer" },
+}));
 app.use(compression());
 app.use(cors({
   origin(origin, callback) {
@@ -29,7 +48,7 @@ app.use(cors({
   },
   credentials: false,
 }));
-app.use(express.json({ limit: "512kb" }));
+app.use(express.json({ limit: "64kb", strict: true }));
 
 const store = new RoomStore({ redisUrl: process.env.REDIS_URL || "", databaseUrl: process.env.DATABASE_URL || "" });
 await store.connect();
@@ -37,6 +56,7 @@ await store.connect();
 let io = null;
 
 app.get("/api/health", (_req, res) => {
+  res.set("Cache-Control", "no-store");
   const stats = store.getStats();
 
   // liveRooms counts only rooms that currently have at least one Socket.IO
@@ -63,11 +83,7 @@ app.get("/api/health", (_req, res) => {
     serverId: SERVER_ID,
     realtime: "socket.io",
     redis: Boolean(process.env.REDIS_URL),
-    activeRooms: stats.activeRooms,
     liveRooms,
-    totalRooms: stats.totalRooms,
-    activePlayers: stats.activePlayers,
-    connections: Number(io?.engine?.clientsCount || 0),
     now: Date.now(),
   });
 });
