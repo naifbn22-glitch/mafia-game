@@ -6099,3 +6099,41 @@
     background-attachment: scroll !important;
   }
 }
+
+
+/* Player avatars stay attached to their names in all selection screens */
+.night-player-avatar,
+.vote-player-avatar {
+  overflow: hidden;
+}
+.night-player-avatar img,
+.vote-player-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* King's keep-medal action: same button geometry, distinct royal-gold treatment */
+.night-secondary-button {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 11px;
+  padding: 12px 20px;
+  border: 1px solid rgba(224, 162, 72, 0.5);
+  border-radius: var(--radius-small);
+  color: #fff4dc;
+  background: linear-gradient(135deg, rgba(153, 91, 23, 0.92), rgba(91, 48, 15, 0.96));
+  box-shadow: 0 10px 28px rgba(122, 70, 20, 0.22);
+  cursor: pointer;
+  font-weight: bold;
+  transition: transform var(--transition), filter var(--transition), border-color var(--transition);
+}
+.night-secondary-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  filter: brightness(1.08);
+  border-color: rgba(240, 181, 93, 0.78);
+}
+.night-secondary-button:active:not(:disabled) {
+  transform: scale(0.985);
+}
