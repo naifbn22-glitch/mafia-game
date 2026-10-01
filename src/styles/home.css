@@ -6064,7 +6064,7 @@
    ========================================================= */
 .home-page {
   background:
-    linear-gradient(rgba(3, 3, 5, .58), rgba(3, 3, 5, .76)),
+    linear-gradient(rgba(2, 2, 4, .72), rgba(2, 2, 4, .86)),
     url("/mafia-bg-1.jpg") center center / cover fixed no-repeat !important;
   animation: none !important;
 }
@@ -6078,13 +6078,13 @@
 .day-page,
 .voting-page {
   background:
-    linear-gradient(rgba(3, 3, 5, .64), rgba(3, 3, 5, .82)),
+    linear-gradient(rgba(2, 2, 4, .74), rgba(2, 2, 4, .88)),
     url("/mafia-bg-3.jpg") center center / cover fixed no-repeat !important;
 }
 
 .game-over-page {
   background:
-    linear-gradient(rgba(3, 3, 5, .58), rgba(3, 3, 5, .78)),
+    linear-gradient(rgba(2, 2, 4, .72), rgba(2, 2, 4, .86)),
     url("/mafia-bg-2.jpg") center center / cover fixed no-repeat !important;
 }
 
