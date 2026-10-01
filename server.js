@@ -98,9 +98,36 @@ app.use("/api", rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
 }));
-app.use(express.static(path.join(__dirname, "dist"), { maxAge: "1h", etag: true }));
+// CDN/browser caching policy:
+// - Vite fingerprinted assets can be cached for a year because their filename changes with content.
+// - Public images/audio/fonts use a shorter cache plus stale-while-revalidate.
+// - HTML is always revalidated so deployments are visible quickly.
+// Live API/Socket.IO game state is intentionally never cached here.
+app.use(express.static(path.join(__dirname, "dist"), {
+  etag: true,
+  lastModified: true,
+  maxAge: 0,
+  setHeaders(res, filePath) {
+    const normalized = filePath.replace(/\\/g, "/");
+
+    if (/\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|ttf|otf)$/i.test(normalized)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return;
+    }
+
+    if (/\.(?:png|jpe?g|webp|gif|svg|ico|mp3|m4a|wav|ogg|woff2?|ttf|otf)$/i.test(normalized)) {
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return;
+    }
+
+    if (/\.html$/i.test(normalized)) {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  },
+}));
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
+  res.set("Cache-Control", "no-cache");
   return res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
