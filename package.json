@@ -13,7 +13,8 @@
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
     "cap:add:ios": "npx cap add ios",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
-    "cap:add:android": "npx cap add android"
+    "cap:add:android": "npx cap add android",
+    "test:security": "node tests/security-adversarial-test.js"
   },
   "devDependencies": {
     "vite": "^8.1.1",
