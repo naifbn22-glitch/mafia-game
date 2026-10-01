@@ -244,6 +244,7 @@ function getRolesDistribution(playerCount) {
 
 function renderHomePage() {
   const savedOnlineGame = getSavedOnlineGame();
+  if (location.pathname === "/privacy") history.replaceState({}, "", "/");
   app.innerHTML = `
     <main class="home-page">
       <div
@@ -835,6 +836,7 @@ function renderHomePage() {
 
 function renderPrivacyPolicyPage() {
   setCurrentScreen("privacy-policy");
+  history.pushState({ page: "privacy" }, "", "/privacy");
 
   app.innerHTML = `
     <main class="privacy-page">
@@ -941,7 +943,10 @@ function renderPrivacyPolicyPage() {
     </main>
   `;
 
-  document.querySelector("#privacyBackButton")?.addEventListener("click", renderHomePage);
+  document.querySelector("#privacyBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    renderHomePage();
+  });
 }
 
 
