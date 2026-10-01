@@ -7886,7 +7886,11 @@ function setCurrentScreen(
 
   gameState.currentPhase =
     screenName;
-scrollPageToTop();
+
+  // الموسيقى تعمل فقط قبل بدء كشف الأدوار، وتتوقف فور دخول مراحل اللعبة.
+  syncOfflineAudioPhase(screenName);
+
+  scrollPageToTop();
   saveGame();
 
 }
