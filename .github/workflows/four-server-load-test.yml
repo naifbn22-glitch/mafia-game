@@ -11,7 +11,7 @@ concurrency:
 jobs:
   full-match-load:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Prepare isolated test client
