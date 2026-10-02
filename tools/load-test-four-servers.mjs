@@ -1,5 +1,7 @@
 import {io} from 'socket.io-client';
 import {writeFile} from 'node:fs/promises';
+import {monitorEventLoopDelay} from 'node:perf_hooks';
+const loopDelay=monitorEventLoopDelay({resolution:20});loopDelay.enable();
 const servers={A:'https://mafiagameplay.com',B:'https://mafia-game-production-5ac2.up.railway.app',C:'https://mafia-game-c-production.up.railway.app',D:'https://mafia-game-d-production.up.railway.app'};
 const agent=undefined;
 const sockets=new Set(), rooms=[], results=[];
@@ -75,15 +77,17 @@ async function save(){await writeFile('full-four-results.json',JSON.stringify(sn
 async function cleanup(){stopping=true;for(const s of sockets)s.disconnect();await save()}
 process.on('SIGTERM',()=>cleanup().then(()=>process.exit()));process.on('SIGINT',()=>cleanup().then(()=>process.exit()));
 try{
- for(const count of [10,20,30,35]){
-  stage=count;samples=[];failures=[];broadcasts=0;disconnected=0;const begin=Date.now();
-  for(let offset=0;offset<count;offset+=1){const jobs=[];for(const server of Object.keys(servers)){const have=rooms.filter(r=>r.server===server).length;for(let index=Math.max(have,offset);index<Math.min(offset+1,count);index++)jobs.push(()=>create(server,index))}await Promise.all(jobs.map(fn=>safe(fn)));if(failures.length)break;console.log('RAMP '+rooms.length+' rooms '+[...sockets].filter(s=>s.connected).length+' connections')}
+ for(const count of [40,50,60,75]){
+  stage=count;samples=[];failures=[];broadcasts=0;disconnected=0;const begin=Date.now();loopDelay.reset();const cpuBegin=process.cpuUsage();
+  for(let offset=0;offset<count;offset+=1){const jobs=[];for(const server of Object.keys(servers)){const have=rooms.filter(r=>r.server===server).length;for(let index=Math.max(have,offset);index<Math.min(offset+1,count);index++)jobs.push(()=>create(server,index))}await Promise.all(jobs.map(fn=>safe(fn)));if(failures.length)break;if(jobs.length)console.log('RAMP '+rooms.length+' rooms '+[...sockets].filter(s=>s.connected).length+' connections')}
   for(const r of rooms){if(r.state.winner){await host(r,'rematch');r.state=(await host(r,'start-game')).room;await Promise.all(r.players.map(p=>player(r,p,'role-known')))}r.history=[];r.expected=((r.index+Object.keys(servers).indexOf(r.server)+results.length)%2===0)?'citizens':'thieves';r.endRound=r.expected==='citizens'?[4,5,6][r.index%3]:[7,8][r.index%2]}
   let complete=failures.length===0;
   for(let cycle=1;cycle<=8&&!failures.length;cycle++){console.log('ROUND '+cycle+' stage '+stage);await Promise.all(rooms.filter(r=>!r.state.winner).map(r=>safe(()=>round(r))));await save();if(failures.length||disconnected){complete=false;break}}
   const byServer={};for(const server of Object.keys(servers)){const ms=samples.filter(x=>x.server===server).map(x=>x.ms);byServer[server]={rooms:rooms.filter(r=>r.server===server).length,connections:[...sockets].filter(s=>s.connected&&s.testServer===server).length,commands:ms.length,p50:Math.round(percentile(ms,.5)),p95:Math.round(percentile(ms,.95)),p99:Math.round(percentile(ms,.99)),max:Math.round(Math.max(0,...ms)),finished:rooms.filter(r=>r.server===server&&r.state.winner).length}}
-  const ms=samples.map(x=>x.ms);const row={rooms:rooms.length,connections:[...sockets].filter(s=>s.connected).length,durationSeconds:(Date.now()-begin)/1000,commands:ms.length,p95:Math.round(percentile(ms,.95)),errors:failures.length,errorExamples:[...new Set(failures)],disconnected,snapshots:broadcasts,complete,byServer};results.push(row);
+  const eventStats={};for(const event of [...new Set(samples.map(x=>x.event))]){const values=samples.filter(x=>x.event===event).map(x=>x.ms);eventStats[event]={count:values.length,p95:Math.round(percentile(values,.95)),p99:Math.round(percentile(values,.99)),max:Math.round(Math.max(0,...values))};}
+  const used=process.cpuUsage(cpuBegin);const generator={rssMB:Math.round(process.memoryUsage().rss/1048576),averageCpuCores:Math.round((used.user+used.system)/(Date.now()-begin)/1000*100)/100,eventLoopP95ms:Math.round(loopDelay.percentile(95)/1e6),eventLoopP99ms:Math.round(loopDelay.percentile(99)/1e6),eventLoopMaxMs:Math.round(loopDelay.max/1e6)};
+  const ms=samples.map(x=>x.ms);const row={rooms:rooms.length,connections:[...sockets].filter(s=>s.connected).length,durationSeconds:(Date.now()-begin)/1000,commands:ms.length,p95:Math.round(percentile(ms,.95)),errors:failures.length,errorExamples:[...new Set(failures)],disconnected,snapshots:broadcasts,complete,byServer,eventStats,generator};results.push(row);
   stageMatches.push({stage,matches:rooms.map(r=>({server:r.server,index:r.index,code:r.code,winner:r.state.winner,endRound:r.state.roundNumber,expected:r.expected,history:r.history}))});console.log('STAGE_RESULT '+JSON.stringify(row));await save();
   if(failures.length||disconnected||Object.values(byServer).some(s=>s.p95>1500)){console.log('STOP_THRESHOLD');break}
  }
-}finally{await cleanup();console.log('DISCONNECTED_ALL_TEST_CLIENTS');console.log('FINAL_SUMMARY '+JSON.stringify({started,results,roomsCreated:rooms.length}))}
+}finally{await cleanup();loopDelay.disable();console.log('DISCONNECTED_ALL_TEST_CLIENTS');console.log('FINAL_SUMMARY '+JSON.stringify({started,results,roomsCreated:rooms.length}))}
