@@ -1,0 +1,48 @@
+name: Four server full match load test
+on:
+  push:
+    branches: [load-test-four-servers-20261003]
+    paths: ['.github/workflows/four-server-load-test.yml']
+permissions:
+  contents: read
+concurrency:
+  group: four-server-live-load-test
+  cancel-in-progress: false
+jobs:
+  full-match-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated test client
+        run: |
+          mkdir -p /tmp/mafia-load
+          cp tools/load-test-four-servers.mjs /tmp/mafia-load/load.mjs
+          cd /tmp/mafia-load
+          npm init -y
+          npm install --no-audit --no-fund socket.io-client@4.8.1
+      - name: Wait for previous test clients to finish
+        run: |
+          node --input-type=module <<'JS'
+          const urls=['https://mafiagameplay.com','https://mafia-game-production-5ac2.up.railway.app','https://mafia-game-c-production.up.railway.app','https://mafia-game-d-production.up.railway.app'];
+          let quiet=0,ready=false;
+          for(let i=0;i<60;i++){
+            const h=await Promise.all(urls.map(async u=>(await fetch(u+'/api/health',{signal:AbortSignal.timeout(15000)})).json()));
+            const live=h.reduce((n,s)=>n+s.liveRooms,0);
+            console.log('Waiting for test isolation. Active rooms:',live);
+            quiet=live===0?quiet+1:0;
+            if(quiet>=3){ready=true;break}
+            await new Promise(r=>setTimeout(r,10000));
+          }
+          if(!ready)throw Error('Existing active rooms prevented isolated load test');
+          JS
+      - name: Play full games on A B C D and raise load
+        working-directory: /tmp/mafia-load
+        run: node load.mjs
+      - name: Save detailed measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: four-server-full-match-results
+          path: /tmp/mafia-load/full-four-results.json
+          retention-days: 14
