@@ -32,17 +32,62 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     io.adapter(createAdapter(pubClient, subClient));
   }
 
-  async function emitRoom(room) {
+  // Keep the existing private projections and event names. Collapse bursts of
+  // mutations into the newest complete state, rather than sending 11 complete
+  // projections for every vote/role acknowledgement arriving together.
+  const pendingSnapshots = new Map();
+  const recentSnapshots = new Map();
+  const SNAPSHOT_BATCH_MS = 20;
+
+  function broadcastRoom(room) {
+    const recent = recentSnapshots.get(room.code);
+    if (recent && recent.version >= Number(room.version || 0)) return;
+    if (recent) clearTimeout(recent.timer);
+    const entry = { version: Number(room.version || 0), timer: null };
+    entry.timer = setTimeout(() => {
+      if (recentSnapshots.get(room.code) === entry) recentSnapshots.delete(room.code);
+    }, 5000);
+    entry.timer.unref?.();
+    recentSnapshots.set(room.code, entry);
     io.to(`room:${room.code}:public`).emit("room:snapshot", publicProjection(room));
     io.to(`room:${room.code}:host`).emit("room:snapshot", hostProjection(room));
     for (const player of room.players) io.to(`room:${room.code}:player:${player.id}`).emit("room:snapshot", playerProjection(room, player));
   }
 
+  function emitRoom(room, { immediate = false } = {}) {
+    const pending = pendingSnapshots.get(room.code);
+    const latest = pending && Number(pending.room.version || 0) > Number(room.version || 0)
+      ? pending.room : room;
+    if (immediate) {
+      if (pending) clearTimeout(pending.timer);
+      pendingSnapshots.delete(room.code);
+      broadcastRoom(latest);
+      return;
+    }
+    if (pending) {
+      pending.room = latest;
+      return;
+    }
+    const entry = { room: latest, timer: null };
+    entry.timer = setTimeout(() => {
+      pendingSnapshots.delete(room.code);
+      broadcastRoom(entry.room);
+    }, SNAPSHOT_BATCH_MS);
+    pendingSnapshots.set(room.code, entry);
+  }
+
+  io.engine.on("close", () => {
+    for (const entry of pendingSnapshots.values()) clearTimeout(entry.timer);
+    for (const entry of recentSnapshots.values()) clearTimeout(entry.timer);
+    pendingSnapshots.clear();
+    recentSnapshots.clear();
+  });
+
   // حدث صغير وعام لتغيير المرحلة فقط. لا يحمل أي بيانات سرية.
   // الهدف منه إجبار كل جهاز داخل الغرفة على جلب إسقاطه الصحيح فورًا،
   // حتى لو تأخر أو ضاع room:snapshot بسبب إعادة اتصال WebSocket.
   function emitPhaseChanged(room) {
-    io.emit("room:phase-changed", {
+    io.to(`room:${room.code}`).emit("room:phase-changed", {
       code: room.code,
       phase: room.phase,
       version: room.version || 0,
@@ -278,7 +323,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
           return current;
         });
 
-        await emitRoom(room);
+        // Phase transitions remain immediate; only rapid player-state updates
+        // are batched. Voting/day reliability notifications are unchanged.
+        emitRoom(room, { immediate: true });
         if (["start-game", "eyes-closed", "wake-role", "finish-night", "start-voting", "next-night", "rematch"].includes(action)) {
           emitPhaseChanged(room);
         }
@@ -335,3 +382,4 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
   return io;
 }
+
