@@ -11,11 +11,18 @@ const safeError = error => ({ ok: false, error: error?.message || "SERVER_ERROR"
 
 export async function createSocketServer(httpServer, store, { allowedOrigins = ["*"] } = {}) {
   const io = new Server(httpServer, {
+    serveClient: false,
+    perMessageDeflate: false,
+    allowRequest: (req, callback) => {
+      const origin = String(req.headers.origin || "");
+      const allowed = allowedOrigins.includes("*") || !origin || allowedOrigins.includes(origin);
+      callback(allowed ? null : new Error("ORIGIN_NOT_ALLOWED"), allowed);
+    },
     cors: { origin: allowedOrigins.includes("*") ? true : allowedOrigins, methods: ["GET", "POST"] },
     transports: ["websocket", "polling"],
     pingInterval: 10000,
     pingTimeout: 20000,
-    maxHttpBufferSize: 1e6,
+    maxHttpBufferSize: 64 * 1024,
   });
 
   if (process.env.REDIS_URL) {
@@ -25,17 +32,62 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
     io.adapter(createAdapter(pubClient, subClient));
   }
 
-  async function emitRoom(room) {
+  // Keep the existing private projections and event names. Collapse bursts of
+  // mutations into the newest complete state, rather than sending 11 complete
+  // projections for every vote/role acknowledgement arriving together.
+  const pendingSnapshots = new Map();
+  const recentSnapshots = new Map();
+  const SNAPSHOT_BATCH_MS = 20;
+
+  function broadcastRoom(room) {
+    const recent = recentSnapshots.get(room.code);
+    if (recent && recent.version >= Number(room.version || 0)) return;
+    if (recent) clearTimeout(recent.timer);
+    const entry = { version: Number(room.version || 0), timer: null };
+    entry.timer = setTimeout(() => {
+      if (recentSnapshots.get(room.code) === entry) recentSnapshots.delete(room.code);
+    }, 5000);
+    entry.timer.unref?.();
+    recentSnapshots.set(room.code, entry);
     io.to(`room:${room.code}:public`).emit("room:snapshot", publicProjection(room));
     io.to(`room:${room.code}:host`).emit("room:snapshot", hostProjection(room));
     for (const player of room.players) io.to(`room:${room.code}:player:${player.id}`).emit("room:snapshot", playerProjection(room, player));
   }
 
+  function emitRoom(room, { immediate = false } = {}) {
+    const pending = pendingSnapshots.get(room.code);
+    const latest = pending && Number(pending.room.version || 0) > Number(room.version || 0)
+      ? pending.room : room;
+    if (immediate) {
+      if (pending) clearTimeout(pending.timer);
+      pendingSnapshots.delete(room.code);
+      broadcastRoom(latest);
+      return;
+    }
+    if (pending) {
+      pending.room = latest;
+      return;
+    }
+    const entry = { room: latest, timer: null };
+    entry.timer = setTimeout(() => {
+      pendingSnapshots.delete(room.code);
+      broadcastRoom(entry.room);
+    }, SNAPSHOT_BATCH_MS);
+    pendingSnapshots.set(room.code, entry);
+  }
+
+  io.engine.on("close", () => {
+    for (const entry of pendingSnapshots.values()) clearTimeout(entry.timer);
+    for (const entry of recentSnapshots.values()) clearTimeout(entry.timer);
+    pendingSnapshots.clear();
+    recentSnapshots.clear();
+  });
+
   // حدث صغير وعام لتغيير المرحلة فقط. لا يحمل أي بيانات سرية.
   // الهدف منه إجبار كل جهاز داخل الغرفة على جلب إسقاطه الصحيح فورًا،
   // حتى لو تأخر أو ضاع room:snapshot بسبب إعادة اتصال WebSocket.
   function emitPhaseChanged(room) {
-    io.emit("room:phase-changed", {
+    io.to(`room:${room.code}`).emit("room:phase-changed", {
       code: room.code,
       phase: room.phase,
       version: room.version || 0,
@@ -103,10 +155,27 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
   }
 
   io.on("connection", socket => {
-    socket.emit("server:ready", { now: Date.now() });
+    const commandWindow = new Map();
+    const enforceCommandRate = (bucket, limit, windowMs) => {
+      const now = Date.now();
+      const previous = commandWindow.get(bucket) || { startedAt: now, count: 0 };
+      if (now - previous.startedAt >= windowMs) {
+        previous.startedAt = now;
+        previous.count = 0;
+      }
+      previous.count += 1;
+      commandWindow.set(bucket, previous);
+      if (previous.count > limit) throw new Error("RATE_LIMITED");
+    };
+
+    socket.emit("server:ready", {
+      now: Date.now(),
+      serverId: String(process.env.SERVER_ID || "R").trim().toUpperCase(),
+    });
 
     socket.on("room:create", async (payload, ack = () => {}) => {
       try {
+        enforceCommandRate("room:create", 5, 60_000);
         let room = null;
         for (let attempt = 0; attempt < 20 && !room; attempt += 1) {
           const candidate = createRoom(payload || {});
@@ -124,6 +193,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:lookup", async ({ code }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:lookup", 60, 60_000);
         const room = await store.get(normalizeRoomCode(code));
         ack(room ? { ok: true, room: publicProjection(room) } : { ok: false, error: "ROOM_NOT_FOUND" });
       } catch (error) { ack(safeError(error)); }
@@ -131,6 +201,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:sync", async ({ code, mode = "public", playerId, token }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:sync", 120, 60_000);
         const normalized = normalizeRoomCode(code);
         const room = await store.get(normalized);
         if (!room) throw new Error("ROOM_NOT_FOUND");
@@ -155,6 +226,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("room:subscribe", async ({ code, mode = "public", playerId, token }, ack = () => {}) => {
       try {
+        enforceCommandRate("room:subscribe", 60, 60_000);
         const normalized = normalizeRoomCode(code);
 
         if (mode === "host") {
@@ -207,6 +279,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("player:join", async ({ code, name, gender, avatar }, ack = () => {}) => {
       try {
+        enforceCommandRate("player:join", 12, 60_000);
         const normalized = normalizeRoomCode(code);
         const result = await store.withRoomLock(normalized, async () => {
           const room = await store.get(normalized);
@@ -226,6 +299,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("host:command", async ({ code, token, action, payload = {} }, ack = () => {}) => {
       try {
+        enforceCommandRate("host:command", 90, 60_000);
+        const normalizedForAuth = normalizeRoomCode(code);
+        if (!socket.rooms.has(`room:${normalizedForAuth}:host`)) throw new Error("HOST_SUBSCRIPTION_REQUIRED");
         const normalized = normalizeRoomCode(code);
         const room = await store.withRoomLock(normalized, async () => {
           const current = await store.get(normalized);
@@ -247,7 +323,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
           return current;
         });
 
-        await emitRoom(room);
+        // Phase transitions remain immediate; only rapid player-state updates
+        // are batched. Voting/day reliability notifications are unchanged.
+        emitRoom(room, { immediate: true });
         if (["start-game", "eyes-closed", "wake-role", "finish-night", "start-voting", "next-night", "rematch"].includes(action)) {
           emitPhaseChanged(room);
         }
@@ -270,6 +348,9 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
     socket.on("player:command", async ({ code, playerId, token, action, payload = {} }, ack = () => {}) => {
       try {
+        enforceCommandRate("player:command", 90, 60_000);
+        const normalizedForAuth = normalizeRoomCode(code);
+        if (!socket.rooms.has(`room:${normalizedForAuth}:player:${playerId}`)) throw new Error("PLAYER_SUBSCRIPTION_REQUIRED");
         const normalized = normalizeRoomCode(code);
         const result = await store.withRoomLock(normalized, async () => {
           const room = await store.get(normalized);
@@ -301,3 +382,4 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
 
   return io;
 }
+

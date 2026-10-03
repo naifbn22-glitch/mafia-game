@@ -7,6 +7,12 @@
   text-align: center;
 }
 .online-role-reveal-wrap .role-card-details h2 { margin: 4px 0 8px; font-size: 30px; }
+.online-role-reveal-wrap .role-card-back-logo {
+  width: 30%;
+  max-width: 96px;
+  height: auto;
+  object-fit: contain;
+}
 .online-role-reveal-wrap .role-card-details p { color: rgba(255,255,255,.7); }
 .night-target { position: relative; cursor: pointer; }
 .night-target.selected {
@@ -385,32 +391,7 @@
 }
 
 .role-reveal-emblem-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background:
-    conic-gradient(
-      from 210deg,
-      #7d4cff,
-      #a753ff 26%,
-      rgba(255, 255, 255, 0.08) 46%,
-      #00d68f 72%,
-      #42e0a7 88%,
-      #7d4cff
-    );
-  box-shadow:
-    0 0 28px rgba(125, 76, 255, 0.45),
-    0 0 42px rgba(0, 214, 143, 0.25);
-  animation: roleRevealRing 8s linear infinite;
-}
-
-.role-reveal-emblem-ring::after {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border-radius: inherit;
-  background: #0a0c16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: none;
 }
 
 .role-reveal-emblem img {
@@ -419,9 +400,7 @@
   width: 150px;
   height: 150px;
   object-fit: contain;
-  filter:
-    drop-shadow(0 0 18px rgba(125, 76, 255, 0.45))
-    drop-shadow(0 0 15px rgba(0, 214, 143, 0.22));
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.38));
 }
 
 .role-reveal-title-wrap {
@@ -1356,4 +1335,369 @@
   .eliminated-live-box {
     padding: 18px;
   }
+}
+
+/* =========================================================
+   Online request waiting overlay
+   Shows clear progress feedback and blocks duplicate clicks
+   while a user-triggered server request is still in flight.
+   ========================================================= */
+.online-wait-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(124, 58, 237, .18), transparent 42%),
+    rgba(2, 5, 14, .78);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .18s ease, visibility .18s ease;
+}
+
+.online-wait-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.online-wait-card {
+  width: min(360px, 92vw);
+  padding: 30px 24px 26px;
+  border-radius: 28px;
+  text-align: center;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(16, 20, 38, .98), rgba(7, 10, 24, .98));
+  border: 1px solid rgba(139, 92, 246, .55);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, .48),
+    0 0 36px rgba(124, 58, 237, .16);
+}
+
+.online-wait-card strong {
+  display: block;
+  margin-top: 18px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.online-wait-card p {
+  margin: 8px 0 7px;
+  color: rgba(255, 255, 255, .9);
+  line-height: 1.7;
+}
+
+.online-wait-card small {
+  display: block;
+  color: rgba(255, 255, 255, .58);
+  line-height: 1.65;
+}
+
+.online-wait-spinner {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.online-wait-spinner span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid transparent;
+}
+
+.online-wait-spinner span:first-child {
+  border-top-color: #8b5cf6;
+  border-right-color: #8b5cf6;
+  box-shadow: 0 0 20px rgba(139, 92, 246, .28);
+  animation: online-wait-spin .9s linear infinite;
+}
+
+.online-wait-spinner span:last-child {
+  inset: 11px;
+  border-bottom-color: #38f6d0;
+  border-left-color: #38f6d0;
+  box-shadow: 0 0 18px rgba(56, 246, 208, .2);
+  animation: online-wait-spin-reverse .75s linear infinite;
+}
+
+body.online-action-busy {
+  cursor: progress;
+}
+
+body.online-action-busy .online-page {
+  user-select: none;
+}
+
+@keyframes online-wait-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes online-wait-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online-wait-spinner span {
+    animation-duration: 1.8s;
+  }
+}
+
+
+/* =========================================================
+   Mafia icon palette - online UI
+   ========================================================= */
+.online-page {
+  background:
+    radial-gradient(circle at 82% 8%, rgba(201, 47, 54, .2), transparent 36%),
+    radial-gradient(circle at 8% 92%, rgba(224, 162, 72, .11), transparent 34%),
+    radial-gradient(circle at 50% 45%, rgba(85, 215, 255, .045), transparent 40%),
+    #070608;
+}
+
+.online-kicker {
+  color: #f3b85d;
+}
+
+.online-logo {
+  background: transparent;
+  filter:
+    drop-shadow(0 0 14px rgba(201, 47, 54, .2))
+    drop-shadow(0 0 8px rgba(224, 162, 72, .12));
+}
+
+.online-action-card,
+.online-form-card,
+.room-preview-card,
+.host-room-hero,
+.invite-panel,
+.players-panel,
+.host-controls,
+.live-hero,
+.live-stats,
+.live-player-section {
+  background: rgba(18, 11, 14, .82);
+  border-color: rgba(255, 200, 116, .12);
+}
+
+.online-action-icon {
+  background:
+    linear-gradient(135deg, rgba(201, 47, 54, .28), rgba(224, 162, 72, .16));
+  box-shadow: inset 0 1px 0 rgba(255, 235, 203, .06);
+}
+
+.online-primary-button {
+  background: linear-gradient(135deg, #c92f36, #781820);
+  box-shadow: 0 12px 32px rgba(201, 47, 54, .28);
+}
+
+.online-primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e14047, #92212a);
+  box-shadow: 0 14px 38px rgba(201, 47, 54, .38);
+}
+
+.online-form input:focus,
+.online-form select:focus {
+  border-color: rgba(224, 162, 72, .58);
+  box-shadow: 0 0 0 3px rgba(224, 162, 72, .08);
+}
+
+.gender-options input:checked + span {
+  border-color: #c92f36;
+  background: rgba(201, 47, 54, .16);
+}
+
+.online-avatar-option.selected {
+  border-color: #e0a248;
+  box-shadow: 0 0 0 2px rgba(224, 162, 72, .1);
+}
+
+.live-dot,
+.live-status i,
+.connection-dot {
+  background: #f0b55d;
+  box-shadow: 0 0 14px rgba(240, 181, 93, .8);
+}
+
+.waiting-pulse b {
+  background: #d53840;
+}
+
+.waiting-pulse b:nth-child(2) {
+  background: #e0a248;
+}
+
+.waiting-pulse b:nth-child(3) {
+  background: #55d7ff;
+}
+
+.night-action-button {
+  background: linear-gradient(135deg, #391116, #17131d);
+  border: 1px solid rgba(201, 47, 54, .24);
+}
+
+.night-target.selected {
+  border-color: #e0a248;
+  box-shadow:
+    0 0 0 2px rgba(224, 162, 72, .2),
+    0 14px 35px rgba(0,0,0,.35);
+}
+
+.night-target.selected b {
+  color: #ffd27a;
+}
+
+.online-wait-overlay {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(201, 47, 54, .2), transparent 42%),
+    rgba(3, 3, 6, .8);
+}
+
+.online-wait-card {
+  border-color: rgba(224, 162, 72, .34);
+  background: linear-gradient(145deg, rgba(25, 11, 14, .98), rgba(8, 8, 11, .98));
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, .5),
+    0 0 38px rgba(201, 47, 54, .14);
+}
+
+.online-wait-spinner span:first-child {
+  border-top-color: #d83b43;
+  border-right-color: #d83b43;
+  box-shadow: 0 0 20px rgba(216, 59, 67, .3);
+}
+
+.online-wait-spinner span:last-child {
+  border-bottom-color: #f0b55d;
+  border-left-color: #55d7ff;
+  box-shadow: 0 0 18px rgba(224, 162, 72, .2);
+}
+
+
+/* Animated noir atmosphere - online */
+.online-page {
+  isolation: isolate;
+  background-size: 155% 155%, 160% 160%, 170% 170%, 100% 100%;
+  animation: onlineMafiaMood 20s ease-in-out infinite alternate;
+}
+
+.online-atmosphere::before,
+.online-atmosphere::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.online-atmosphere::before {
+  inset: -24%;
+  opacity: .28;
+  background:
+    radial-gradient(circle at 20% 32%, rgba(210, 42, 51, .2), transparent 22%),
+    radial-gradient(circle at 82% 28%, rgba(82, 205, 255, .1), transparent 20%),
+    radial-gradient(circle at 58% 78%, rgba(230, 163, 69, .12), transparent 24%);
+  filter: blur(34px);
+  animation: onlineMafiaLights 17s ease-in-out infinite alternate;
+}
+
+.online-atmosphere::after {
+  left: -15%;
+  right: -15%;
+  bottom: -2px;
+  height: 27vh;
+  opacity: .28;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(3, 3, 5, .94) 0 42px,
+      rgba(14, 8, 10, .95) 42px 70px,
+      rgba(4, 4, 6, .96) 70px 118px
+    );
+  clip-path: polygon(
+    0 58%, 5% 58%, 5% 25%, 10% 25%, 10% 67%,
+    16% 67%, 16% 38%, 21% 38%, 21% 72%,
+    28% 72%, 28% 18%, 34% 18%, 34% 60%,
+    41% 60%, 41% 34%, 48% 34%, 48% 69%,
+    55% 69%, 55% 23%, 62% 23%, 62% 57%,
+    69% 57%, 69% 40%, 76% 40%, 76% 73%,
+    83% 73%, 83% 28%, 90% 28%, 90% 61%,
+    96% 61%, 96% 45%, 100% 45%, 100% 100%, 0 100%
+  );
+  filter: drop-shadow(0 -16px 26px rgba(201, 47, 54, .05));
+}
+
+@keyframes onlineMafiaMood {
+  from {
+    background-position: 0% 0%, 100% 100%, 50% 40%, 0 0;
+  }
+  to {
+    background-position: 15% 12%, 82% 86%, 56% 30%, 0 0;
+  }
+}
+
+@keyframes onlineMafiaLights {
+  from {
+    transform: translate3d(-5%, -2%, 0) scale(1);
+    opacity: .22;
+  }
+  to {
+    transform: translate3d(7%, 4%, 0) scale(1.08);
+    opacity: .36;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online-page,
+  .online-atmosphere::before {
+    animation: none !important;
+  }
+}
+
+
+/* Permanent background for every online-game screen. */
+.online-page {
+  background:
+    linear-gradient(rgba(2, 2, 4, .74), rgba(2, 2, 4, .88)),
+    url("/mafia-bg-4.jpg") center center / cover fixed no-repeat !important;
+  animation: none !important;
+}
+.online-atmosphere {
+  opacity: .22;
+}
+@media (max-width: 900px) {
+  .online-page {
+    background-attachment: scroll !important;
+  }
+}
+
+
+/* هوية المتسابق بالصور في نتائج ومراحل اللعب عبر الشبكة */
+.online-player-identity,
+.online-voting-result-player {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.online-player-identity img,
+.online-voting-result-player img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 10px 26px rgba(0,0,0,.28);
+}
+.online-voting-result-player {
+  margin: 14px auto 2px;
+}
+.online-voting-result-player strong {
+  font-size: 18px;
+  color: #fff;
 }

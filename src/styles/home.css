@@ -5789,3 +5789,493 @@
 
   text-align: center;
 }
+
+
+/* Transparent app-logo cleanup */
+.brand-logo-image,
+.setup-brand img,
+.logo-circle-image,
+.logo-circle-image img,
+.ready-logo,
+.night-logo,
+.voting-result-logo,
+.game-over-logo {
+  background: transparent !important;
+}
+
+.logo-circle.logo-circle-image {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none;
+}
+
+.logo-circle-image img,
+.brand-logo-image,
+.setup-brand img {
+  object-fit: contain;
+}
+
+
+/* =========================================================
+   Mafia app-icon visual identity
+   Crimson / ember gold / cool blue highlights on black.
+   ========================================================= */
+.home-page {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(201, 47, 54, .22), transparent 35%),
+    radial-gradient(circle at 84% 76%, rgba(224, 162, 72, .14), transparent 36%),
+    radial-gradient(circle at 52% 28%, rgba(85, 215, 255, .07), transparent 32%),
+    linear-gradient(180deg, #0a0708 0%, #0b0809 50%, #040405 100%);
+}
+
+.home-page .hero-card {
+  border-color: rgba(224, 162, 72, .18);
+  background:
+    linear-gradient(145deg, rgba(18, 10, 12, .88), rgba(8, 8, 11, .84));
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, .52),
+    0 0 46px rgba(201, 47, 54, .08),
+    inset 0 1px 0 rgba(255, 214, 141, .035);
+}
+
+.home-page .brand h1 {
+  color: #fff6e8;
+  text-shadow: 0 0 22px rgba(201, 47, 54, .2);
+}
+
+.home-page .eyebrow {
+  color: var(--mafia-gold-light);
+}
+
+.mafia-glow-purple {
+  background:
+    radial-gradient(
+      circle,
+      rgba(214, 48, 57, .88) 0%,
+      rgba(156, 27, 35, .42) 38%,
+      rgba(86, 16, 22, .12) 66%,
+      transparent 76%
+    );
+}
+
+.mafia-glow-green {
+  background:
+    radial-gradient(
+      circle,
+      rgba(237, 171, 72, .72) 0%,
+      rgba(172, 102, 30, .32) 40%,
+      rgba(83, 47, 12, .08) 67%,
+      transparent 77%
+    );
+}
+
+.mafia-glow-center {
+  background:
+    radial-gradient(
+      circle,
+      rgba(85, 215, 255, .34),
+      rgba(42, 108, 132, .1) 52%,
+      transparent 72%
+    );
+}
+
+.mafia-light-ray-left {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 92, 95, .54) 0%,
+      rgba(177, 39, 45, .14) 42%,
+      transparent 82%
+    );
+}
+
+.mafia-light-ray-right {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 201, 101, .44) 0%,
+      rgba(169, 105, 31, .12) 42%,
+      transparent 82%
+    );
+}
+
+.mafia-building {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(29, 18, 20, .9),
+      rgba(5, 5, 7, .99)
+    );
+  border-top-color: rgba(255, 196, 107, .08);
+}
+
+.mafia-building::before {
+  opacity: .3;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 16px,
+      rgba(255, 176, 73, .34) 16px 18px,
+      transparent 18px 32px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 18px,
+      rgba(255, 94, 94, .16) 18px 20px,
+      transparent 20px 36px
+    );
+}
+
+.home-page .logo-circle-image::before {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgba(201, 47, 54, .04),
+      rgba(201, 47, 54, .9),
+      rgba(224, 162, 72, .78),
+      rgba(85, 215, 255, .52),
+      rgba(201, 47, 54, .04)
+    );
+}
+
+.home-page .logo-circle-image::after {
+  background:
+    radial-gradient(
+      circle,
+      rgba(201, 47, 54, .3),
+      rgba(224, 162, 72, .08) 46%,
+      rgba(85, 215, 255, .035) 58%,
+      transparent 74%
+    );
+}
+
+.home-page .logo-circle-image img {
+  filter:
+    drop-shadow(0 15px 28px rgba(0, 0, 0, .68))
+    drop-shadow(0 0 20px rgba(201, 47, 54, .22))
+    drop-shadow(0 0 10px rgba(224, 162, 72, .12));
+}
+
+
+/* =========================================================
+   Continuous Mafia atmosphere
+   The existing city, fog and particles now change mood slowly
+   without video or heavy assets.
+   ========================================================= */
+.home-page {
+  background-size: 150% 150%, 155% 155%, 165% 165%, 100% 100%;
+  animation: mafiaHomeMood 18s ease-in-out infinite alternate;
+}
+
+.mafia-cinematic-scene::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .46;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(224, 45, 55, .2), transparent 23%),
+    radial-gradient(circle at 78% 24%, rgba(85, 215, 255, .11), transparent 20%),
+    radial-gradient(circle at 62% 82%, rgba(235, 167, 70, .13), transparent 26%);
+  filter: blur(26px);
+  animation: mafiaAmbientPatrol 16s ease-in-out infinite alternate;
+}
+
+.mafia-cinematic-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: .18;
+  background:
+    linear-gradient(112deg, transparent 0 36%, rgba(255, 210, 140, .08) 44%, transparent 52%),
+    linear-gradient(72deg, transparent 0 58%, rgba(86, 205, 255, .055) 65%, transparent 72%);
+  transform: translateX(-18%);
+  animation: mafiaSearchLights 13s ease-in-out infinite alternate;
+}
+
+.mafia-building::before {
+  animation: mafiaWindowFlicker 7s steps(1, end) infinite;
+}
+
+@keyframes mafiaHomeMood {
+  0% {
+    background-position: 0% 0%, 100% 100%, 50% 20%, 0 0;
+  }
+  50% {
+    background-position: 12% 9%, 88% 91%, 46% 32%, 0 0;
+  }
+  100% {
+    background-position: 22% 14%, 76% 84%, 54% 42%, 0 0;
+  }
+}
+
+@keyframes mafiaAmbientPatrol {
+  0% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+    opacity: .38;
+  }
+  48% {
+    transform: translate3d(4%, 3%, 0) scale(1.06);
+    opacity: .54;
+  }
+  100% {
+    transform: translate3d(8%, -1%, 0) scale(1.03);
+    opacity: .43;
+  }
+}
+
+@keyframes mafiaSearchLights {
+  0% {
+    transform: translateX(-20%) skewX(-4deg);
+    opacity: .1;
+  }
+  52% {
+    transform: translateX(2%) skewX(2deg);
+    opacity: .24;
+  }
+  100% {
+    transform: translateX(18%) skewX(-2deg);
+    opacity: .14;
+  }
+}
+
+@keyframes mafiaWindowFlicker {
+  0%, 13%, 22%, 46%, 71%, 100% { opacity: .28; }
+  14%, 21%, 47%, 52% { opacity: .42; }
+  72%, 77% { opacity: .18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page,
+  .mafia-cinematic-scene::before,
+  .mafia-cinematic-scene::after,
+  .mafia-building::before {
+    animation: none !important;
+  }
+}
+
+
+/* =========================================================
+   Permanent page backgrounds - 2026-10-01
+   Home=1, offline flow=3, game over=2.
+   ========================================================= */
+.home-page {
+  background:
+    linear-gradient(rgba(2, 2, 4, .72), rgba(2, 2, 4, .86)),
+    url("/mafia-bg-1.jpg") center center / cover fixed no-repeat !important;
+  animation: none !important;
+}
+.home-page .mafia-cinematic-scene {
+  opacity: .18;
+}
+
+.setup-page,
+.role-page,
+.night-page,
+.day-page,
+.voting-page {
+  background:
+    linear-gradient(rgba(2, 2, 4, .74), rgba(2, 2, 4, .88)),
+    url("/mafia-bg-3.jpg") center center / cover fixed no-repeat !important;
+}
+
+.game-over-page {
+  background:
+    linear-gradient(rgba(2, 2, 4, .72), rgba(2, 2, 4, .86)),
+    url("/mafia-bg-2.jpg") center center / cover fixed no-repeat !important;
+}
+
+@media (max-width: 900px) {
+  .home-page,
+  .setup-page,
+  .role-page,
+  .night-page,
+  .day-page,
+  .voting-page,
+  .game-over-page {
+    background-attachment: scroll !important;
+  }
+}
+
+
+/* Player avatars stay attached to their names in all selection screens */
+.night-player-avatar,
+.vote-player-avatar {
+  overflow: hidden;
+}
+.night-player-avatar img,
+.vote-player-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* King's keep-medal action: same button geometry, distinct royal-gold treatment */
+.night-secondary-button {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 11px;
+  padding: 12px 20px;
+  border: 1px solid rgba(224, 162, 72, 0.5);
+  border-radius: var(--radius-small);
+  color: #fff4dc;
+  background: linear-gradient(135deg, rgba(153, 91, 23, 0.92), rgba(91, 48, 15, 0.96));
+  box-shadow: 0 10px 28px rgba(122, 70, 20, 0.22);
+  cursor: pointer;
+  font-weight: bold;
+  transition: transform var(--transition), filter var(--transition), border-color var(--transition);
+}
+.night-secondary-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  filter: brightness(1.08);
+  border-color: rgba(240, 181, 93, 0.78);
+}
+.night-secondary-button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+
+/* Privacy policy — public and in-app for App Store requirements */
+.home-footer {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.home-privacy-link {
+  border: 0;
+  padding: 5px 8px;
+  color: #e0a248;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.privacy-page {
+  min-height: 100vh;
+  padding: max(28px, env(safe-area-inset-top)) 18px max(38px, env(safe-area-inset-bottom));
+  background: #09080a;
+  color: #fff;
+}
+.privacy-card {
+  width: min(940px, 100%);
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 48px);
+  border: 1px solid rgba(224, 162, 72, .18);
+  border-radius: 28px;
+  background: rgba(18, 11, 14, .92);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, .42);
+}
+.privacy-back-button {
+  min-height: 44px;
+  padding: 9px 18px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 13px;
+  color: #fff;
+  background: rgba(255,255,255,.06);
+  cursor: pointer;
+}
+.privacy-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 26px 0 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+.privacy-header img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+}
+.privacy-header span {
+  color: #e0a248;
+  letter-spacing: 3px;
+  font-size: 12px;
+}
+.privacy-header h1 {
+  margin: 4px 0;
+  font-size: clamp(28px, 5vw, 44px);
+}
+.privacy-header p {
+  margin: 0;
+  color: rgba(255,255,255,.6);
+}
+.privacy-language {
+  margin-top: 30px;
+  line-height: 2;
+}
+.privacy-language + .privacy-language {
+  margin-top: 46px;
+  padding-top: 38px;
+  border-top: 1px solid rgba(224, 162, 72, .2);
+}
+.privacy-language h2 {
+  color: #f0b55d;
+  margin-bottom: 10px;
+}
+.privacy-language h3 {
+  margin: 27px 0 6px;
+  color: #fff1d8;
+}
+.privacy-language p {
+  margin: 0;
+  color: rgba(255,255,255,.76);
+}
+@media (max-width: 600px) {
+  .privacy-card { border-radius: 20px; }
+  .privacy-header { align-items: flex-start; }
+  .privacy-header img { width: 64px; height: 64px; }
+}
+
+
+/* Legal and support pages */
+.home-legal-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.home-privacy-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.privacy-language a {
+  color: #f0b55d;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.contact-actions {
+  margin-top: 18px;
+}
+.legal-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 1px solid rgba(224, 162, 72, .34);
+  border-radius: 14px;
+  color: #fff !important;
+  background: rgba(224, 162, 72, .12);
+  text-decoration: none !important;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+.legal-action-link:hover {
+  transform: translateY(-2px);
+  background: rgba(224, 162, 72, .18);
+  border-color: rgba(224, 162, 72, .5);
+}
+@media (max-width: 600px) {
+  .home-legal-links {
+    width: 100%;
+  }
+  .legal-action-link {
+    width: 100%;
+  }
+}
