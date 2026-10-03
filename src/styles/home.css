@@ -6230,3 +6230,52 @@
   .privacy-header { align-items: flex-start; }
   .privacy-header img { width: 64px; height: 64px; }
 }
+
+
+/* Legal and support pages */
+.home-legal-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.home-privacy-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.privacy-language a {
+  color: #f0b55d;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.contact-actions {
+  margin-top: 18px;
+}
+.legal-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 1px solid rgba(224, 162, 72, .34);
+  border-radius: 14px;
+  color: #fff !important;
+  background: rgba(224, 162, 72, .12);
+  text-decoration: none !important;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+.legal-action-link:hover {
+  transform: translateY(-2px);
+  background: rgba(224, 162, 72, .18);
+  border-color: rgba(224, 162, 72, .5);
+}
+@media (max-width: 600px) {
+  .home-legal-links {
+    width: 100%;
+  }
+  .legal-action-link {
+    width: 100%;
+  }
+}
