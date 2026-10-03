@@ -17,8 +17,78 @@ let musicVolume = Number.isFinite(storedMusicVolume)
   : DEFAULT_MUSIC_VOLUME;
 let scene = "menu";
 let backgroundMusic = null;
+let musicAudioContext = null;
+let musicSourceNode = null;
+let musicGainNode = null;
+let musicGainUnavailable = false;
 const sfxPool = new Map();
 const playedKeys = new Set();
+
+function isIOSAudioEnvironment() {
+  const ua = navigator.userAgent || "";
+  const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
+  const isIPadDesktopMode =
+    navigator.platform === "MacIntel" &&
+    Number(navigator.maxTouchPoints || 0) > 1;
+
+  return isIOSDevice || isIPadDesktopMode;
+}
+
+function ensureIOSMusicGain() {
+  if (!isIOSAudioEnvironment() || musicGainUnavailable) return null;
+  if (musicGainNode) return musicGainNode;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass || !backgroundMusic) return null;
+
+  try {
+    musicAudioContext = musicAudioContext || new AudioContextClass();
+    musicSourceNode =
+      musicSourceNode ||
+      musicAudioContext.createMediaElementSource(backgroundMusic);
+    musicGainNode = musicAudioContext.createGain();
+    musicGainNode.gain.value = musicVolume;
+    musicSourceNode.connect(musicGainNode);
+    musicGainNode.connect(musicAudioContext.destination);
+
+    // iOS/WKWebView ignores programmatic HTMLMediaElement.volume changes.
+    // Keep the element at full level and control background music via GainNode.
+    backgroundMusic.volume = 1;
+    return musicGainNode;
+  } catch (error) {
+    musicGainUnavailable = true;
+    console.info("iOS Web Audio volume control is unavailable.", error);
+    return null;
+  }
+}
+
+async function resumeIOSMusicOutput() {
+  if (!isIOSAudioEnvironment()) return;
+
+  ensureIOSMusicGain();
+  if (musicAudioContext?.state === "suspended") {
+    try {
+      await musicAudioContext.resume();
+    } catch {
+      // A later user gesture can resume the context.
+    }
+  }
+}
+
+function applyMusicVolume() {
+  const music = ensureBackgroundMusic();
+  const gain = ensureIOSMusicGain();
+
+  if (gain && musicAudioContext) {
+    const now = musicAudioContext.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(musicVolume, now);
+    music.volume = 1;
+    return;
+  }
+
+  music.volume = musicVolume;
+}
 
 function audioFor(src, { loop = false, volume = 1 } = {}) {
   const audio = new Audio(src);
@@ -30,7 +100,10 @@ function audioFor(src, { loop = false, volume = 1 } = {}) {
 
 function ensureBackgroundMusic() {
   if (!backgroundMusic) {
-    backgroundMusic = audioFor(TRACKS.music, { loop: true, volume: musicVolume });
+    backgroundMusic = audioFor(TRACKS.music, {
+      loop: true,
+      volume: isIOSAudioEnvironment() ? 1 : musicVolume,
+    });
   }
   return backgroundMusic;
 }
@@ -57,6 +130,9 @@ function updateButton() {
 
 async function tryPlay(audio) {
   try {
+    if (audio === backgroundMusic) {
+      await resumeIOSMusicOutput();
+    }
     await audio.play();
   } catch (error) {
     // Browsers may block autoplay until the first user interaction.
@@ -113,7 +189,19 @@ export function installGlobalSoundButton() {
   });
 
   muteButton?.addEventListener("click", () => setAudioEnabled(!enabled));
-  slider?.addEventListener("input", event => setMusicVolume(Number(event.target.value) / 100));
+
+  const applySliderVolume = event => {
+    const target = event?.currentTarget || slider;
+    if (!target) return;
+    setMusicVolume(Number(target.value) / 100);
+  };
+
+  // iOS WKWebView may defer range updates until the gesture finishes,
+  // so listen to both live and committed range events.
+  slider?.addEventListener("input", applySliderVolume);
+  slider?.addEventListener("change", applySliderVolume);
+  slider?.addEventListener("pointerup", applySliderVolume);
+  slider?.addEventListener("touchend", applySliderVolume, { passive: true });
 
   document.addEventListener("pointerdown", event => {
     if (!control.contains(event.target)) {
@@ -126,6 +214,7 @@ export function installGlobalSoundButton() {
   updateButton();
 
   const unlock = () => {
+    void resumeIOSMusicOutput();
     syncMusic();
     window.removeEventListener("pointerdown", unlock, true);
     window.removeEventListener("keydown", unlock, true);
@@ -156,7 +245,8 @@ export function setAudioEnabled(value) {
 export function setMusicVolume(value) {
   musicVolume = Math.min(1, Math.max(0, Number(value) || 0));
   localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
-  ensureBackgroundMusic().volume = musicVolume;
+  applyMusicVolume();
+  void resumeIOSMusicOutput();
   updateButton();
   if (musicVolume > 0 && !enabled) setAudioEnabled(true);
   else syncMusic();
