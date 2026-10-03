@@ -4,6 +4,7 @@ import compression from "compression";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RoomStore } from "./server/roomStore.js";
@@ -18,6 +19,120 @@ const defaultOrigins = process.env.NODE_ENV === "production"
   : "http://localhost:5173,http://127.0.0.1:5173,capacitor://localhost";
 const allowedOrigins = String(process.env.ALLOWED_ORIGINS || defaultOrigins).split(",").map(v => v.trim()).filter(Boolean);
 const app = express();
+
+const ROOM_CREATE_QUEUE_COORDINATOR_ID = "A";
+const ROOM_CREATE_SPACING_MS = Math.max(
+  500,
+  Number(process.env.ROOM_CREATE_SPACING_MS || 2520),
+);
+const ROOM_CREATE_QUEUE_MAX = Math.max(
+  20,
+  Number(process.env.ROOM_CREATE_QUEUE_MAX || 500),
+);
+const ROOM_CREATE_WAIT_TTL_MS = 10 * 60_000;
+const ROOM_CREATE_READY_TTL_MS = 60_000;
+const roomCreateQueue = [];
+const roomCreateTickets = new Map();
+const roomCreateRequestIndex = new Map();
+let roomCreateNextReleaseAt = 0;
+let roomCreateQueueTimer = null;
+
+function removeRoomCreateTicket(ticketId) {
+  const ticket = roomCreateTickets.get(ticketId);
+  if (!ticket) return;
+
+  const index = roomCreateQueue.indexOf(ticketId);
+  if (index >= 0) roomCreateQueue.splice(index, 1);
+
+  roomCreateTickets.delete(ticketId);
+  if (
+    ticket.requestId &&
+    roomCreateRequestIndex.get(ticket.requestId) === ticketId
+  ) {
+    roomCreateRequestIndex.delete(ticket.requestId);
+  }
+}
+
+function pruneRoomCreateQueue(now = Date.now()) {
+  for (const [ticketId, ticket] of roomCreateTickets.entries()) {
+    const expiresAt = Number(ticket.expiresAt || 0);
+    if (expiresAt > 0 && expiresAt <= now) {
+      removeRoomCreateTicket(ticketId);
+    }
+  }
+}
+
+function roomCreateQueuePayload(ticket, now = Date.now()) {
+  if (!ticket) return null;
+
+  const positionIndex =
+    ticket.status === "waiting"
+      ? roomCreateQueue.indexOf(ticket.id)
+      : -1;
+
+  const position = positionIndex >= 0 ? positionIndex + 1 : 0;
+  const firstReleaseAt = Math.max(
+    now,
+    Number(roomCreateNextReleaseAt || now),
+  );
+  const estimatedWaitMs =
+    ticket.status === "waiting" && positionIndex >= 0
+      ? Math.max(0, firstReleaseAt - now) +
+        positionIndex * ROOM_CREATE_SPACING_MS
+      : 0;
+
+  return {
+    ok: true,
+    ticket: ticket.id,
+    status: ticket.status,
+    position,
+    spacingMs: ROOM_CREATE_SPACING_MS,
+    estimatedWaitMs,
+    readyAt: Number(ticket.readyAt || 0),
+  };
+}
+
+function processRoomCreateQueue() {
+  roomCreateQueueTimer = null;
+  const now = Date.now();
+  pruneRoomCreateQueue(now);
+
+  while (roomCreateQueue.length) {
+    const firstTicket = roomCreateTickets.get(roomCreateQueue[0]);
+    if (firstTicket?.status === "waiting") break;
+    roomCreateQueue.shift();
+  }
+
+  if (!roomCreateQueue.length) return;
+
+  const waitMs = Math.max(0, Number(roomCreateNextReleaseAt || 0) - now);
+  if (waitMs > 0) {
+    roomCreateQueueTimer = setTimeout(processRoomCreateQueue, waitMs);
+    return;
+  }
+
+  const ticketId = roomCreateQueue.shift();
+  const ticket = roomCreateTickets.get(ticketId);
+
+  if (ticket?.status === "waiting") {
+    ticket.status = "ready";
+    ticket.readyAt = now;
+    ticket.expiresAt = now + ROOM_CREATE_READY_TTL_MS;
+    roomCreateNextReleaseAt = now + ROOM_CREATE_SPACING_MS;
+  }
+
+  if (roomCreateQueue.length) {
+    roomCreateQueueTimer = setTimeout(
+      processRoomCreateQueue,
+      ROOM_CREATE_SPACING_MS,
+    );
+  }
+}
+
+function ensureRoomCreateQueueTimer() {
+  if (roomCreateQueueTimer) return;
+  processRoomCreateQueue();
+}
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
@@ -78,14 +193,126 @@ app.get("/api/health", (_req, res) => {
       ).length
     : 0;
 
+  const connections = io
+    ? Number(io.engine?.clientsCount || io.sockets?.sockets?.size || 0)
+    : 0;
+
   res.json({
     ok: true,
     serverId: SERVER_ID,
     realtime: "socket.io",
     redis: Boolean(process.env.REDIS_URL),
     liveRooms,
+    connections,
+    roomCreateQueue:
+      SERVER_ID === ROOM_CREATE_QUEUE_COORDINATOR_ID
+        ? {
+            waiting: roomCreateQueue.length,
+            spacingMs: ROOM_CREATE_SPACING_MS,
+            nextReleaseAt: Number(roomCreateNextReleaseAt || 0),
+          }
+        : null,
     now: Date.now(),
   });
+});
+
+const roomCreateQueueLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 3000,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+app.use("/api/room-create-queue", roomCreateQueueLimiter);
+
+app.post("/api/room-create-queue", (req, res) => {
+  if (SERVER_ID !== ROOM_CREATE_QUEUE_COORDINATOR_ID) {
+    return res.status(409).json({
+      ok: false,
+      error: "ROOM_CREATE_QUEUE_WRONG_COORDINATOR",
+    });
+  }
+
+  const now = Date.now();
+  pruneRoomCreateQueue(now);
+
+  const requestId = String(req.body?.requestId || "")
+    .trim()
+    .slice(0, 128);
+
+  if (requestId) {
+    const existingTicketId = roomCreateRequestIndex.get(requestId);
+    const existingTicket = existingTicketId
+      ? roomCreateTickets.get(existingTicketId)
+      : null;
+
+    if (existingTicket) {
+      ensureRoomCreateQueueTimer();
+      return res.json(roomCreateQueuePayload(existingTicket, now));
+    }
+  }
+
+  if (roomCreateQueue.length >= ROOM_CREATE_QUEUE_MAX) {
+    return res.status(503).json({
+      ok: false,
+      error: "ROOM_CREATE_QUEUE_FULL",
+    });
+  }
+
+  const ticket = {
+    id: randomUUID(),
+    requestId,
+    status: "waiting",
+    createdAt: now,
+    readyAt: 0,
+    expiresAt: now + ROOM_CREATE_WAIT_TTL_MS,
+  };
+
+  roomCreateTickets.set(ticket.id, ticket);
+  if (requestId) roomCreateRequestIndex.set(requestId, ticket.id);
+  roomCreateQueue.push(ticket.id);
+  ensureRoomCreateQueueTimer();
+
+  return res.json(roomCreateQueuePayload(ticket, now));
+});
+
+app.get("/api/room-create-queue/:ticket", (req, res) => {
+  if (SERVER_ID !== ROOM_CREATE_QUEUE_COORDINATOR_ID) {
+    return res.status(409).json({
+      ok: false,
+      error: "ROOM_CREATE_QUEUE_WRONG_COORDINATOR",
+    });
+  }
+
+  const now = Date.now();
+  pruneRoomCreateQueue(now);
+  const ticketId = String(req.params.ticket || "");
+  const ticket = roomCreateTickets.get(ticketId);
+
+  if (!ticket) {
+    return res.status(404).json({
+      ok: false,
+      error: "ROOM_CREATE_QUEUE_TICKET_NOT_FOUND",
+    });
+  }
+
+  ensureRoomCreateQueueTimer();
+  return res.json(roomCreateQueuePayload(ticket, now));
+});
+
+app.delete("/api/room-create-queue/:ticket", (req, res) => {
+  if (SERVER_ID !== ROOM_CREATE_QUEUE_COORDINATOR_ID) {
+    return res.status(409).json({
+      ok: false,
+      error: "ROOM_CREATE_QUEUE_WRONG_COORDINATOR",
+    });
+  }
+
+  const ticketId = String(req.params.ticket || "");
+  removeRoomCreateTicket(ticketId);
+  ensureRoomCreateQueueTimer();
+
+  return res.json({ ok: true });
 });
 
 // Health checks are intentionally outside the /api rate limiter because the
