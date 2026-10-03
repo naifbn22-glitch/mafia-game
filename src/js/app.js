@@ -244,7 +244,9 @@ function getRolesDistribution(playerCount) {
 
 function renderHomePage() {
   const savedOnlineGame = getSavedOnlineGame();
-  if (location.pathname === "/privacy") history.replaceState({}, "", "/");
+  if (["/privacy", "/terms", "/contact"].includes(location.pathname)) {
+    history.replaceState({}, "", "/");
+  }
   app.innerHTML = `
     <main class="home-page">
       <div
@@ -713,13 +715,14 @@ function renderHomePage() {
 
       <footer class="home-footer">
         <span>الإصدار التجريبي 1.0</span>
-        <button id="privacyPolicyButton" class="home-privacy-link" type="button">سياسة الخصوصية · Privacy Policy</button>
+        <nav class="home-legal-links" aria-label="روابط قانونية ومعلومات التواصل">
+          <a class="home-privacy-link" href="/privacy">سياسة الخصوصية</a>
+          <a class="home-privacy-link" href="/terms">شروط الاستخدام</a>
+          <a class="home-privacy-link" href="/contact">تواصل معنا</a>
+        </nav>
       </footer>
     </main>
   `;
-
-  const privacyPolicyButton = document.querySelector("#privacyPolicyButton");
-  privacyPolicyButton?.addEventListener("click", renderPrivacyPolicyPage);
 
   const resumeGameButton =
     document.querySelector(
@@ -855,7 +858,7 @@ function renderPrivacyPolicyPage() {
 
         <div class="privacy-language">
           <h2>سياسة الخصوصية — العربية</h2>
-          <p><strong>آخر تحديث:</strong> 1 أكتوبر 2026</p>
+          <p><strong>آخر تحديث:</strong> 3 أكتوبر 2026</p>
 
           <h3>1. نطاق السياسة</h3>
           <p>توضح هذه السياسة كيفية تعامل لعبة Mafia وموقع mafiagameplay.com مع المعلومات عند استخدام اللعبة على الويب أو تطبيق iOS. باستخدام الخدمة، فإنك تقر بأن بعض المعلومات اللازمة لتشغيل خصائص اللعبة عبر الشبكة ستتم معالجتها كما هو موضح أدناه.</p>
@@ -872,8 +875,8 @@ function renderPrivacyPolicyPage() {
           <h3>5. المشاركة ومقدمو الخدمة</h3>
           <p>لا نبيع المعلومات الشخصية. قد تمر بيانات التشغيل عبر مقدمي البنية التحتية والاستضافة الذين نستخدمهم لتشغيل Mafia، مثل خدمات استضافة الخادم وقاعدة البيانات عند تفعيلها. يقتصر استخدامهم للمعلومات على تقديم البنية التحتية والخدمات الفنية وفق شروطهم والتزاماتهم القانونية.</p>
 
-          <h3>6. الإعلانات والتحليلات والتتبع</h3>
-          <p>في الإصدار الحالي لا ندمج شبكة إعلانات أو SDK تحليلات تابعًا لجهة خارجية داخل التطبيق، ولا نستخدم معرّف الإعلانات من Apple، ولا نستخدم بيانات المستخدم للتتبع عبر تطبيقات أو مواقع شركات أخرى. إذا أضفنا مستقبلًا إعلانات أو تحليلات أو ممارسات تتبع، فسنحدّث هذه السياسة وإفصاحات App Store ونطلب الأذونات المطلوبة قبل استخدامها.</p>
+          <h3>6. الإعلانات وملفات الارتباط والتحليلات</h3>
+          <p>قد نفعّل مستقبلًا إعلانات على نسخة الويب، بما في ذلك خدمات مثل Google AdSense. عند تفعيلها قد تستخدم Google أو شركاؤها ملفات تعريف ارتباط أو تقنيات مماثلة لعرض الإعلانات وقياسها ومنع الاحتيال وفق إعدادات الموافقة والقوانين المطبقة. سنعرض خيارات الموافقة المطلوبة للمستخدمين في المناطق التي تستلزم ذلك، وسنحدّث هذه السياسة عند بدء تشغيل الإعلانات فعليًا. تطبيق iOS لا يستخدم معرّف Apple الإعلاني ما لم يتم الإفصاح عن ذلك وطلب الإذن اللازم.</p>
 
           <h3>7. الأذونات وموارد الجهاز</h3>
           <p>الإصدار الحالي لا يحتاج إلى الوصول إلى الكاميرا أو الميكروفون أو الصور أو جهات الاتصال أو الموقع الجغرافي لتشغيل الوظائف الأساسية للعبة.</p>
@@ -894,12 +897,12 @@ function renderPrivacyPolicyPage() {
           <p>قد نحدّث هذه السياسة عند تغيير خصائص اللعبة أو مزودي الخدمة أو المتطلبات القانونية. سيظهر تاريخ آخر تحديث في أعلى هذه الصفحة.</p>
 
           <h3>13. التواصل</h3>
-          <p>سيتم نشر عنوان التواصل الرسمي الخاص بـ Mafia على هذه الصفحة فور تفعيل بريد النطاق. إلى ذلك الحين يمكن استخدام الموقع الرسمي mafiagameplay.com للحصول على أحدث معلومات التواصل.</p>
+          <p>للدعم أو الاستفسارات المتعلقة بالخصوصية أو الخدمة، استخدم صفحة <a href="/contact">تواصل معنا</a> المنشورة على mafiagameplay.com.</p>
         </div>
 
         <div class="privacy-language" dir="ltr" lang="en">
           <h2>Privacy Policy — English</h2>
-          <p><strong>Last updated:</strong> October 1, 2026</p>
+          <p><strong>Last updated:</strong> October 3, 2026</p>
 
           <h3>1. Scope</h3>
           <p>This Privacy Policy explains how Mafia and mafiagameplay.com handle information when you use the game on the web or through the iOS app.</p>
@@ -916,8 +919,8 @@ function renderPrivacyPolicyPage() {
           <h3>5. Sharing and Service Providers</h3>
           <p>We do not sell personal information. Operational data may pass through infrastructure and hosting providers used to operate Mafia, including server hosting and database services when enabled. Their access is limited to providing infrastructure and technical services subject to their applicable terms and legal obligations.</p>
 
-          <h3>6. Advertising, Analytics, and Tracking</h3>
-          <p>The current version does not integrate a third-party advertising network or analytics SDK, does not use Apple's advertising identifier, and does not use user data to track people across other companies' apps or websites. If advertising, analytics, or tracking practices are introduced later, this policy and the App Store privacy disclosures will be updated and any required permission will be requested before use.</p>
+          <h3>6. Advertising, Cookies, and Analytics</h3>
+          <p>We may enable advertising on the web version in the future, including services such as Google AdSense. When enabled, Google or its partners may use cookies or similar technologies to serve and measure ads and prevent fraud, subject to applicable consent settings and law. We will provide required consent choices in regions where they apply and update this policy when advertising becomes active. The iOS app does not use Apple's advertising identifier unless that practice is disclosed and any required permission is obtained.</p>
 
           <h3>7. Device Permissions</h3>
           <p>The current version does not require access to the camera, microphone, photo library, contacts, or precise location for the game's core functionality.</p>
@@ -938,7 +941,7 @@ function renderPrivacyPolicyPage() {
           <p>We may update this policy when game features, service providers, or legal requirements change. The latest revision date will appear at the top of this page.</p>
 
           <h3>13. Contact</h3>
-          <p>Mafia's official contact email will be published here after the domain email is activated. Until then, mafiagameplay.com is the official website for current contact information.</p>
+          <p>For support, privacy questions, or service inquiries, use the <a href="/contact">Contact Us</a> page published on mafiagameplay.com.</p>
         </div>
       </section>
     </main>
@@ -946,6 +949,125 @@ function renderPrivacyPolicyPage() {
 
   document.querySelector("#privacyBackButton")?.addEventListener("click", () => {
     history.replaceState({}, "", "/");
+    renderHomePage();
+  });
+}
+
+
+function renderTermsPage() {
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  document.title = "شروط الاستخدام | لعبة مافيا || Mafia Game";
+  if (location.pathname !== "/terms") history.pushState({ page: "terms" }, "", "/terms");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="termsBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>شروط الاستخدام</h1>
+            <p>Terms of Use</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <p><strong>آخر تحديث:</strong> 3 أكتوبر 2026</p>
+
+          <h3>1. قبول الشروط</h3>
+          <p>باستخدام موقع mafiagameplay.com أو لعبة Mafia على الويب أو التطبيق، فإنك توافق على هذه الشروط. إذا لم توافق عليها، فتوقف عن استخدام الخدمة.</p>
+
+          <h3>2. طبيعة الخدمة</h3>
+          <p>Mafia لعبة جماعية ترفيهية تتيح اللعب محليًا أو عبر غرف متعددة اللاعبين. قد تتغير الخصائص أو القواعد أو البنية التقنية مع تطوير الخدمة.</p>
+
+          <h3>3. الاستخدام المسموح</h3>
+          <p>يجوز استخدام الخدمة للأغراض الترفيهية والقانونية فقط. يمنع محاولة تعطيل الخوادم، تجاوز حدود الاستخدام، إساءة استخدام واجهات الخدمة، انتحال هوية الآخرين، أو استخدام اللعبة لإرسال محتوى غير قانوني أو مسيء.</p>
+
+          <h3>4. أسماء اللاعبين والمحتوى المدخل</h3>
+          <p>أنت مسؤول عن الاسم أو النص الذي تدخله داخل اللعبة، ويجب ألا يتضمن محتوى مخالفًا للقانون أو حقوق الآخرين أو إساءة واضحة. يجوز للخدمة إزالة أو تقييد الاستخدام عند إساءة الاستخدام أو تهديد أمن النظام.</p>
+
+          <h3>5. التوفر والتحديثات</h3>
+          <p>نسعى إلى إبقاء الخدمة متاحة ومستقرة، لكن لا نضمن عملها دون انقطاع أو أخطاء في جميع الأوقات. قد نجري صيانة أو تحديثات أو تغييرات في الخوادم دون إشعار مسبق عندما يكون ذلك ضروريًا للتشغيل أو الأمان.</p>
+
+          <h3>6. الإعلانات والخدمات الخارجية</h3>
+          <p>قد تتضمن نسخة الويب مستقبلًا إعلانات أو روابط أو خدمات مقدمة من جهات خارجية. تخضع الخدمات الخارجية لشروط وسياسات مزوديها، ولا يعني عرضها داخل الموقع اعتماد جميع محتوياتها أو عروضها.</p>
+
+          <h3>7. الملكية الفكرية</h3>
+          <p>تصميم اللعبة وواجهاتها وعناصرها البرمجية والمحتوى الأصلي الخاص بها محمي وفق الحقوق المطبقة. لا يمنح استخدام الخدمة حق نسخ أو بيع أو إعادة نشر مكونات محمية بصورة غير مصرح بها.</p>
+
+          <h3>8. إخلاء المسؤولية</h3>
+          <p>تُقدم اللعبة على أساس "كما هي" للاستخدام الترفيهي. لا نضمن خلو الخدمة بصورة مطلقة من الأخطاء أو الانقطاعات، ولا نتحمل مسؤولية خسارة ناجمة عن استخدام غير صحيح أو أجهزة أو شبكات أو خدمات خارجية لا نتحكم بها، وذلك في الحدود التي يسمح بها القانون.</p>
+
+          <h3>9. إنهاء أو تقييد الاستخدام</h3>
+          <p>يجوز تقييد الوصول أو إيقاف جلسات أو غرف عند وجود إساءة استخدام، هجوم تقني، محاولة تحايل، أو حاجة تشغيلية أو أمنية مشروعة.</p>
+
+          <h3>10. التعديلات</h3>
+          <p>قد نحدّث هذه الشروط مع تطور اللعبة أو المتطلبات القانونية. استمرار استخدام الخدمة بعد نشر النسخة المحدّثة يعني قبول الشروط السارية وقت الاستخدام.</p>
+
+          <h3>11. التواصل</h3>
+          <p>للاستفسارات المتعلقة بهذه الشروط، استخدم صفحة <a href="/contact">تواصل معنا</a>.</p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#termsBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    document.title = "لعبة مافيا || Mafia Game";
+    renderHomePage();
+  });
+}
+
+function renderContactPage() {
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  document.title = "تواصل معنا | لعبة مافيا || Mafia Game";
+  if (location.pathname !== "/contact") history.pushState({ page: "contact" }, "", "/contact");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="contactBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>تواصل معنا</h1>
+            <p>Contact & Support</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <h2>الدعم والاستفسارات</h2>
+          <p>يسعدنا استقبال البلاغات عن المشاكل التقنية، اقتراحات تطوير اللعبة، استفسارات الخصوصية، والاستفسارات التجارية المتعلقة بموقع Mafia.</p>
+
+          <h3>الموقع الرسمي</h3>
+          <p><a href="https://mafiagameplay.com/">mafiagameplay.com</a></p>
+
+          <h3>الدعم الفني الحالي</h3>
+          <p>يمكن فتح بلاغ أو طلب دعم من مستودع المشروع على GitHub. لا تضع كلمات مرور أو رموز جلسات أو معلومات شخصية حساسة في البلاغات العامة.</p>
+
+          <div class="contact-actions">
+            <a class="legal-action-link" href="https://github.com/naifbn22-glitch/mafia-game/issues" target="_blank" rel="noopener noreferrer">فتح صفحة الدعم على GitHub</a>
+          </div>
+
+          <h3>البريد الرسمي</h3>
+          <p>سيتم إضافة بريد دعم على نطاق mafiagameplay.com بعد تفعيله. وحتى ذلك الوقت، استخدم قناة الدعم أعلاه.</p>
+
+          <h3>الخصوصية والشروط</h3>
+          <p><a href="/privacy">سياسة الخصوصية</a> · <a href="/terms">شروط الاستخدام</a></p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#contactBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    document.title = "لعبة مافيا || Mafia Game";
     renderHomePage();
   });
 }
@@ -8313,7 +8435,12 @@ registerTemporaryAdminShortcut();
 loadSavedGame();
 
 if (location.pathname === "/privacy") {
+  document.title = "سياسة الخصوصية | لعبة مافيا || Mafia Game";
   renderPrivacyPolicyPage();
+} else if (location.pathname === "/terms") {
+  renderTermsPage();
+} else if (location.pathname === "/contact") {
+  renderContactPage();
 } else {
 const restoredOnlineRoute = restoreOnlineRoute({
   app,
