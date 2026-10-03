@@ -242,7 +242,16 @@ function getRolesDistribution(playerCount) {
   };
 }
 
+function setPageCanonical(pathname = "/") {
+  const link = document.querySelector('link[rel="canonical"]');
+  if (!link) return;
+  const safePath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  link.setAttribute("href", `https://mafiagameplay.com${safePath}`);
+}
+
 function renderHomePage() {
+  document.title = "لعبة مافيا || Mafia Game";
+  setPageCanonical("/");
   const savedOnlineGame = getSavedOnlineGame();
   if (["/privacy", "/terms", "/contact"].includes(location.pathname)) {
     history.replaceState({}, "", "/");
@@ -838,6 +847,8 @@ function renderHomePage() {
 
 
 function renderPrivacyPolicyPage() {
+  document.title = "سياسة الخصوصية | لعبة مافيا || Mafia Game";
+  setPageCanonical("/privacy");
   syncOfflineAudioPhase("home");
   scrollPageToTop();
   if (location.pathname !== "/privacy") history.pushState({ page: "privacy" }, "", "/privacy");
@@ -955,6 +966,7 @@ function renderPrivacyPolicyPage() {
 
 
 function renderTermsPage() {
+  setPageCanonical("/terms");
   syncOfflineAudioPhase("home");
   scrollPageToTop();
   document.title = "شروط الاستخدام | لعبة مافيا || Mafia Game";
@@ -1022,6 +1034,7 @@ function renderTermsPage() {
 }
 
 function renderContactPage() {
+  setPageCanonical("/contact");
   syncOfflineAudioPhase("home");
   scrollPageToTop();
   document.title = "تواصل معنا | لعبة مافيا || Mafia Game";
