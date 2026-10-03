@@ -106,6 +106,17 @@ function showOnlineWait(message = "يتم تنفيذ طلبك الآن...") {
   document.body.classList.add("online-action-busy");
 }
 
+function updateOnlineWait(message = "", hint = "") {
+  const overlay = document.querySelector("#onlineWaitOverlay");
+  if (!overlay?.classList.contains("is-visible")) return;
+
+  const messageElement = overlay.querySelector("#onlineWaitMessage");
+  const hintElement = overlay.querySelector("#onlineWaitHint");
+
+  if (message && messageElement) messageElement.textContent = message;
+  if (hint && hintElement) hintElement.textContent = hint;
+}
+
 async function hideOnlineWait(startedAt) {
   const elapsed = Date.now() - Number(startedAt || 0);
   const remaining = Math.max(0, ONLINE_WAIT_MIN_MS - elapsed);
@@ -195,6 +206,141 @@ async function emitAck(eventName, payload) {
       else resolve(response);
     });
   });
+}
+
+const ROOM_CREATE_QUEUE_ORIGIN = PUBLIC_GAME_ORIGIN;
+const ROOM_CREATE_QUEUE_MAX_WAIT_MS = 10 * 60_000;
+
+function createRoomQueueRequestId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function fetchRoomCreateQueue(path, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${ROOM_CREATE_QUEUE_ORIGIN}${path}`, {
+      cache: "no-store",
+      ...options,
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.ok === false) {
+      const error = new Error(data?.error || "ROOM_CREATE_QUEUE_UNAVAILABLE");
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("ROOM_CREATE_QUEUE_TIMEOUT");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function roomCreateQueuePollDelay(estimatedWaitMs) {
+  const estimated = Math.max(0, Number(estimatedWaitMs || 0));
+
+  if (estimated > 15_000) return 10_000;
+  if (estimated > 7_000) return 5_000;
+  if (estimated > 3_000) return Math.max(1_200, estimated - 2_000);
+  if (estimated > 1_200) return Math.max(650, estimated - 700);
+  return 450;
+}
+
+function roomCreateQueueHint(queueData) {
+  const position = Math.max(0, Number(queueData?.position || 0));
+  const estimatedSeconds = Math.max(
+    0,
+    Math.ceil(Number(queueData?.estimatedWaitMs || 0) / 1000),
+  );
+
+  if (position > 1 && estimatedSeconds > 0) {
+    return `يتم تنظيم طلبات إنشاء الغرف لتخفيف الضغط. ترتيبك الحالي ${position} والوقت التقريبي ${estimatedSeconds} ث.`;
+  }
+
+  if (position === 1 && estimatedSeconds > 0) {
+    return `طلبك هو التالي، وسيتم إنشاء الغرفة خلال نحو ${estimatedSeconds} ث.`;
+  }
+
+  return "يتم تجهيز طلب إنشاء الغرفة الآن...";
+}
+
+async function waitForRoomCreateSlot() {
+  const requestId = createRoomQueueRequestId();
+  const startedAt = Date.now();
+  let queueData = null;
+
+  const enqueue = async () => {
+    queueData = await fetchRoomCreateQueue("/api/room-create-queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId }),
+    });
+  };
+
+  await enqueue();
+
+  while (queueData?.status !== "ready") {
+    if (Date.now() - startedAt > ROOM_CREATE_QUEUE_MAX_WAIT_MS) {
+      throw new Error("ROOM_CREATE_QUEUE_TIMEOUT");
+    }
+
+    updateOnlineWait(
+      "جارٍ إنشاء الغرفة وتجهيز الاتصال...",
+      roomCreateQueueHint(queueData),
+    );
+
+    await new Promise(resolve =>
+      window.setTimeout(
+        resolve,
+        roomCreateQueuePollDelay(queueData?.estimatedWaitMs),
+      ),
+    );
+
+    try {
+      queueData = await fetchRoomCreateQueue(
+        `/api/room-create-queue/${encodeURIComponent(queueData.ticket)}`,
+      );
+    } catch (error) {
+      // إذا أعيد تشغيل خادم التنسيق أثناء الانتظار، نعيد إدخال نفس الطلب
+      // بالمعرف نفسه بدل إنشاء طلبات مكررة.
+      if (error?.message === "ROOM_CREATE_QUEUE_TICKET_NOT_FOUND") {
+        await enqueue();
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  updateOnlineWait(
+    "جارٍ إنشاء الغرفة وتجهيز الاتصال...",
+    "تم تجهيز دورك، يتم الآن إنشاء الغرفة على الخادم الأنسب.",
+  );
+
+  return queueData.ticket;
+}
+
+async function releaseRoomCreateQueueTicket(ticket) {
+  if (!ticket) return;
+
+  try {
+    await fetchRoomCreateQueue(
+      `/api/room-create-queue/${encodeURIComponent(ticket)}`,
+      { method: "DELETE" },
+      6000,
+    );
+  } catch {
+    // التذكرة الجاهزة تنتهي تلقائيًا على الخادم، لذلك فشل التنظيف غير مؤثر.
+  }
 }
 
 function hostSession(code) {
@@ -406,10 +552,31 @@ async function fetchRoomFromServer(code, mode = "public", playerId = null) {
 }
 
 async function createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds) {
-  const response = await emitAck("room:create", { hostName, roomName, maxPlayers, discussionDurationSeconds });
-  localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken, savedAt: Date.now() }));
-  cacheServerRoom(response.room);
-  return response.room;
+  // إنشاء الغرف فقط يمر عبر Queue مركزية على Railway A.
+  // التذاكر الجاهزة تُفرج بفاصل 2.52 ثانية، بينما انضمام اللاعبين
+  // وأوامر الغرف الموجودة لا تتأخر ولا تمر عبر هذه القائمة.
+  const queueTicket = await waitForRoomCreateSlot();
+
+  try {
+    const response = await emitAck("room:create", {
+      hostName,
+      roomName,
+      maxPlayers,
+      discussionDurationSeconds,
+    });
+    localStorage.setItem(
+      HOST_SESSION_KEY,
+      JSON.stringify({
+        code: response.room.code,
+        token: response.hostToken,
+        savedAt: Date.now(),
+      }),
+    );
+    cacheServerRoom(response.room);
+    return response.room;
+  } finally {
+    void releaseRoomCreateQueueTicket(queueTicket);
+  }
 }
 
 async function joinPlayerOnServer(code, player) {
@@ -1167,6 +1334,23 @@ function renderCreateRoom({ app, onBack }) {
         showInfoToast(
           "وصلت الغرف النشطة إلى الحد التشغيلي الحالي. انتظر قليلًا حتى تنتهي إحدى الغرف ثم حاول مرة أخرى.",
           "الخوادم مشغولة الآن",
+        );
+        return;
+      }
+      if (error?.message === "ROOM_CREATE_QUEUE_FULL") {
+        showInfoToast(
+          "هناك عدد كبير من طلبات إنشاء الغرف الآن. انتظر قليلًا ثم حاول مرة أخرى.",
+          "ضغط مرتفع مؤقتًا",
+        );
+        return;
+      }
+      if (
+        error?.message === "ROOM_CREATE_QUEUE_TIMEOUT" ||
+        error?.message === "ROOM_CREATE_QUEUE_UNAVAILABLE"
+      ) {
+        showErrorToast(
+          "تعذر الوصول إلى نظام تنظيم إنشاء الغرف. حاول مرة أخرى بعد قليل.",
+          "تعذر تجهيز الغرفة",
         );
         return;
       }
