@@ -1329,7 +1329,7 @@ function renderPlayersPage() {
 
           <div class="roles-grid">
             ${renderRoleCard(
-              "🗡️",
+              '<img class="role-summary-artwork" src="/images/roles/thief-scene.webp" alt="اللصوص" />',
               "اللصوص",
               roles.thieves,
             )}
