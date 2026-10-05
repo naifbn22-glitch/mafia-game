@@ -1298,6 +1298,44 @@
     drop-shadow(0 0 24px rgba(170, 0, 0, 0.45));
 }
 
+.thief-night .night-role-player-name {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: min(380px, 84vw);
+  min-height: 88px;
+  margin: -4px auto 4px;
+  padding: 22px 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff7e8;
+  font-size: clamp(28px, 7vw, 40px);
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 2px 2px rgba(30, 0, 0, 0.95),
+    0 0 12px rgba(255, 58, 58, 0.62);
+}
+
+.thief-night .night-role-player-name::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: min(430px, 96vw);
+  aspect-ratio: 3 / 1;
+  transform: translate(-50%, -50%);
+  background:
+    url("/images/roles/thief-nameplate.png")
+    center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
 .night-primary-button {
   width: 100%;
   min-height: 58px;
