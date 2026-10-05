@@ -3563,7 +3563,7 @@ function renderThiefHandoffPage() {
     pageClass:
       "thief-night",
 
-    icon: "🗡️",
+    icon: '<img class="night-role-artwork" src="/images/roles/thief-scene.webp" alt="اللصوص" />',
 
     title:
       "يستيقظ اللصوص",
