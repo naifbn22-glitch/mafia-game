@@ -1,30 +1,40 @@
 :root {
   --font-display: "beIN Black", "beIN Normal", sans-serif;
   --font-body: "beIN Normal", "beIN Black", sans-serif;
-  --background-dark: #060b0a;
-  --background-panel: rgba(13, 20, 18, 0.78);
 
-  --purple: #7647ff;
-  --purple-dark: #3c1d82;
-  --purple-light: #a58aff;
+  /* Mafia app-icon palette */
+  --background-dark: #070608;
+  --background-panel: rgba(18, 11, 13, 0.82);
 
-  --green: #176b46;
-  --green-dark: #073923;
-  --green-light: #31a56f;
+  --mafia-red: #c92f36;
+  --mafia-red-dark: #5a1117;
+  --mafia-red-light: #ff6b70;
+  --mafia-gold: #e0a248;
+  --mafia-gold-light: #ffd27a;
+  --mafia-cyan: #55d7ff;
+
+  /* Legacy variables kept as aliases so the whole site adopts the new identity. */
+  --purple: var(--mafia-red);
+  --purple-dark: var(--mafia-red-dark);
+  --purple-light: var(--mafia-red-light);
+
+  --green: #9b6221;
+  --green-dark: #4b2b0b;
+  --green-light: var(--mafia-gold);
 
   --white: #ffffff;
-  --text: #f5f2ff;
-  --muted: #aaa6b7;
+  --text: #f8f1e7;
+  --muted: #b7ada7;
 
-  --border: rgba(255, 255, 255, 0.11);
+  --border: rgba(255, 210, 122, 0.14);
 
   --radius-small: 14px;
   --radius-medium: 22px;
   --radius-large: 34px;
 
-  --shadow-card: 0 30px 90px rgba(0, 0, 0, 0.45);
-  --shadow-purple: 0 18px 45px rgba(118, 71, 255, 0.35);
-  --shadow-green: 0 18px 45px rgba(49, 165, 111, 0.3);
+  --shadow-card: 0 30px 90px rgba(0, 0, 0, 0.5);
+  --shadow-purple: 0 18px 45px rgba(201, 47, 54, 0.28);
+  --shadow-green: 0 18px 45px rgba(224, 162, 72, 0.22);
 
   --transition: 220ms ease;
 }

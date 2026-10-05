@@ -1,17 +1,23 @@
 export const ONLINE_MODE_ENABLED = true;
-import { io } from "socket.io-client";
 import { showSuccessToast, showErrorToast, showInfoToast } from "../ui/toast.js";
+import { createRoutedSocket, serverUrlForRoomCode } from "./serverRouter.js";
 import { getRoleCardImage } from "../ui/roleCards.js";
+import {
+  setAudioScene,
+  syncOnlineAudio,
+  playRoleCardFlip,
+  playDiscussionFinalFive,
+} from "../audio/audioManager.js";
 
 const STORAGE_KEY = "mafia_online_rooms_v2";
 const PLAYER_SESSION_KEY = "mafia_online_player_session_v2";
 const HOST_SESSION_KEY = "mafia_online_host_session_v2";
 const ONLINE_RESUME_KEY = "mafia_online_resume_v1";
+const PUBLIC_GAME_ORIGIN = "https://mafiagameplay.com";
 const CHANNEL_NAME = "mafia-online-sync";
 const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
-const ONLINE_SERVER_URL = "https://mafia-game-1-mo6i.onrender.com";
 const socket = ONLINE_MODE_ENABLED
-  ? io(ONLINE_SERVER_URL, {
+  ? createRoutedSocket({
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -21,10 +27,14 @@ const socket = ONLINE_MODE_ENABLED
     })
   : {
       connected: false,
+      serverUrl: "",
       on: () => {},
+      off: () => {},
       emit: () => {},
       connect: () => {},
       disconnect: () => {},
+      useServerForRoom: () => ({ changed: false }),
+      useBestServerForNewRoom: async () => ({ changed: false }),
     };
 let hostRoleRevealIntervalId = null;
 // حالة محلية خاصة بعرض بطاقة الدور فقط. لا تدخل في منطق الغرف أو مزامنة اللاعبين.
@@ -43,6 +53,106 @@ const liveNightPardonOverlayShown = new Map();
 const liveVotingPardonOverlayShown = new Map();
 const liveVotingResultOverlayShown = new Map();
 const liveFinalSequenceShown = new Map();
+
+// طبقة انتظار موحدة لكل الأوامر التي يرسلها المستخدم إلى الخادم.
+// تمنع النقر المتكرر أثناء تنفيذ الطلب وتوضح للمستخدم أن العملية ما زالت تعمل.
+let onlineActionBusy = false;
+let onlineWaitLongTimer = null;
+const ONLINE_WAIT_MIN_MS = 450;
+
+function ensureOnlineWaitOverlay() {
+  let overlay = document.querySelector("#onlineWaitOverlay");
+  if (overlay) return overlay;
+
+  overlay = document.createElement("div");
+  overlay.id = "onlineWaitOverlay";
+  overlay.className = "online-wait-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML = `
+    <div class="online-wait-card" role="status" aria-live="polite">
+      <div class="online-wait-spinner" aria-hidden="true">
+        <span></span>
+        <span></span>
+      </div>
+      <strong id="onlineWaitTitle">يرجى الانتظار</strong>
+      <p id="onlineWaitMessage">يتم تنفيذ طلبك الآن...</p>
+      <small id="onlineWaitHint">لا تضغط مرة أخرى، سننقلك تلقائيًا عند اكتمال العملية.</small>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function showOnlineWait(message = "يتم تنفيذ طلبك الآن...") {
+  const overlay = ensureOnlineWaitOverlay();
+  const messageElement = overlay.querySelector("#onlineWaitMessage");
+  const hintElement = overlay.querySelector("#onlineWaitHint");
+
+  if (messageElement) messageElement.textContent = message;
+  if (hintElement) {
+    hintElement.textContent = "لا تضغط مرة أخرى، سننقلك تلقائيًا عند اكتمال العملية.";
+  }
+
+  window.clearTimeout(onlineWaitLongTimer);
+  onlineWaitLongTimer = window.setTimeout(() => {
+    const currentHint = overlay.querySelector("#onlineWaitHint");
+    if (currentHint && overlay.classList.contains("is-visible")) {
+      currentHint.textContent = "الاتصال بالخادم ما زال يعمل، يرجى الانتظار قليلًا.";
+    }
+  }, 3500);
+
+  overlay.classList.add("is-visible");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("online-action-busy");
+}
+
+function updateOnlineWait(message = "", hint = "") {
+  const overlay = document.querySelector("#onlineWaitOverlay");
+  if (!overlay?.classList.contains("is-visible")) return;
+
+  const messageElement = overlay.querySelector("#onlineWaitMessage");
+  const hintElement = overlay.querySelector("#onlineWaitHint");
+
+  if (message && messageElement) messageElement.textContent = message;
+  if (hint && hintElement) hintElement.textContent = hint;
+}
+
+async function hideOnlineWait(startedAt) {
+  const elapsed = Date.now() - Number(startedAt || 0);
+  const remaining = Math.max(0, ONLINE_WAIT_MIN_MS - elapsed);
+  if (remaining) {
+    await new Promise(resolve => window.setTimeout(resolve, remaining));
+  }
+
+  window.clearTimeout(onlineWaitLongTimer);
+  const overlay = document.querySelector("#onlineWaitOverlay");
+  overlay?.classList.remove("is-visible");
+  overlay?.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("online-action-busy");
+}
+
+async function runOnlineAction({
+  trigger = null,
+  message = "يتم تنفيذ طلبك الآن...",
+  task,
+}) {
+  if (onlineActionBusy) return { skipped: true };
+
+  onlineActionBusy = true;
+  const startedAt = Date.now();
+  const wasDisabled = Boolean(trigger?.disabled);
+
+  if (trigger) trigger.disabled = true;
+  showOnlineWait(message);
+
+  try {
+    return await task();
+  } finally {
+    await hideOnlineWait(startedAt);
+    if (trigger?.isConnected) trigger.disabled = wasDisabled;
+    onlineActionBusy = false;
+  }
+}
 
 
 function dispatchRoomsUpdated() {
@@ -68,7 +178,26 @@ function cacheServerRoom(room) {
   return true;
 }
 
-function emitAck(eventName, payload) {
+async function routeSocketForRequest(eventName, payload = {}) {
+  if (!ONLINE_MODE_ENABLED) return;
+
+  const previousServerUrl = socket.serverUrl;
+
+  if (eventName === "room:create") {
+    await socket.useBestServerForNewRoom();
+  } else if (payload?.code) {
+    socket.useServerForRoom(payload.code);
+  }
+
+  if (previousServerUrl && previousServerUrl !== socket.serverUrl) {
+    activeSubscriptions.clear();
+    desiredSubscriptions.clear();
+  }
+}
+
+async function emitAck(eventName, payload) {
+  await routeSocketForRequest(eventName, payload);
+
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error("SERVER_TIMEOUT")), 12000);
     socket.emit(eventName, payload, response => {
@@ -77,6 +206,141 @@ function emitAck(eventName, payload) {
       else resolve(response);
     });
   });
+}
+
+const ROOM_CREATE_QUEUE_ORIGIN = PUBLIC_GAME_ORIGIN;
+const ROOM_CREATE_QUEUE_MAX_WAIT_MS = 10 * 60_000;
+
+function createRoomQueueRequestId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function fetchRoomCreateQueue(path, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${ROOM_CREATE_QUEUE_ORIGIN}${path}`, {
+      cache: "no-store",
+      ...options,
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.ok === false) {
+      const error = new Error(data?.error || "ROOM_CREATE_QUEUE_UNAVAILABLE");
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("ROOM_CREATE_QUEUE_TIMEOUT");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function roomCreateQueuePollDelay(estimatedWaitMs) {
+  const estimated = Math.max(0, Number(estimatedWaitMs || 0));
+
+  if (estimated > 15_000) return 10_000;
+  if (estimated > 7_000) return 5_000;
+  if (estimated > 3_000) return Math.max(1_200, estimated - 2_000);
+  if (estimated > 1_200) return Math.max(650, estimated - 700);
+  return 450;
+}
+
+function roomCreateQueueHint(queueData) {
+  const position = Math.max(0, Number(queueData?.position || 0));
+  const estimatedSeconds = Math.max(
+    0,
+    Math.ceil(Number(queueData?.estimatedWaitMs || 0) / 1000),
+  );
+
+  if (position > 1 && estimatedSeconds > 0) {
+    return `يتم تنظيم طلبات إنشاء الغرف لتخفيف الضغط. ترتيبك الحالي ${position} والوقت التقريبي ${estimatedSeconds} ث.`;
+  }
+
+  if (position === 1 && estimatedSeconds > 0) {
+    return `طلبك هو التالي، وسيتم إنشاء الغرفة خلال نحو ${estimatedSeconds} ث.`;
+  }
+
+  return "يتم تجهيز طلب إنشاء الغرفة الآن...";
+}
+
+async function waitForRoomCreateSlot() {
+  const requestId = createRoomQueueRequestId();
+  const startedAt = Date.now();
+  let queueData = null;
+
+  const enqueue = async () => {
+    queueData = await fetchRoomCreateQueue("/api/room-create-queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId }),
+    });
+  };
+
+  await enqueue();
+
+  while (queueData?.status !== "ready") {
+    if (Date.now() - startedAt > ROOM_CREATE_QUEUE_MAX_WAIT_MS) {
+      throw new Error("ROOM_CREATE_QUEUE_TIMEOUT");
+    }
+
+    updateOnlineWait(
+      "جارٍ إنشاء الغرفة وتجهيز الاتصال...",
+      roomCreateQueueHint(queueData),
+    );
+
+    await new Promise(resolve =>
+      window.setTimeout(
+        resolve,
+        roomCreateQueuePollDelay(queueData?.estimatedWaitMs),
+      ),
+    );
+
+    try {
+      queueData = await fetchRoomCreateQueue(
+        `/api/room-create-queue/${encodeURIComponent(queueData.ticket)}`,
+      );
+    } catch (error) {
+      // إذا أعيد تشغيل خادم التنسيق أثناء الانتظار، نعيد إدخال نفس الطلب
+      // بالمعرف نفسه بدل إنشاء طلبات مكررة.
+      if (error?.message === "ROOM_CREATE_QUEUE_TICKET_NOT_FOUND") {
+        await enqueue();
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  updateOnlineWait(
+    "جارٍ إنشاء الغرفة وتجهيز الاتصال...",
+    "تم تجهيز دورك، يتم الآن إنشاء الغرفة على الخادم الأنسب.",
+  );
+
+  return queueData.ticket;
+}
+
+async function releaseRoomCreateQueueTicket(ticket) {
+  if (!ticket) return;
+
+  try {
+    await fetchRoomCreateQueue(
+      `/api/room-create-queue/${encodeURIComponent(ticket)}`,
+      { method: "DELETE" },
+      6000,
+    );
+  } catch {
+    // التذكرة الجاهزة تنتهي تلقائيًا على الخادم، لذلك فشل التنظيف غير مؤثر.
+  }
 }
 
 function hostSession(code) {
@@ -288,10 +552,31 @@ async function fetchRoomFromServer(code, mode = "public", playerId = null) {
 }
 
 async function createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds) {
-  const response = await emitAck("room:create", { hostName, roomName, maxPlayers, discussionDurationSeconds });
-  localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ code: response.room.code, token: response.hostToken, savedAt: Date.now() }));
-  cacheServerRoom(response.room);
-  return response.room;
+  // إنشاء الغرف فقط يمر عبر Queue مركزية على Railway A.
+  // التذاكر الجاهزة تُفرج بفاصل 2.52 ثانية، بينما انضمام اللاعبين
+  // وأوامر الغرف الموجودة لا تتأخر ولا تمر عبر هذه القائمة.
+  const queueTicket = await waitForRoomCreateSlot();
+
+  try {
+    const response = await emitAck("room:create", {
+      hostName,
+      roomName,
+      maxPlayers,
+      discussionDurationSeconds,
+    });
+    localStorage.setItem(
+      HOST_SESSION_KEY,
+      JSON.stringify({
+        code: response.room.code,
+        token: response.hostToken,
+        savedAt: Date.now(),
+      }),
+    );
+    cacheServerRoom(response.room);
+    return response.room;
+  } finally {
+    void releaseRoomCreateQueueTicket(queueTicket);
+  }
 }
 
 async function joinPlayerOnServer(code, player) {
@@ -347,7 +632,7 @@ async function startVotingReliably(code) {
   // startVoting في الخادم idempotent، لذلك هذا آمن حتى إذا نجحت المحاولة الأولى متأخرة.
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetch(`${ONLINE_SERVER_URL}/api/rooms/${encodeURIComponent(normalized)}/start-voting`, {
+      const response = await fetch(`${serverUrlForRoomCode(normalized)}/api/rooms/${encodeURIComponent(normalized)}/start-voting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: session.token }),
@@ -862,21 +1147,28 @@ function createRoomRecord(hostName, roomName, maxPlayers) {
   return rooms[code];
 }
 
-function inviteUrl(code) {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("room", code);
-  url.searchParams.set("join", "1");
+function publicGameUrl(params = {}) {
+  const url = new URL("/", PUBLIC_GAME_ORIGIN);
+
+  Object.entries(params).forEach(([key, value]) => {
+    const normalizedValue = String(value ?? "").trim();
+    if (normalizedValue) url.searchParams.set(key, normalizedValue);
+  });
+
   return url.toString();
 }
 
+function inviteUrl(code) {
+  return publicGameUrl({
+    room: normalizeRoomCode(code),
+    join: "1",
+  });
+}
+
 function liveViewUrl(code) {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("live", normalizeRoomCode(code));
-  return url.toString();
+  return publicGameUrl({
+    live: normalizeRoomCode(code),
+  });
 }
 
 async function copyTextToClipboard(text, sourceInput = null) {
@@ -951,7 +1243,7 @@ function pageShell(content, title = "اللعب عبر الشبكة") {
           <span class="online-kicker">MAFIA ONLINE</span>
           <h1>${title}</h1>
         </div>
-        <img src="/logo.png" alt="شعار مافيا" class="online-logo" />
+        <img src="/mafia-logo-v2.png?v=20261001b" alt="شعار مافيا" class="online-logo" />
       </header>
       <section class="online-content">${content}</section>
     </main>`;
@@ -967,6 +1259,7 @@ function attachBack(onBack) {
 }
 
 export function openOnlinePortal({ app, onBack }) {
+  setAudioScene("menu");
   if (!ONLINE_MODE_ENABLED) {
     stopRoomViewSync();
     showInfoToast("اللعب أونلاين متوقف مؤقتًا وسيعود في تحديث قادم.", "قريبًا");
@@ -1024,12 +1317,43 @@ function renderCreateRoom({ app, onBack }) {
     const maxPlayers = Number(document.querySelector("#maxPlayersInput").value);
     const discussionDurationSeconds = Number(document.querySelector("#discussionDurationInput")?.value || 60);
     if (!hostName || !roomName) return showErrorToast("أكمل اسم المدير واسم الغرفة.", "بيانات ناقصة");
+    const submitButton = event.currentTarget?.querySelector('button[type="submit"]');
     try {
-      const room = await createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds);
-      history.replaceState({}, "", `?host=${room.code}`);
-      showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
-      renderHostLobby({ app, onBack, code: room.code });
+      await runOnlineAction({
+        trigger: submitButton,
+        message: "جارٍ إنشاء الغرفة وتجهيز الاتصال...",
+        task: async () => {
+          const room = await createRoomOnServer(hostName, roomName, maxPlayers, discussionDurationSeconds);
+          history.replaceState({}, "", `?host=${room.code}`);
+          showSuccessToast("تم إنشاء الغرفة بنجاح.", "الغرفة جاهزة");
+          renderHostLobby({ app, onBack, code: room.code });
+        },
+      });
     } catch (error) {
+      if (error?.message === "NO_GAME_SERVER_CAPACITY") {
+        showInfoToast(
+          "وصلت الغرف النشطة إلى الحد التشغيلي الحالي. انتظر قليلًا حتى تنتهي إحدى الغرف ثم حاول مرة أخرى.",
+          "الخوادم مشغولة الآن",
+        );
+        return;
+      }
+      if (error?.message === "ROOM_CREATE_QUEUE_FULL") {
+        showInfoToast(
+          "هناك عدد كبير من طلبات إنشاء الغرف الآن. انتظر قليلًا ثم حاول مرة أخرى.",
+          "ضغط مرتفع مؤقتًا",
+        );
+        return;
+      }
+      if (
+        error?.message === "ROOM_CREATE_QUEUE_TIMEOUT" ||
+        error?.message === "ROOM_CREATE_QUEUE_UNAVAILABLE"
+      ) {
+        showErrorToast(
+          "تعذر الوصول إلى نظام تنظيم إنشاء الغرف. حاول مرة أخرى بعد قليل.",
+          "تعذر تجهيز الغرفة",
+        );
+        return;
+      }
       showErrorToast("تعذر إنشاء الغرفة. تحقق من اتصال الخادم.", "خطأ في الخادم");
     }
   });
@@ -1040,7 +1364,7 @@ function renderJoinCode({ app, onBack }) {
     <div class="online-form-card compact-form-card">
       <div class="online-form-heading"><span>🚪</span><div><h2>الانضمام إلى غرفة</h2><p>ألصق رابط الدعوة أو اكتب رمز الغرفة.</p></div></div>
       <form id="joinCodeForm" class="online-form">
-        <label>رابط أو رمز الغرفة<input id="roomCodeInput" required placeholder="مثال: AB7K9P" /></label>
+        <label>رابط أو رمز الغرفة<input id="roomCodeInput" required placeholder="مثال: A8K2PM9" /></label>
         <button class="online-primary-button" type="submit">متابعة</button>
       </form>
     </div>
@@ -1063,7 +1387,15 @@ function renderJoinCode({ app, onBack }) {
     // عند الانضمام من جهاز جديد، الخادم هو المصدر الحقيقي للغرفة.
     // لا نعتمد على sessionStorage هنا، لأن وجود نسخة محلية قد يخفي مشكلة
     // التخزين على الخادم ويجعل الغرفة تبدو موجودة على جهاز المدير فقط.
-    const room = await fetchRoomFromServer(code);
+    const submitButton = event.currentTarget?.querySelector('button[type="submit"]');
+    let room = null;
+    await runOnlineAction({
+      trigger: submitButton,
+      message: "جارٍ البحث عن الغرفة والاتصال بالخادم...",
+      task: async () => {
+        room = await fetchRoomFromServer(code);
+      },
+    });
 
     if (!room) {
       return showErrorToast(
@@ -1110,7 +1442,7 @@ function renderJoinRoom({ app, onBack, code }) {
       <form id="playerJoinForm" class="online-form-card online-form">
         <h2>بيانات المتسابق</h2>
         <label>اسم اللاعب<input id="playerNameInput" maxlength="24" required placeholder="اكتب اسمك" /></label>
-        <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>👨 ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>👩 أنثى</span></label></div></fieldset>
+        <fieldset><legend>الجنس</legend><div class="gender-options"><label><input type="radio" name="gender" value="male" checked /><span>ذكر</span></label><label><input type="radio" name="gender" value="female" /><span>أنثى</span></label></div></fieldset>
         <div><span class="field-label">الصورة الشخصية</span>${avatarPicker()}</div>
         <input id="selectedAvatar" type="hidden" value="${AVATARS[0].src}" />
         <button class="online-primary-button" type="submit" ${room.status !== "waiting" || room.joinLocked ? "disabled" : ""}>${room.joinLockedReason === "full" ? "اكتمل عدد اللاعبين" : room.status !== "waiting" || room.joinLocked ? "الغرفة مغلقة" : "الانضمام إلى الغرفة"}</button>
@@ -1130,15 +1462,22 @@ function renderJoinRoom({ app, onBack, code }) {
     if (current.players.length >= current.maxPlayers) return showErrorToast("اكتمل عدد اللاعبين.", "الغرفة ممتلئة");
     const name = document.querySelector("#playerNameInput").value.trim();
     if (current.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return showErrorToast("هذا الاسم مستخدم داخل الغرفة.", "اختر اسمًا آخر");
+    const submitButton = event.currentTarget?.querySelector('button[type="submit"]');
     try {
-      const response = await joinPlayerOnServer(code, {
-        name,
-        gender: document.querySelector('input[name="gender"]:checked').value,
-        avatar: document.querySelector("#selectedAvatar").value,
+      await runOnlineAction({
+        trigger: submitButton,
+        message: "جارٍ تسجيلك داخل الغرفة...",
+        task: async () => {
+          const response = await joinPlayerOnServer(code, {
+            name,
+            gender: document.querySelector('input[name="gender"]:checked').value,
+            avatar: document.querySelector("#selectedAvatar").value,
+          });
+          const playerId = response.player.id;
+          history.replaceState({}, "", `?room=${code}&player=${playerId}`);
+          renderPlayerRoom({ app, onBack, code, playerId });
+        },
       });
-      const playerId = response.player.id;
-      history.replaceState({}, "", `?room=${code}&player=${playerId}`);
-      renderPlayerRoom({ app, onBack, code, playerId });
     } catch (error) {
       const messages = { ROOM_FULL: "اكتمل عدد اللاعبين.", NAME_TAKEN: "هذا الاسم مستخدم داخل الغرفة.", ROOM_CLOSED: "الغرفة مغلقة الآن." };
       showErrorToast(messages[error.message] || "تعذر الانضمام إلى الغرفة.", "تعذر الانضمام");
@@ -1147,7 +1486,7 @@ function renderJoinRoom({ app, onBack, code }) {
 }
 
 function playerCard(player, host = false) {
-  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${player.avatar}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
+  return `<article class="online-player-card ${!player.alive ? "eliminated" : ""}"><img src="${player.avatar || AVATARS[0].src}" alt="${player.name}" /><div><strong>${player.name}</strong><span>${player.roleKnown ? "✅ تمت معرفة الدور" : "⏳ بانتظار كشف الدور"}</span></div><i class="connection-dot"></i>${host ? `<button class="remove-player-button" data-remove-player="${player.id}" type="button">حذف</button>` : ""}</article>`;
 }
 
 
@@ -1285,8 +1624,11 @@ function renderOnlineTimeline(room, limit = 8) {
   return `<div class="online-timeline">${items.map(item => `<article class="online-timeline-item"><span class="online-timeline-dot"></span><div><strong>${item.text || item.hostText || item.publicText || "تم تحديث المباراة"}</strong><small>${new Date(item.at || Date.now()).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div></article>`).join("")}</div>`;
 }
 
+const THIEF_EYES_ICON =
+  '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />';
+
 const LIVE_ROLE_CHAT_META = {
-  thief: { label: "اللص", icon: "🗡️", className: "thief" },
+  thief: { label: "اللص", icon: THIEF_EYES_ICON, className: "thief" },
   nurse: { label: "الممرضة", icon: "⚕️", className: "nurse" },
   king: { label: "الملك", icon: "♚", className: "king" },
   investigator: { label: "المحقق", icon: "🔎", className: "investigator" },
@@ -1379,7 +1721,7 @@ function renderAssassinationScene({ name, avatar }) {
       <div class="assassination-blood" aria-hidden="true"></div>
       <div class="assassination-knife" aria-hidden="true">🗡️</div>
       <div class="assassination-portrait-frame">
-        <img src="${avatar || "/logo.png"}" alt="${name || "اللاعب"}" />
+        <img src="${avatar || "/mafia-logo-v2.png?v=20261001b"}" alt="${name || "اللاعب"}" />
         <span class="assassination-crack crack-a"></span>
         <span class="assassination-crack crack-b"></span>
         <span class="assassination-mourning-ribbon">تم الاغتيال</span>
@@ -1476,7 +1818,7 @@ function renderOnlineVotingStatus(room) {
       <div class="online-voting-status-list">
         ${alive.map(player => `
           <div class="online-vote-status-player ${voted.has(player.id) ? "has-voted" : "waiting-vote"}">
-            <img src="${player.avatar}" alt="${player.name}" />
+            <img src="${findPlayerAvatar(room, player)}" alt="${player.name}" />
             <span>${player.name}</span>
             <b>${voted.has(player.id) ? "✅ قام بالتصويت" : "⌛ لم يصوت بعد"}</b>
           </div>
@@ -1496,7 +1838,7 @@ function finalRoleName(role, gender = "male") {
 }
 
 function finalRoleIcon(role) {
-  return ({ thief: "🗡️", nurse: "⚕️", king: "👑", investigator: "🔎", citizen: "🛡️" })[role] || "🎭";
+  return ({ thief: THIEF_EYES_ICON, nurse: "⚕️", king: "👑", investigator: "🔎", citizen: "🛡️" })[role] || "🎭";
 }
 
 function renderOnlineWinnerFinal(room, { live = false } = {}) {
@@ -1507,7 +1849,7 @@ function renderOnlineWinnerFinal(room, { live = false } = {}) {
   const namesText = thiefNames.length ? thiefNames.join("، ") : "اللصوص";
   return `
     <section class="online-final-winner online-final-winner--${thievesWon ? "thieves" : "citizens"} ${live ? "is-live" : ""}">
-      <div class="online-final-winner__icon">${thievesWon ? "🗡️" : "🛡️"}</div>
+      <div class="online-final-winner__icon">${thievesWon ? THIEF_EYES_ICON : "🛡️"}</div>
       <small>${thievesWon ? "سيطر اللصوص على المدينة" : "انتصرت المدينة"}</small>
       <h1>${thievesWon ? "اللصوص قد سيطروا على المدينة كاملة" : "تم كشف جميع اللصوص في المدينة"}</h1>
       <p>${thievesWon
@@ -1528,7 +1870,7 @@ function renderLiveFinalRoles(room) {
       <div class="live-final-roles__grid">
         ${room.finalRoles.map(player => `
           <article class="live-final-role live-final-role--${player.role}">
-            <img src="${player.avatar}" alt="${player.name}" />
+            <img src="${findPlayerAvatar(room, player)}" alt="${player.name}" />
             <div><strong>${player.name}</strong><span>${finalRoleIcon(player.role)} ${finalRoleName(player.role, player.gender)}</span></div>
             <i class="${player.alive ? "is-alive" : "is-out"}">${player.alive ? "حي" : "خرج"}</i>
           </article>`).join("")}
@@ -1540,7 +1882,7 @@ function renderOnlineBestPlayer(room, { live = false } = {}) {
   const best = room?.bestPlayer;
   if (!room?.winner || !best?.playerName) return "";
   const player = (room.players || []).find(item => item.id === best.playerId);
-  const avatar = best.avatar || player?.avatar || "";
+  const avatar = findPlayerAvatar(room, { playerId: best.playerId, playerName: best.playerName, avatar: best.avatar || player?.avatar || "" });
   return `<section class="online-best-player ${live ? "is-live" : ""}">
     <div class="online-best-player-medal">🥇</div>
     ${avatar ? `<div class="online-best-player-avatar"><img src="${avatar}" alt="${best.playerName}" /></div>` : ""}
@@ -1548,6 +1890,29 @@ function renderOnlineBestPlayer(room, { live = false } = {}) {
     <h2>${best.playerName}</h2>
     <p>${best.reason || "قدم أفضل أداء إجمالي في المباراة"}</p>
   </section>`;
+}
+
+function findPlayerAvatar(room, { playerId = "", playerName = "", avatar = "" } = {}) {
+  if (avatar) return avatar;
+  const players = [
+    ...(Array.isArray(room?.players) ? room.players : []),
+    ...(Array.isArray(room?.finalRoles) ? room.finalRoles : []),
+  ];
+  const player = players.find(item =>
+    (playerId && item?.id === playerId) ||
+    (playerName && item?.name === playerName)
+  );
+  return player?.avatar || "";
+}
+
+function renderPlayerIdentity(room, playerLike = {}, className = "online-player-identity") {
+  const name = playerLike?.playerName || playerLike?.name || "المتسابق";
+  const avatar = findPlayerAvatar(room, {
+    playerId: playerLike?.playerId || playerLike?.id || "",
+    playerName: name,
+    avatar: playerLike?.avatar || "",
+  });
+  return `<span class="${className}">${avatar ? `<img src="${avatar}" alt="${name}" />` : ""}<strong>${name}</strong></span>`;
 }
 
 function renderOnlineVotingResult(room) {
@@ -1575,7 +1940,8 @@ function renderOnlineVotingResult(room) {
     title = "الامتناع هو الأعلى";
     description = "حصل الامتناع على أعلى عدد من الأصوات، لذلك لم يخرج أحد.";
   }
-  return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small><h2>${title}</h2><p>${description}</p></section>`;
+  const identity = result.playerName ? renderPlayerIdentity(room, result, "online-voting-result-player") : "";
+  return `<section class="online-voting-result"><div>${icon}</div><small>نتيجة التصويت</small>${identity}<h2>${title}</h2><p>${description}</p></section>`;
 }
 
 function isHostNightRoleComplete(room, role) {
@@ -1588,7 +1954,7 @@ function isHostNightRoleComplete(room, role) {
 function renderHostNightControls(room) {
   if (room.status !== "playing" || !["role-reveal", "eyes-closed", "night-role"].includes(room.phase)) return "";
   const roles = ["thief", "nurse", "king", "investigator"];
-  const labels = { thief: "🗡️ استيقاظ اللصوص", nurse: "🏥 استيقاظ الممرضة", king: "👑 استيقاظ الملك", investigator: "🕵️ استيقاظ المحقق" };
+  const labels = { thief: `${THIEF_EYES_ICON} استيقاظ اللصوص`, nurse: "🏥 استيقاظ الممرضة", king: "👑 استيقاظ الملك", investigator: "🕵️ استيقاظ المحقق" };
   const roleButtonsLocked = room.phase === "role-reveal";
   const aliveRoles = new Set((room.players || []).filter(player => player.alive).map(player => player.role));
   return `
@@ -1611,6 +1977,7 @@ function renderHostLobby({ app, onBack, code }) {
   subscribeRoom(code, "host");
   const draw = () => {
     const room = readRoom(code);
+    if (room) syncOnlineAudio(room);
     if (!room) {
       fetchRoomFromServer(code).then(foundRoom => {
         if (foundRoom) draw();
@@ -1675,7 +2042,7 @@ function renderHostLobby({ app, onBack, code }) {
           if (navigator.share) {
             await navigator.share({
               title: room.roomName,
-              text: "انضم إلى غرفة مافيا",
+              text: `انضم إلى غرفة مافيا (${room.roomName})`,
               url,
             });
             return;
@@ -1703,10 +2070,24 @@ function renderHostLobby({ app, onBack, code }) {
           );
         }
       });
-    document.querySelectorAll("[data-remove-player]").forEach(btn => btn.addEventListener("click", async () => { try { await hostCommand(code, "remove-player", { playerId: btn.dataset.removePlayer }); } catch { showErrorToast("تعذر حذف اللاعب.", "خطأ"); } }));
-    document.querySelector("#startOnlineGame")?.addEventListener("click", async () => {
+    document.querySelectorAll("[data-remove-player]").forEach(btn => btn.addEventListener("click", async () => {
       try {
-        await hostCommand(code, "start-game");
+        await runOnlineAction({
+          trigger: btn,
+          message: "جارٍ تحديث قائمة اللاعبين...",
+          task: () => hostCommand(code, "remove-player", { playerId: btn.dataset.removePlayer }),
+        });
+      } catch {
+        showErrorToast("تعذر حذف اللاعب.", "خطأ");
+      }
+    }));
+    document.querySelector("#startOnlineGame")?.addEventListener("click", async event => {
+      try {
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ بدء المباراة وتوزيع الأدوار...",
+          task: () => hostCommand(code, "start-game"),
+        });
         showSuccessToast("تم توزيع الأدوار وإرسالها للاعبين.", "بدأت المباراة");
       } catch { showErrorToast("تعذر بدء المباراة.", "خطأ في الخادم"); }
     });
@@ -1716,7 +2097,7 @@ function renderHostLobby({ app, onBack, code }) {
         if (navigator.share) {
           await navigator.share({
             title: `البث المباشر - ${room.roomName}`,
-            text: "تابع أحداث مباراة مافيا مباشرة",
+            text: `تابع أحداث مباراة مافيا مباشرة:\n${broadcastUrl}`,
             url: broadcastUrl,
           });
           return;
@@ -1733,12 +2114,24 @@ function renderHostLobby({ app, onBack, code }) {
     bindHostRoleRevealCountdown(code, room);
 bindOnlineDayTimerTicker();
 
-    document.querySelector("#skipRoleRevealWait")?.addEventListener("click", async () => {
-      try { await hostCommand(code, "skip-role-reveal"); } catch { showErrorToast("تعذر تخطي الانتظار.", "خطأ"); }
+    document.querySelector("#skipRoleRevealWait")?.addEventListener("click", async event => {
+      try {
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ الانتقال إلى المرحلة التالية...",
+          task: () => hostCommand(code, "skip-role-reveal"),
+        });
+      } catch { showErrorToast("تعذر تخطي الانتظار.", "خطأ"); }
     });
 
-    document.querySelector("#nightModeButton")?.addEventListener("click", async () => {
-      try { await hostCommand(code, "eyes-closed"); } catch { showErrorToast("تعذر بدء مرحلة الليل.", "خطأ"); }
+    document.querySelector("#nightModeButton")?.addEventListener("click", async event => {
+      try {
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ بدء مرحلة الليل...",
+          task: () => hostCommand(code, "eyes-closed"),
+        });
+      } catch { showErrorToast("تعذر بدء مرحلة الليل.", "خطأ"); }
     });
     document.querySelectorAll("[data-role]").forEach(btn => btn.addEventListener("click", async () => {
       const role = btn.dataset.role;
@@ -1746,15 +2139,23 @@ bindOnlineDayTimerTicker();
       document.querySelectorAll(".role-wake-button").forEach(item => item.classList.remove("active"));
       btn.classList.add("active");
       try {
-        await hostCommand(code, "wake-role", { role });
+        await runOnlineAction({
+          trigger: btn,
+          message: "جارٍ إرسال أمر الدور إلى المتسابقين...",
+          task: () => hostCommand(code, "wake-role", { role }),
+        });
       } catch {
         btn.classList.remove("active");
         showErrorToast("تعذر إيقاظ الدور.", "خطأ");
       }
     }));
-    document.querySelector("#finishOnlineNight")?.addEventListener("click", async () => {
+    document.querySelector("#finishOnlineNight")?.addEventListener("click", async event => {
       try {
-        await hostCommand(code, "finish-night");
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ إنهاء الليل والانتقال إلى النهار...",
+          task: () => hostCommand(code, "finish-night"),
+        });
         showSuccessToast("اكتملت مهام الليل وبدأت مرحلة النهار.", "☀️ استيقظوا جميعًا");
       } catch {
         showErrorToast("لا يمكن الانتقال للنهار قبل اكتمال جميع مهام الليل.", "المهام غير مكتملة");
@@ -1763,26 +2164,36 @@ bindOnlineDayTimerTicker();
     document.querySelector("#forceStartOnlineVoting")?.addEventListener("click", async event => {
       const button = event.currentTarget;
       if (button?.disabled) return;
-      button.disabled = true;
       try {
-        await startVotingReliably(code);
+        await runOnlineAction({
+          trigger: button,
+          message: "جارٍ نقل جميع المتسابقين إلى التصويت...",
+          task: () => startVotingReliably(code),
+        });
         showSuccessToast("تم الانتقال إلى التصويت لدى جميع المتسابقين.", "🗳️ بدأ التصويت");
       } catch {
-        button.disabled = false;
         showErrorToast("تعذر الانتقال المباشر إلى التصويت.", "خطأ في الخادم");
       }
     });
-    document.querySelector("#startNextOnlineNight")?.addEventListener("click", async () => {
+    document.querySelector("#startNextOnlineNight")?.addEventListener("click", async event => {
       try {
-        await hostCommand(code, "next-night");
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ بدء الليلة التالية...",
+          task: () => hostCommand(code, "next-night"),
+        });
         showSuccessToast("بدأت ليلة جديدة.", "🌙 الجولة التالية");
       } catch {
         showErrorToast("تعذر بدء الليلة التالية.", "خطأ في الخادم");
       }
     });
-    document.querySelector("#restartOnlineGame")?.addEventListener("click", async () => {
+    document.querySelector("#restartOnlineGame")?.addEventListener("click", async event => {
       try {
-        await hostCommand(code, "rematch");
+        await runOnlineAction({
+          trigger: event.currentTarget,
+          message: "جارٍ تجهيز المباراة الجديدة...",
+          task: () => hostCommand(code, "rematch"),
+        });
         showSuccessToast("تمت إعادة فتح الغرفة بنفس المشاركين.", "🔄 مباراة جديدة");
       } catch {
         showErrorToast("تعذرت إعادة تجهيز الغرفة.", "خطأ في الخادم");
@@ -1815,7 +2226,7 @@ function distributeRoles(count) {
   return shuffle(roles);
 }
 const ROLE_LABELS = { thief: "اللص", nurse: "الممرضة", king: "الملك", investigator: "المحقق", citizen: "المواطن" };
-const ROLE_ICONS = { thief: "🗡️", nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
+const ROLE_ICONS = { thief: THIEF_EYES_ICON, nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
 
 function onlineRoleCard(player, { settled = false } = {}) {
   const image = getRoleCardImage(player.role, player.gender || "male");
@@ -1828,7 +2239,7 @@ function onlineRoleCard(player, { settled = false } = {}) {
         <div class="role-playing-card${settled ? " card-entered card-flipped" : ""}" id="onlineRoleCard">
           <div class="role-card-inner">
             <div class="role-card-face role-card-back">
-              <img class="role-card-back-logo" src="/logo.png" alt="" />
+              <img class="role-card-back-logo" src="/mafia-logo-v2.png?v=20261001b" alt="" />
               <p class="role-card-back-title">مافيا</p>
             </div>
             <div class="role-card-face role-card-front">
@@ -1957,7 +2368,7 @@ function getInvestigationResult(target) {
     return { role: "citizen", label: target.gender === "female" ? "مواطنة" : "مواطن", icon: "🏙️" };
   }
   if (target.role === "thief") {
-    return { role: "thief", label: target.gender === "female" ? "لصة" : "لص", icon: "🗡️" };
+    return { role: "thief", label: target.gender === "female" ? "لصة" : "لص", icon: THIEF_EYES_ICON };
   }
   if (target.role === "investigator") {
     return { role: "investigator", label: target.gender === "female" ? "محققة" : "محقق", icon: "🕵️" };
@@ -1983,13 +2394,14 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
   subscribeRoom(code, "player", playerId);
     const draw = () => {
     const room = readRoom(code); const player = room?.players.find(p => p.id === playerId);
+    if (room) syncOnlineAudio(room);
     if (!room || !player) return renderJoinRoom({ app, onBack, code });
     const revealKey = `${code}:${playerId}`;
     const revealUiState = roleRevealUiState.get(revealKey) || "new";
     const revealStartedLocally = revealUiState === "animating" || revealUiState === "settled";
     let content = "";
     if (room.winner) content = `${renderOnlineWinnerFinal(room)}${renderOnlineBestPlayer(room)}<div class="player-wait-screen compact-result-wait"><p>انتهت المباراة. بانتظار مدير اللعبة لإعادة فتح الغرفة للمباراة التالية...</p></div>`;
-    else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${player.avatar}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
+    else if (room.status === "waiting") content = `<div class="player-wait-screen"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /><span class="live-status"><i></i>متصل بالغرفة</span><h2>أهلًا ${player.name}</h2><p>تم تسجيلك في غرفة <strong>${room.roomName}</strong></p><div class="waiting-pulse"><b></b><b></b><b></b></div><small>بانتظار مدير اللعبة لبدء المباراة...</small></div>`;
     else if (!player.alive) {
   const broadcastUrl = liveViewUrl(code);
 
@@ -2052,7 +2464,7 @@ function renderPlayerRoom({ app, onBack, code, playerId }) {
       <div class="role-envelope role-envelope--branded">
         <div class="role-reveal-emblem" aria-hidden="true">
           <span class="role-reveal-emblem-ring"></span>
-          <img src="/logo.png" alt="" />
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="" />
         </div>
 
         <div class="role-reveal-title-wrap">
@@ -2431,6 +2843,7 @@ bindOnlineDayTimerTicker();
       button.disabled = true;
       const session = playerSession(code, playerId);
       roleRevealUiState.set(revealKey, "animating");
+      playRoleCardFlip(`online-role-${code}-${playerId}-${Number(readRoom(code)?.matchSequence || 0)}`);
       draw();
 
       window.setTimeout(() => {
@@ -2463,12 +2876,15 @@ bindOnlineDayTimerTicker();
       .forEach(button =>
         button.addEventListener("click", async () => {
           const targetId = button.dataset.targetId;
-          const updated = await saveNightTarget(
-            code,
-            playerId,
-            targetId,
-          );
-
+          try {
+            await runOnlineAction({
+              trigger: button,
+              message: "جارٍ حفظ اختيارك...",
+              task: () => saveNightTarget(code, playerId, targetId),
+            });
+          } catch {
+            showErrorToast("تعذر حفظ الاختيار. حاول مرة أخرى.", "خطأ في الاتصال");
+          }
         }),
       );
 
@@ -2479,8 +2895,14 @@ bindOnlineDayTimerTicker();
         if (button?.disabled) return;
         if (button) button.disabled = true;
         try {
-          await skipKingPardon(code, playerId);
-          await confirmNightAction(code, playerId);
+          await runOnlineAction({
+            trigger: button,
+            message: "جارٍ حفظ قرارك...",
+            task: async () => {
+              await skipKingPardon(code, playerId);
+              await confirmNightAction(code, playerId);
+            },
+          });
         } catch {
           if (button) button.disabled = false;
           showErrorToast("تعذر حفظ قرار عدم منح العفو. حاول مرة أخرى.", "خطأ في الاتصال");
@@ -2489,12 +2911,16 @@ bindOnlineDayTimerTicker();
 
     document
       .querySelector("#confirmOnlineNightAction")
-      ?.addEventListener("click", async () => {
-        const updated = await confirmNightAction(
-          code,
-          playerId,
-        );
-
+      ?.addEventListener("click", async event => {
+        try {
+          await runOnlineAction({
+            trigger: event.currentTarget,
+            message: "جارٍ تأكيد قرارك...",
+            task: () => confirmNightAction(code, playerId),
+          });
+        } catch {
+          showErrorToast("تعذر تأكيد القرار. حاول مرة أخرى.", "خطأ في الاتصال");
+        }
       });
     const voteSelectionKey = `${code}:${playerId}`;
     document.querySelectorAll("[data-online-vote-target]").forEach(button => {
@@ -2519,13 +2945,16 @@ bindOnlineDayTimerTicker();
     document.querySelector("#confirmOnlineVote")?.addEventListener("click", async event => {
       const selectedOnlineVoteTarget = voteSelectionUiState.get(voteSelectionKey) || null;
       if (!selectedOnlineVoteTarget) return;
-      event.currentTarget.disabled = true;
+      const button = event.currentTarget;
       try {
-        await playerCommand(code, playerId, "cast-vote", { targetId: selectedOnlineVoteTarget });
+        await runOnlineAction({
+          trigger: button,
+          message: "جارٍ تسجيل تصويتك بصورة آمنة...",
+          task: () => playerCommand(code, playerId, "cast-vote", { targetId: selectedOnlineVoteTarget }),
+        });
         voteSelectionUiState.delete(voteSelectionKey);
         showSuccessToast("تم تسجيل تصويتك بصورة سرية وحفظه داخل بيانات المباراة.", "تم التصويت");
       } catch {
-        event.currentTarget.disabled = false;
         showErrorToast("تعذر حفظ التصويت. حاول مرة أخرى.", "خطأ في التصويت");
       }
     });
@@ -2593,7 +3022,7 @@ function renderLiveParticipantsRail(room) {
       <div class="live-participants-list">
         ${ordered.map((player, index) => `
           <article class="live-participant ${player.alive ? "is-alive" : "is-out"}" style="--player-order:${index}">
-            <div class="live-participant__avatar"><img src="${player.avatar}" alt="${player.name}" /></div>
+            <div class="live-participant__avatar"><img src="${findPlayerAvatar(room, player)}" alt="${player.name}" /></div>
             <div class="live-participant__info">
               <strong>${player.name}</strong>
               <span>${player.roleKnown ? "✓ تمت معرفة الدور" : "⌛ لم تتم معرفة الدور"}</span>
@@ -2617,6 +3046,7 @@ function stopOnlineDayTimerTicker() {
 function bindOnlineDayTimerTicker({ onFinish = null } = {}) {
   stopOnlineDayTimerTicker();
   let finishNotified = false;
+  let finalFiveKey = "";
 
   const tick = () => {
     const timers = [...document.querySelectorAll(".online-day-timer[data-day-ends-at]")];
@@ -2627,6 +3057,13 @@ function bindOnlineDayTimerTicker({ onFinish = null } = {}) {
       const endsAt = Number(timer.dataset.dayEndsAt || 0);
       const total = Math.max(30, Number(timer.dataset.dayTotal || 60));
       const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+      if (remaining === 5) {
+        const key = `online-discussion-${endsAt}`;
+        if (finalFiveKey !== key) {
+          finalFiveKey = key;
+          playDiscussionFinalFive(key);
+        }
+      }
       const percentage = Math.max(0, Math.min(100, (remaining / total) * 100));
       const stateClass = remaining <= 5 ? "timer-danger" : remaining <= 15 ? "timer-warning" : "timer-normal";
 
@@ -2944,7 +3381,7 @@ function renderLiveWinnerCinematic(room) {
           ? `<div class="live-final-cinematic__fire"></div><div class="live-final-cinematic__city"></div>`
           : `<div class="live-final-cinematic__victory-rays"></div><div class="live-final-cinematic__podium">1</div>`}
       </div>
-      <div class="live-final-cinematic__badge">${thievesWon ? "🗡️" : "🏆"}</div>
+      <div class="live-final-cinematic__badge">${thievesWon ? THIEF_EYES_ICON : "🏆"}</div>
       <small>${thievesWon ? "المدينة سقطت" : "انتصار المواطنين"}</small>
       <h1>${thievesWon ? "سيطر اللصوص على المدينة" : "تم كشف جميع اللصوص"}</h1>
       <p>${thievesWon

@@ -14,9 +14,14 @@ export function randomToken() {
   return crypto.randomBytes(32).toString("base64url");
 }
 
+export function getServerId() {
+  const configured = String(process.env.SERVER_ID || "R").trim().toUpperCase();
+  return /^[A-Z0-9]$/.test(configured) ? configured : "R";
+}
+
 export function generateRoomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
+  let code = getServerId();
   for (let i = 0; i < 6; i += 1) code += alphabet[crypto.randomInt(0, alphabet.length)];
   return code;
 }
@@ -55,6 +60,7 @@ export function createRoom({ hostName, roomName, maxPlayers, discussionDurationS
   return {
     id: randomId("room"),
     code: generateRoomCode(),
+    serverId: getServerId(),
     roomName: String(roomName || "").trim().slice(0, 32),
     hostName: String(hostName || "").trim().slice(0, 24),
     maxPlayers: Math.min(22, Math.max(4, Number(maxPlayers) || 10)),
@@ -106,15 +112,15 @@ export function joinPlayer(room, { name, gender, avatar }) {
     touch(room);
     throw new Error("ROOM_FULL");
   }
-  const cleanName = String(name || "").trim().slice(0, 24);
-  if (!cleanName) throw new Error("INVALID_NAME");
+  const cleanName = String(name || "").trim().replace(/[<>\u0000-\u001F\u007F]/g, "").slice(0, 24);
+  if (!cleanName || cleanName.length < 2) throw new Error("INVALID_NAME");
   if (room.players.some(p => p.name.toLocaleLowerCase("ar") === cleanName.toLocaleLowerCase("ar"))) throw new Error("NAME_TAKEN");
   const player = {
     id: randomId("player"),
     sessionToken: randomToken(),
     name: cleanName,
     gender: gender === "female" ? "female" : "male",
-    avatar: String(avatar || "").slice(0, 256),
+    avatar: /^\/avatars\/[a-zA-Z0-9._-]+\.png$/.test(String(avatar || "")) ? String(avatar) : "",
     online: true,
     alive: true,
     role: null,
