@@ -1244,6 +1244,25 @@
   color: var(--muted);
   line-height: 1.8;
 }
+
+/* Keep all role-selection headings/descriptions centered in RTL layouts. */
+.night-selection-card .night-round,
+.night-selection-card h1,
+.night-selection-card .night-description {
+  width: 100%;
+  margin-inline: auto;
+  text-align: center !important;
+}
+
+.night-selection-card .night-description {
+  max-width: 620px;
+}
+
+.night-selection-card .night-player-option,
+.night-selection-card .night-player-option strong,
+.night-selection-card .night-selection-message {
+  text-align: center !important;
+}
 .night-active-roles,
 .night-primary-button {
   margin: 0;
@@ -2129,6 +2148,21 @@
   margin: 20px auto 28px;
   color: var(--muted);
   line-height: 1.9;
+}
+
+/* Center the text above voter/player choices on every screen size. */
+.voting-selection-card .voting-label,
+.voting-selection-card h1,
+.voting-selection-card .voting-description {
+  width: 100%;
+  margin-inline: auto;
+  text-align: center !important;
+}
+
+.voting-selection-card .vote-player-option,
+.voting-selection-card .vote-player-option strong,
+.voting-selection-card .vote-player-option small {
+  text-align: center !important;
 }
 
 .voting-primary-button {
