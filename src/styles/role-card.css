@@ -121,18 +121,6 @@
   border-radius: 14px;
 }
 
-.role-card-back-logo {
-  position: relative;
-  z-index: 2;
-
-  /* Keep the centered game logo subtle on every role card. */
-  width: 30%;
-  max-width: 96px;
-
-  filter:
-    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55));
-}
-
 .role-card-back-title {
   position: absolute;
   right: 0;
