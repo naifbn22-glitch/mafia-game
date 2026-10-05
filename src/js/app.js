@@ -3651,7 +3651,10 @@ function renderThiefSelectionPage() {
     description:
       "حددوا لاعبًا واحدًا من خارج فريق اللصوص. سيتم تنفيذ الاختيار بعد انتهاء جميع الأدوار الليلية.",
 
-    icon: "🗡️",
+    icon: '<img class="night-role-artwork night-role-artwork--thief-eyes" src="/images/roles/thief-eyes.png" alt="عيون اللصوص" />',
+
+    pageClass:
+      "thief-night thief-selection-night",
 
     players: targets,
 
@@ -4410,6 +4413,7 @@ function renderNightPlayerSelection({
   title,
   description,
   icon,
+  pageClass = "",
   players,
   selectedPlayerId,
   buttonText,
@@ -4424,7 +4428,7 @@ function renderNightPlayerSelection({
       : [];
 
   app.innerHTML = `
-    <main class="night-page">
+    <main class="night-page ${pageClass}">
       <div
         class="night-background-glow night-background-glow-purple"
       ></div>
