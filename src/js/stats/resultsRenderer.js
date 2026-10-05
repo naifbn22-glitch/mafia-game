@@ -10,7 +10,7 @@ function getRoleDetails(
       name: isFemale
         ? "اللصة"
         : "اللص",
-      icon: "🗡️",
+      icon: '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />',
       className: "thief",
     },
 
