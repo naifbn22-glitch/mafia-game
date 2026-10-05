@@ -1624,8 +1624,11 @@ function renderOnlineTimeline(room, limit = 8) {
   return `<div class="online-timeline">${items.map(item => `<article class="online-timeline-item"><span class="online-timeline-dot"></span><div><strong>${item.text || item.hostText || item.publicText || "تم تحديث المباراة"}</strong><small>${new Date(item.at || Date.now()).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div></article>`).join("")}</div>`;
 }
 
+const THIEF_EYES_ICON =
+  '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />';
+
 const LIVE_ROLE_CHAT_META = {
-  thief: { label: "اللص", icon: "🗡️", className: "thief" },
+  thief: { label: "اللص", icon: THIEF_EYES_ICON, className: "thief" },
   nurse: { label: "الممرضة", icon: "⚕️", className: "nurse" },
   king: { label: "الملك", icon: "♚", className: "king" },
   investigator: { label: "المحقق", icon: "🔎", className: "investigator" },
@@ -1835,7 +1838,7 @@ function finalRoleName(role, gender = "male") {
 }
 
 function finalRoleIcon(role) {
-  return ({ thief: "🗡️", nurse: "⚕️", king: "👑", investigator: "🔎", citizen: "🛡️" })[role] || "🎭";
+  return ({ thief: THIEF_EYES_ICON, nurse: "⚕️", king: "👑", investigator: "🔎", citizen: "🛡️" })[role] || "🎭";
 }
 
 function renderOnlineWinnerFinal(room, { live = false } = {}) {
@@ -1846,7 +1849,7 @@ function renderOnlineWinnerFinal(room, { live = false } = {}) {
   const namesText = thiefNames.length ? thiefNames.join("، ") : "اللصوص";
   return `
     <section class="online-final-winner online-final-winner--${thievesWon ? "thieves" : "citizens"} ${live ? "is-live" : ""}">
-      <div class="online-final-winner__icon">${thievesWon ? "🗡️" : "🛡️"}</div>
+      <div class="online-final-winner__icon">${thievesWon ? THIEF_EYES_ICON : "🛡️"}</div>
       <small>${thievesWon ? "سيطر اللصوص على المدينة" : "انتصرت المدينة"}</small>
       <h1>${thievesWon ? "اللصوص قد سيطروا على المدينة كاملة" : "تم كشف جميع اللصوص في المدينة"}</h1>
       <p>${thievesWon
@@ -1951,7 +1954,7 @@ function isHostNightRoleComplete(room, role) {
 function renderHostNightControls(room) {
   if (room.status !== "playing" || !["role-reveal", "eyes-closed", "night-role"].includes(room.phase)) return "";
   const roles = ["thief", "nurse", "king", "investigator"];
-  const labels = { thief: "🗡️ استيقاظ اللصوص", nurse: "🏥 استيقاظ الممرضة", king: "👑 استيقاظ الملك", investigator: "🕵️ استيقاظ المحقق" };
+  const labels = { thief: `${THIEF_EYES_ICON} استيقاظ اللصوص`, nurse: "🏥 استيقاظ الممرضة", king: "👑 استيقاظ الملك", investigator: "🕵️ استيقاظ المحقق" };
   const roleButtonsLocked = room.phase === "role-reveal";
   const aliveRoles = new Set((room.players || []).filter(player => player.alive).map(player => player.role));
   return `
@@ -2223,7 +2226,7 @@ function distributeRoles(count) {
   return shuffle(roles);
 }
 const ROLE_LABELS = { thief: "اللص", nurse: "الممرضة", king: "الملك", investigator: "المحقق", citizen: "المواطن" };
-const ROLE_ICONS = { thief: "🗡️", nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
+const ROLE_ICONS = { thief: THIEF_EYES_ICON, nurse: "🏥", king: "👑", investigator: "🕵️", citizen: "🏙️" };
 
 function onlineRoleCard(player, { settled = false } = {}) {
   const image = getRoleCardImage(player.role, player.gender || "male");
@@ -2365,7 +2368,7 @@ function getInvestigationResult(target) {
     return { role: "citizen", label: target.gender === "female" ? "مواطنة" : "مواطن", icon: "🏙️" };
   }
   if (target.role === "thief") {
-    return { role: "thief", label: target.gender === "female" ? "لصة" : "لص", icon: "🗡️" };
+    return { role: "thief", label: target.gender === "female" ? "لصة" : "لص", icon: THIEF_EYES_ICON };
   }
   if (target.role === "investigator") {
     return { role: "investigator", label: target.gender === "female" ? "محققة" : "محقق", icon: "🕵️" };
@@ -3378,7 +3381,7 @@ function renderLiveWinnerCinematic(room) {
           ? `<div class="live-final-cinematic__fire"></div><div class="live-final-cinematic__city"></div>`
           : `<div class="live-final-cinematic__victory-rays"></div><div class="live-final-cinematic__podium">1</div>`}
       </div>
-      <div class="live-final-cinematic__badge">${thievesWon ? "🗡️" : "🏆"}</div>
+      <div class="live-final-cinematic__badge">${thievesWon ? THIEF_EYES_ICON : "🏆"}</div>
       <small>${thievesWon ? "المدينة سقطت" : "انتصار المواطنين"}</small>
       <h1>${thievesWon ? "سيطر اللصوص على المدينة" : "تم كشف جميع اللصوص"}</h1>
       <p>${thievesWon
