@@ -3486,14 +3486,14 @@ function renderNightRoleHandoff({
       ></div>
 
       <section class="night-card night-handoff-card">
-        <div class="night-role-icon">
-          ${icon}
-        </div>
-
         <p class="night-round">
           الليلة
           ${gameState.roundNumber}
         </p>
+
+        <div class="night-role-icon">
+          ${icon}
+        </div>
 
         <h1>
           ${title}
@@ -4441,14 +4441,14 @@ function renderNightPlayerSelection({
       ></div>
 
       <section class="night-selection-card">
-        <div class="night-role-icon">
-          ${icon}
-        </div>
-
         <p class="night-round">
           الليلة
           ${gameState.roundNumber}
         </p>
+
+        <div class="night-role-icon">
+          ${icon}
+        </div>
 
         <h1>
           ${title}
