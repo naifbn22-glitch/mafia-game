@@ -2896,12 +2896,6 @@ function renderRolePlayingCard(
           <div
             class="role-card-face role-card-back"
           >
-            <img
-              class="role-card-back-logo"
-              src="/mafia-logo-v2.png?v=20261001b"
-              alt=""
-            />
-
             <p class="role-card-back-title">
               مافيا
             </p>
