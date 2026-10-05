@@ -136,6 +136,9 @@ const DEFAULT_AVATARS = [
 ];
 const app = document.querySelector("#app");
 
+const THIEF_EYES_ICON =
+  '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />';
+
 if (!app) {
   throw new Error(
     "لم يتم العثور على عنصر التطبيق.",
@@ -575,7 +578,7 @@ function renderHomePage() {
 
         <div class="rules-role-grid">
           <article class="rules-role-card rules-role-card--thief">
-            <div class="rules-role-icon">🗡️</div>
+            <div class="rules-role-icon">${THIEF_EYES_ICON}</div>
             <h4>اللصوص</h4>
             <p>يستيقظون كل ليلة ويختارون شخصًا واحدًا لإخراجه من اللعبة.</p>
             <p>هدفهم أن يصبح عددهم مساويًا لعدد المواطنين الأحياء.</p>
@@ -702,7 +705,7 @@ function renderHomePage() {
             <div>
               <p><span>🕵️</span> المحقق يفحص لاعبًا واحدًا فقط في الجولة ولا يغير اختياره بعد التأكيد.</p>
               <p><span>👑</span> الملك يمتلك 3 أوسمة عفو، ومن يحمل الوسام لا يخرج عند التصويت عليه.</p>
-              <p><span>🗡️</span> اللصوص يعرفون بعضهم في بداية اللعبة.</p>
+              <p><span>${THIEF_EYES_ICON}</span> اللصوص يعرفون بعضهم في بداية اللعبة.</p>
             </div>
           </div>
         </section>
@@ -1936,7 +1939,7 @@ function renderSettingsPage() {
 
           <div class="roles-grid">
             ${renderRoleCard(
-              "🗡️",
+              THIEF_EYES_ICON,
               "اللصوص",
               roles.thieves,
             )}
@@ -4199,7 +4202,7 @@ function getInvestigationDetails(
           : "هذا اللاعب لص",
       description:
         "هذا اللاعب ينتمي إلى فريق اللصوص.",
-      icon: "🗡️",
+      icon: THIEF_EYES_ICON,
       className:
         "inspection-thief",
     };
@@ -4842,7 +4845,7 @@ function resolveNight() {
         description:
           "تم إخراج اللاعب خلال مرحلة الليل.",
 
-        icon: "🗡️",
+        icon: THIEF_EYES_ICON,
 
         round:
           gameState.roundNumber,
@@ -7344,7 +7347,7 @@ function renderGameOverPage(
         >
           ${
             thievesWon
-              ? "🗡️"
+              ? THIEF_EYES_ICON
               : "🏆"
           }
         </div>
