@@ -1701,3 +1701,64 @@ body.online-action-busy .online-page {
   font-size: 18px;
   color: #fff;
 }
+
+
+/* Center night-role and voting choice copy across all roles, including RTL/iPhone. */
+.active-role-screen > h2,
+.active-role-screen > p,
+.active-role-screen .night-choice-status {
+  width: 100%;
+  margin-inline: auto;
+  text-align: center !important;
+}
+
+.active-role-screen .night-target,
+.active-role-screen .night-target span,
+.active-role-screen .night-target small {
+  text-align: center !important;
+}
+
+.online-voting-player-heading {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 12px;
+  text-align: center !important;
+}
+
+.online-voting-player-heading::after {
+  content: "";
+  width: 42px;
+  height: 1px;
+}
+
+.online-voting-player-heading > span {
+  justify-self: center;
+}
+
+.online-voting-player-heading > div,
+.online-voting-player-heading small,
+.online-voting-player-heading h2,
+.online-voting-player-heading p,
+#onlineVoteSelectionMessage {
+  width: 100%;
+  margin-inline: auto;
+  text-align: center !important;
+}
+
+.online-vote-option,
+.online-vote-option strong,
+.online-vote-option small {
+  text-align: center !important;
+}
+
+@media (max-width: 520px) {
+  .online-voting-player-heading {
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    gap: 8px;
+  }
+
+  .online-voting-player-heading::after {
+    width: 34px;
+  }
+}
