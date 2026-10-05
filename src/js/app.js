@@ -139,6 +139,9 @@ const app = document.querySelector("#app");
 const THIEF_EYES_ICON =
   '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />';
 
+const NURSE_HEART_ICON =
+  '<img class="nurse-heart-inline" src="/images/roles/nurse-heart.png" alt="قلب أخضر نابض" />';
+
 if (!app) {
   throw new Error(
     "لم يتم العثور على عنصر التطبيق.",
@@ -3706,7 +3709,7 @@ function renderNurseHandoffPage() {
     pageClass:
       "nurse-night",
 
-    icon: "🩺",
+    icon: NURSE_HEART_ICON,
 
     title:
       "تستيقظ الممرضة",
@@ -3791,7 +3794,7 @@ function renderNurseSelectionPage() {
     description:
       "يمكن للممرضة حماية أي لاعب حي، بما في ذلك نفسها. إذا كان هو هدف اللصوص فسينجو.",
 
-    icon: "🩺",
+    icon: NURSE_HEART_ICON,
 
     players: targets,
 
@@ -4805,7 +4808,7 @@ function resolveNight() {
           description:
             "نجحت الممرضة في حماية هدف اللصوص، ولم يخرج أحد هذه الليلة.",
 
-          icon: "🩺",
+          icon: NURSE_HEART_ICON,
 
           round:
             gameState.roundNumber,
