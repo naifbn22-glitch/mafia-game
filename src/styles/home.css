@@ -1255,6 +1255,7 @@
   margin: 0 auto 22px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 34px;
   font-size: 54px;
@@ -1266,6 +1267,14 @@
     );
   box-shadow:
     0 0 45px rgba(118, 71, 255, 0.18);
+}
+
+.night-role-artwork {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .night-primary-button {
