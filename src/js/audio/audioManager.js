@@ -1,6 +1,7 @@
 const AUDIO_ENABLED_KEY = "mafia:audio-enabled";
 const MUSIC_VOLUME_KEY = "mafia:music-volume";
-const DEFAULT_MUSIC_VOLUME = 0.32;
+const MUSIC_VOLUME_PRESET_KEY = "mafia:music-volume-preset-v7";
+const DEFAULT_MUSIC_VOLUME = 0.07;
 
 const TRACKS = Object.freeze({
   music: "/audio/music/mafia-theme.mp3",
@@ -11,6 +12,15 @@ const TRACKS = Object.freeze({
 });
 
 let enabled = localStorage.getItem(AUDIO_ENABLED_KEY) !== "false";
+
+const hasSevenPercentPreset =
+  localStorage.getItem(MUSIC_VOLUME_PRESET_KEY) === "applied";
+
+if (!hasSevenPercentPreset) {
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(DEFAULT_MUSIC_VOLUME));
+  localStorage.setItem(MUSIC_VOLUME_PRESET_KEY, "applied");
+}
+
 const storedMusicVolume = Number(localStorage.getItem(MUSIC_VOLUME_KEY));
 let musicVolume = Number.isFinite(storedMusicVolume)
   ? Math.min(1, Math.max(0, storedMusicVolume))
