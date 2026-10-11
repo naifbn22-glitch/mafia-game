@@ -472,14 +472,20 @@ function renderHomePage() {
               : ""
           }
 
-          <div class="game-actions">
+          <div class="game-actions mafia-mode-actions">
             <button
-              class="game-button offline-button"
+              class="game-button mafia-mode-button offline-button"
               id="offlineButton"
               type="button"
+              aria-label="اللعب بدون إنترنت"
             >
-              <span class="button-icon">
-                📱
+              <span class="mafia-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 72 88" role="img">
+                  <rect x="13" y="5" width="46" height="78" rx="8"></rect>
+                  <path d="M29 14h14"></path>
+                  <circle cx="36" cy="71" r="3.5"></circle>
+                  <path d="M19 23h34v39H19z" class="icon-screen"></path>
+                </svg>
               </span>
 
               <span class="button-content">
@@ -488,22 +494,26 @@ function renderHomePage() {
                 </strong>
 
                 <small>
-                  استخدموا جهازًا واحدًا
+                  ابدأ اللعبة على نفس الجهاز
                 </small>
-              </span>
-
-              <span class="button-arrow">
-                ←
               </span>
             </button>
 
             <button
-              class="game-button online-button"
+              class="game-button mafia-mode-button online-button"
               id="onlineButton"
               type="button"
+              aria-label="لعبة مافيا أونلاين"
             >
-              <span class="button-icon">
-                🌐
+              <span class="mafia-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 96 88" role="img">
+                  <circle cx="48" cy="25" r="12"></circle>
+                  <circle cx="21" cy="31" r="9"></circle>
+                  <circle cx="75" cy="31" r="9"></circle>
+                  <path d="M30 69c0-15 8-24 18-24s18 9 18 24"></path>
+                  <path d="M5 70c0-12 6-20 16-20 5 0 9 2 12 6"></path>
+                  <path d="M91 70c0-12-6-20-16-20-5 0-9 2-12 6"></path>
+                </svg>
               </span>
 
               <span class="button-content">
@@ -514,10 +524,6 @@ function renderHomePage() {
                 <small>
                   أنشئ غرفة والعب مع أصدقائك
                 </small>
-              </span>
-
-              <span class="button-arrow">
-                ←
               </span>
             </button>
           </div>
