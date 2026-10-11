@@ -1339,33 +1339,33 @@ function renderPlayersPage() {
             </h2>
           </div>
 
-          <div class="roles-grid">
+          <div class="roles-grid roles-grid--cinematic">
             ${renderRoleCard(
-              '<img class="role-summary-artwork" src="/images/roles/thief-scene.webp" alt="اللصوص" />',
-              "اللصوص",
-              roles.thieves,
-            )}
-
-            ${renderRoleCard(
-              "👑",
+              "king",
               "الملك",
               roles.king,
             )}
 
             ${renderRoleCard(
-              "🏥",
-              "الممرضة",
-              roles.nurse,
+              "thief",
+              "اللصوص",
+              roles.thieves,
             )}
 
             ${renderRoleCard(
-              "🕵️",
+              "investigator",
               "المحقق",
               roles.investigator,
             )}
 
             ${renderRoleCard(
-              "👥",
+              "nurse",
+              "الممرضة",
+              roles.nurse,
+            )}
+
+            ${renderRoleCard(
+              "citizen",
               "المواطنون",
               roles.citizens,
             )}
@@ -1472,25 +1472,70 @@ ${genderLabel}
 
 
 function renderRoleCard(
-  icon,
+  roleType,
   title,
   count,
 ) {
+  const roleIcons = {
+    king: `
+      <svg viewBox="0 0 84 84" aria-hidden="true">
+        <path d="M15 57h54l-5 13H20z"></path>
+        <path d="M18 56l-4-31 18 14 10-24 10 24 18-14-4 31"></path>
+        <circle cx="14" cy="24" r="3"></circle>
+        <circle cx="42" cy="14" r="3"></circle>
+        <circle cx="70" cy="24" r="3"></circle>
+      </svg>
+    `,
+    thief: `
+      <img
+        class="role-summary-image role-summary-image--thief"
+        src="/images/roles/thief-eyes.png"
+        alt=""
+        aria-hidden="true"
+      />
+    `,
+    investigator: `
+      <svg viewBox="0 0 84 84" aria-hidden="true">
+        <circle cx="35" cy="35" r="20"></circle>
+        <path d="M50 50l20 20"></path>
+        <path d="M27 35c3-7 12-10 19-6"></path>
+      </svg>
+    `,
+    nurse: `
+      <img
+        class="role-summary-image role-summary-image--nurse"
+        src="/images/roles/nurse-heart.png"
+        alt=""
+        aria-hidden="true"
+      />
+    `,
+    citizen: `
+      <svg viewBox="0 0 96 84" aria-hidden="true">
+        <circle cx="48" cy="27" r="12"></circle>
+        <circle cx="22" cy="33" r="9"></circle>
+        <circle cx="74" cy="33" r="9"></circle>
+        <path d="M27 71c0-14 8-23 21-23s21 9 21 23"></path>
+        <path d="M5 71c0-11 6-19 17-19 6 0 10 2 13 6"></path>
+        <path d="M91 71c0-11-6-19-17-19-6 0-10 2-13 6"></path>
+      </svg>
+    `,
+  };
+
   return `
-    <article class="role-summary-card">
-      <span class="role-summary-icon">
-        ${icon}
+    <article class="role-summary-card role-summary-card--${roleType}">
+      <span class="role-summary-icon" aria-hidden="true">
+        ${roleIcons[roleType] ?? ""}
       </span>
 
-      <div>
+      <div class="role-summary-copy">
         <p>
           ${title}
         </p>
-
-        <strong>
-          ${count}
-        </strong>
       </div>
+
+      <strong class="role-summary-count" aria-label="${title}: ${count}">
+        ${count}
+      </strong>
     </article>
   `;
 }
