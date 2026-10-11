@@ -6642,3 +6642,402 @@
     font-size: 11px;
   }
 }
+
+
+/* =========================================================
+   Player setup — cinematic role distribution panel
+   Rebuilt from the approved reference: gold/red alternating rows.
+   ========================================================= */
+.players-layout .roles-panel {
+  --roles-gold: #c88935;
+  --roles-gold-bright: #f4c36b;
+  --roles-red: #b7202c;
+  --roles-red-bright: #ef5360;
+
+  position: sticky;
+  top: 28px;
+  padding: 28px 24px 24px;
+  overflow: hidden;
+  border: 1px solid rgba(211, 151, 64, 0.62);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 50% -8%, rgba(190, 117, 35, 0.12), transparent 33%),
+    radial-gradient(circle at 8% 50%, rgba(139, 17, 25, 0.08), transparent 36%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,.014) 0,
+      rgba(255,255,255,.014) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    linear-gradient(180deg, rgba(10, 8, 9, 0.98), rgba(5, 5, 8, 0.98));
+  box-shadow:
+    0 26px 60px rgba(0,0,0,.46),
+    0 0 34px rgba(156, 86, 24, .12),
+    inset 0 0 0 1px rgba(255, 202, 115, .055),
+    inset 0 0 46px rgba(0,0,0,.62);
+  backdrop-filter: blur(16px);
+}
+
+.players-layout .roles-panel::before,
+.players-layout .roles-panel::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(240, 181, 91, .22) 12%,
+      rgba(244, 195, 107, .78) 50%,
+      rgba(240, 181, 91, .22) 88%,
+      transparent
+    );
+  box-shadow: 0 0 12px rgba(210, 143, 52, .22);
+}
+
+.players-layout .roles-panel::before {
+  top: 16px;
+}
+
+.players-layout .roles-panel::after {
+  bottom: 16px;
+}
+
+.players-layout .roles-heading {
+  position: relative;
+  z-index: 2;
+  padding: 12px 0 14px;
+  text-align: center;
+}
+
+.players-layout .roles-heading::after {
+  content: "◆";
+  display: block;
+  width: fit-content;
+  margin: 10px auto 0;
+  color: rgba(238, 177, 82, .88);
+  font-size: 10px;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(222, 152, 55, .48);
+}
+
+.players-layout .roles-heading p {
+  margin: 0 0 8px;
+  color: #bf8540;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-align: center;
+}
+
+.players-layout .roles-heading h2 {
+  margin: 0;
+  color: #f3e9d9;
+  font-size: clamp(29px, 3vw, 38px);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  text-shadow:
+    0 2px 4px rgba(0,0,0,.9),
+    0 0 18px rgba(196, 130, 47, .2);
+}
+
+.players-layout .roles-grid--cinematic {
+  position: relative;
+  z-index: 2;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-card {
+  --role-accent: var(--roles-gold);
+  --role-accent-bright: var(--roles-gold-bright);
+  --role-glow: rgba(200, 137, 53, .22);
+
+  position: relative;
+  min-height: 104px;
+  padding: 10px 13px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 10px;
+  direction: ltr;
+  border: 1px solid color-mix(in srgb, var(--role-accent) 72%, #24140b 28%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 7% 50%, var(--role-glow), transparent 28%),
+    radial-gradient(circle at 94% 50%, var(--role-glow), transparent 24%),
+    linear-gradient(100deg, rgba(46,22,10,.42), rgba(8,8,12,.92) 32%, rgba(8,8,12,.96) 68%, rgba(43,20,10,.36));
+  box-shadow:
+    0 12px 27px rgba(0,0,0,.34),
+    0 0 14px color-mix(in srgb, var(--role-accent) 16%, transparent),
+    inset 0 0 0 1px rgba(255,255,255,.025),
+    inset 0 0 28px rgba(0,0,0,.44);
+}
+
+.players-layout .roles-grid--cinematic .role-summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  z-index: 0;
+  border: 1px solid color-mix(in srgb, var(--role-accent) 22%, transparent);
+  border-radius: 13px;
+  pointer-events: none;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 86px;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--role-accent) 46%, transparent), transparent);
+  opacity: .72;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-card--thief,
+.players-layout .roles-grid--cinematic .role-summary-card--nurse {
+  --role-accent: var(--roles-red);
+  --role-accent-bright: var(--roles-red-bright);
+  --role-glow: rgba(183, 32, 44, .25);
+  background:
+    radial-gradient(circle at 7% 50%, rgba(159, 22, 32, .26), transparent 30%),
+    radial-gradient(circle at 94% 50%, rgba(159, 22, 32, .22), transparent 24%),
+    linear-gradient(100deg, rgba(61,11,16,.5), rgba(8,7,11,.94) 32%, rgba(8,7,11,.97) 68%, rgba(58,10,15,.42));
+}
+
+.players-layout .roles-grid--cinematic .role-summary-icon,
+.players-layout .roles-grid--cinematic .role-summary-copy,
+.players-layout .roles-grid--cinematic .role-summary-count {
+  position: relative;
+  z-index: 2;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-icon {
+  width: 70px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--role-accent) 54%, transparent);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--role-accent) 14%, transparent), rgba(0,0,0,.12) 70%);
+  box-shadow:
+    0 0 18px var(--role-glow),
+    inset 0 0 18px rgba(0,0,0,.46);
+}
+
+.players-layout .roles-grid--cinematic .role-summary-icon svg {
+  width: 52px;
+  height: 52px;
+  fill: none;
+  stroke: #f4eadb;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 5px var(--role-accent))
+    drop-shadow(0 0 11px var(--role-glow));
+}
+
+.players-layout .roles-grid--cinematic .role-summary-image {
+  display: block;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-image--thief {
+  width: 62px;
+  height: 46px;
+  filter:
+    saturate(1.15)
+    drop-shadow(0 0 7px rgba(235, 40, 48, .76))
+    drop-shadow(0 0 15px rgba(146, 12, 20, .5));
+}
+
+.players-layout .roles-grid--cinematic .role-summary-image--nurse {
+  width: 58px;
+  height: 58px;
+  filter:
+    drop-shadow(0 0 7px rgba(48, 235, 126, .56))
+    drop-shadow(0 0 13px rgba(25, 141, 75, .32));
+}
+
+.players-layout .roles-grid--cinematic .role-summary-copy {
+  min-width: 0;
+  direction: rtl;
+  text-align: center;
+}
+
+.players-layout .roles-grid--cinematic .role-summary-copy p {
+  margin: 0;
+  color: #eee5d8;
+  font-size: clamp(20px, 2vw, 25px);
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow:
+    0 2px 3px rgba(0,0,0,.9),
+    0 0 11px var(--role-glow);
+}
+
+.players-layout .roles-grid--cinematic .role-summary-count {
+  box-sizing: border-box;
+  width: 62px;
+  height: 70px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  border: 1px solid var(--role-accent);
+  border-radius: 15px;
+  color: #fff5e6;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--role-accent) 32%, #120908 68%), rgba(7,6,9,.94) 68%);
+  box-shadow:
+    0 0 12px var(--role-glow),
+    inset 0 0 16px color-mix(in srgb, var(--role-accent) 16%, transparent);
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 1px 2px #000,
+    0 0 10px var(--role-accent);
+}
+
+.players-layout .roles-grid--cinematic .role-summary-card--thief .role-summary-count,
+.players-layout .roles-grid--cinematic .role-summary-card--nurse .role-summary-count {
+  color: #ffe8e5;
+}
+
+.players-layout .roles-panel .roles-note {
+  position: relative;
+  z-index: 2;
+  margin: 17px 0 0;
+  padding: 12px 15px;
+  border: 1px solid rgba(190, 126, 46, .26);
+  border-radius: 13px;
+  color: rgba(235, 221, 201, .72);
+  background: rgba(12, 9, 8, .66);
+  box-shadow: inset 0 0 18px rgba(142, 82, 24, .05);
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.players-layout .roles-panel .roles-note::before {
+  content: "◆";
+  margin-inline-end: 8px;
+  color: #d49a46;
+  font-size: 9px;
+  vertical-align: .08em;
+}
+
+.players-layout .roles-panel .continue-button {
+  position: relative;
+  z-index: 2;
+  min-height: 58px;
+  margin-top: 18px;
+  border: 1px solid rgba(211, 151, 64, .58);
+  border-radius: 15px;
+  color: #f7ecda;
+  background:
+    linear-gradient(180deg, rgba(91, 45, 17, .92), rgba(44, 19, 8, .96));
+  box-shadow:
+    0 12px 25px rgba(0,0,0,.32),
+    0 0 16px rgba(188, 120, 38, .12),
+    inset 0 0 0 1px rgba(255,213,139,.04);
+  font-weight: 900;
+}
+
+.players-layout .roles-panel .continue-button:not(:disabled):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow:
+    0 15px 30px rgba(0,0,0,.36),
+    0 0 23px rgba(209, 140, 48, .2);
+}
+
+.players-layout .roles-panel .minimum-note {
+  position: relative;
+  z-index: 2;
+  margin: 12px 0 3px;
+  color: rgba(233, 220, 201, .52);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (min-width: 901px) {
+  .players-layout {
+    grid-template-columns: minmax(0, 1.38fr) minmax(370px, .9fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .players-layout .roles-panel {
+    padding: 25px 14px 22px;
+    border-radius: 22px;
+  }
+
+  .players-layout .roles-heading h2 {
+    font-size: 31px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-card {
+    min-height: 92px;
+    grid-template-columns: 64px minmax(0, 1fr) 54px;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 16px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-card::after {
+    right: 69px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-icon {
+    width: 58px;
+    height: 66px;
+    border-radius: 14px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-icon svg {
+    width: 43px;
+    height: 43px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-image {
+    width: 48px;
+    height: 48px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-image--thief {
+    width: 52px;
+    height: 38px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-copy p {
+    font-size: 19px;
+  }
+
+  .players-layout .roles-grid--cinematic .role-summary-count {
+    width: 50px;
+    height: 60px;
+    border-radius: 13px;
+    font-size: 29px;
+  }
+}
