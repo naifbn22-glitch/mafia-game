@@ -7374,3 +7374,41 @@
     font-size: 11px;
   }
 }
+
+.rules-commentary-subtitle {
+  margin: 8px 0 0;
+  color: rgba(239, 224, 202, .72);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rules-commentary-progress {
+  width: min(620px, 100%);
+  height: 7px;
+  margin: 22px auto 0;
+  overflow: hidden;
+  direction: rtl;
+  border: 1px solid rgba(214, 151, 67, .24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.rules-commentary-progress span {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: scaleX(0);
+  transform-origin: right center;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a71926, #e5b45a);
+  box-shadow: 0 0 14px rgba(229, 180, 90, .42);
+  transition: transform 120ms linear;
+}
+
+.rules-commentary-heading .rules-commentary-subtitle {
+  min-height: 0;
+  margin: 8px 0 0;
+  color: rgba(239, 224, 202, .72);
+  font-size: 14px;
+  font-weight: 600;
+}

@@ -2815,6 +2815,7 @@ function getAliveRolePlayer(roleId) {
 
 let activeRulesNarration = null;
 let activeRulesNarrationFrame = null;
+let activeRulesNarrationUnlock = null;
 
 const RULES_NARRATION_CUES = Object.freeze([
   { start: 0, end: 19, role: null },
@@ -2830,6 +2831,11 @@ function stopRulesNarration() {
   if (activeRulesNarrationFrame) {
     cancelAnimationFrame(activeRulesNarrationFrame);
     activeRulesNarrationFrame = null;
+  }
+
+  if (activeRulesNarrationUnlock) {
+    document.removeEventListener("pointerdown", activeRulesNarrationUnlock);
+    activeRulesNarrationUnlock = null;
   }
 
   if (activeRulesNarration) {
@@ -2881,11 +2887,11 @@ function renderRulesCommentaryPage() {
   stopRulesNarration();
 
   const roleCards = [
-    ["thief", "اللصوص", "/roles/thief-card.png"],
-    ["citizen", "المواطنون", "/roles/citizen-card.png"],
-    ["nurse", "الممرضة", "/roles/nurse-card.png"],
-    ["king", "الملك", "/roles/king-card.png"],
-    ["investigator", "المحقق", "/roles/investigator-card.png"],
+    ["thief", "اللصوص", getRoleCardImage("thief")],
+    ["citizen", "المواطنون", getRoleCardImage("citizen")],
+    ["nurse", "الممرضة", getRoleCardImage("nurse")],
+    ["king", "الملك", getRoleCardImage("king")],
+    ["investigator", "المحقق", getRoleCardImage("investigator")],
   ];
 
   app.innerHTML = `
@@ -2896,8 +2902,9 @@ function renderRulesCommentaryPage() {
       <section class="rules-commentary-shell">
         <div class="rules-commentary-heading">
           <span class="rules-commentary-kicker">قبل توزيع الأدوار</span>
-          <h1>قوانين لعبة مافيا</h1>
-          <p id="rulesCommentaryNow">شرح قوانين اللعبة</p>
+          <h1>تعرف على شخصيات اللعبة</h1>
+          <p class="rules-commentary-subtitle">استمع إلى المعلق قبل بدء اللعبة</p>
+          <p id="rulesCommentaryNow" aria-live="polite">شرح قوانين اللعبة</p>
         </div>
 
         <div class="rules-commentary-cards" aria-label="بطاقات شخصيات اللعبة">
@@ -2909,6 +2916,10 @@ function renderRulesCommentaryPage() {
               <strong>${roleName}</strong>
             </article>
           `).join("")}
+        </div>
+
+        <div class="rules-commentary-progress" role="progressbar" aria-label="تقدم شرح القوانين" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="rulesCommentaryProgressFill"></span>
         </div>
 
         <div class="rules-commentary-audio-status">
@@ -2933,13 +2944,27 @@ function renderRulesCommentaryPage() {
   document.querySelector("#skipRulesCommentaryButton")
     ?.addEventListener("click", finishRules);
 
-  activeRulesNarration = new Audio("/audio/commentary/rules-intro.mp3");
+  activeRulesNarration = new Audio("/audio/narrator/rules.mp3");
   activeRulesNarration.preload = "auto";
+  activeRulesNarration.playsInline = true;
   activeRulesNarration.volume = 0.92;
+
+  const syncProgress = () => {
+    if (!activeRulesNarration) return;
+    const duration = Number(activeRulesNarration.duration);
+    const ratio = Number.isFinite(duration) && duration > 0
+      ? Math.min(1, activeRulesNarration.currentTime / duration)
+      : 0;
+    const progress = document.querySelector(".rules-commentary-progress");
+    const fill = document.querySelector("#rulesCommentaryProgressFill");
+    if (fill) fill.style.transform = `scaleX(${ratio})`;
+    progress?.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+  };
 
   const syncFocus = () => {
     if (!activeRulesNarration) return;
     updateRulesNarrationFocus(activeRulesNarration.currentTime);
+    syncProgress();
     activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
   };
 
@@ -2957,12 +2982,13 @@ function renderRulesCommentaryPage() {
       const status = document.querySelector(".rules-commentary-audio-status span:last-child");
       if (status) status.textContent = "اضغط على الشاشة لتشغيل شرح القوانين";
 
-      const unlock = () => {
+      activeRulesNarrationUnlock = () => {
         if (!activeRulesNarration) return;
         activeRulesNarration.play().catch(() => {});
-        document.removeEventListener("pointerdown", unlock);
+        document.removeEventListener("pointerdown", activeRulesNarrationUnlock);
+        activeRulesNarrationUnlock = null;
       };
-      document.addEventListener("pointerdown", unlock, { once: true });
+      document.addEventListener("pointerdown", activeRulesNarrationUnlock, { once: true });
     });
   } else {
     const status = document.querySelector(".rules-commentary-audio-status span:last-child");
