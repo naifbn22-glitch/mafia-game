@@ -153,6 +153,7 @@ const GAME_PHASES = Object.freeze({
   HOME: "home",
   PLAYERS: "players",
   SETTINGS: "settings",
+  RULES_INTRO: "rules-intro",
 
   ROLE_HANDOFF: "role-handoff",
   ROLE_REVEAL: "role-reveal",
@@ -1925,6 +1926,13 @@ function renderSettingsPage() {
             )}
 
             ${renderToggleSetting(
+              "التعليق الصوتي",
+              "تشغيل المعلّق الصوتي وشرح القوانين والتعليقات أثناء مجريات اللعبة.",
+              "voiceCommentaryEnabled",
+              settings.voiceCommentaryEnabled ?? true,
+            )}
+
+            ${renderToggleSetting(
               "اهتزاز الهاتف",
               "تنبيه اللاعب عند بداية دوره.",
               "vibrationEnabled",
@@ -2393,7 +2401,9 @@ function bindSettingsPageEvents() {
       saveGame();
 
       transitionTo(
-        GAME_PHASES.ROLE_HANDOFF,
+        gameState.settings.voiceCommentaryEnabled === false
+          ? GAME_PHASES.ROLE_HANDOFF
+          : GAME_PHASES.RULES_INTRO,
       );
     },
   );
@@ -7993,6 +8003,11 @@ function loadSavedGame() {
           ?.vibrationEnabled ??
         true,
 
+      voiceCommentaryEnabled:
+        parsedState.settings
+          ?.voiceCommentaryEnabled ??
+        true,
+
       advancedRules: {
         preventRepeatVictim:
           parsedState.settings
@@ -8315,6 +8330,9 @@ const phaseRenderers = {
 
   [GAME_PHASES.SETTINGS]:
     renderSettingsPage,
+
+  [GAME_PHASES.RULES_INTRO]:
+    renderRulesCommentaryPage,
 
   [GAME_PHASES.ROLE_HANDOFF]:
     renderRoleHandoffPage,
