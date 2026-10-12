@@ -34,7 +34,66 @@ let musicGainNode = null;
 let musicGainUnavailable = false;
 const sfxPool = new Map();
 const playedKeys = new Set();
+const nightOpeningPending = new Set();
+const nightOpeningBlocked = new Set();
+const NIGHT_OPENING_TRACKS = Object.freeze([
+  "/audio/narrator/night-opening-1.mp3",
+  "/audio/narrator/night-opening-2.mp3",
+  "/audio/narrator/night-opening-3.mp3",
+]);
 let globalButtonClickInstalled = false;
+
+function stableNightOpeningVariant(seed) {
+  let value = 0;
+  for (const char of String(seed)) {
+    value = (value * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return value % NIGHT_OPENING_TRACKS.length;
+}
+
+export function playNightOpeningLine(key, { variant, respectMute = false } = {}) {
+  const playbackKey = `night-opening:${key}`;
+  const storageKey = `mafia:${playbackKey}`;
+  if (!key || (respectMute && !enabled)) return false;
+  if (playedKeys.has(playbackKey) || nightOpeningPending.has(playbackKey) || nightOpeningBlocked.has(playbackKey)) return false;
+  try {
+    if (localStorage.getItem(storageKey) === "played") return false;
+  } catch {
+    // Continue when browser storage is unavailable.
+  }
+
+  const requestedVariant = Number.isInteger(variant)
+    ? ((variant % NIGHT_OPENING_TRACKS.length) + NIGHT_OPENING_TRACKS.length) % NIGHT_OPENING_TRACKS.length
+    : Math.floor(Math.random() * NIGHT_OPENING_TRACKS.length);
+  const audio = audioFor(NIGHT_OPENING_TRACKS[requestedVariant], { volume: 0.92 });
+
+  const attemptPlayback = async () => {
+    if (nightOpeningPending.has(playbackKey) || playedKeys.has(playbackKey)) return;
+    nightOpeningBlocked.delete(playbackKey);
+    nightOpeningPending.add(playbackKey);
+    try {
+      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+      await audio.play();
+      playedKeys.add(playbackKey);
+      try {
+        localStorage.setItem(storageKey, "played");
+      } catch {
+        // The in-memory key still prevents duplicate playback in this session.
+      }
+    } catch {
+      nightOpeningBlocked.add(playbackKey);
+      document.addEventListener("pointerdown", () => {
+        nightOpeningBlocked.delete(playbackKey);
+        void attemptPlayback();
+      }, { once: true });
+    } finally {
+      nightOpeningPending.delete(playbackKey);
+    }
+  };
+
+  void attemptPlayback();
+  return true;
+}
 
 function installGlobalButtonClickSound() {
   if (globalButtonClickInstalled) return;
@@ -347,7 +406,16 @@ export function syncOnlineAudio(room) {
   const phaseKey = `${room.code}:${Number(room.matchSequence || 0)}:${room.phase}:${Number(room.nightNumber || 0)}:${Number(room.roundNumber || 0)}`;
 
   if (room.status === "playing" && room.phase === "eyes-closed" && previous.phase !== "eyes-closed") {
-    playSfx("nightStart", { key: `night:${phaseKey}`, volume: 0.82 });
+    const nightNumber = Number(room.nightNumber || 0);
+    if (nightNumber === 1) {
+      const openingKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}:night-1`;
+      playNightOpeningLine(openingKey, {
+        variant: stableNightOpeningVariant(openingKey),
+        respectMute: true,
+      });
+    } else {
+      playSfx("nightStart", { key: `night:${phaseKey}`, volume: 0.82 });
+    }
   }
   if (room.status === "playing" && room.phase === "day" && previous.phase !== "day") {
     playSfx("morning", { key: `morning:${phaseKey}`, volume: 0.82 });

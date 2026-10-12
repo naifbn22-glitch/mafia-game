@@ -62,6 +62,7 @@ import {
   playRoleCardFlip,
   playSfx,
   playDiscussionFinalFive,
+  playNightOpeningLine,
 } from "./audio/audioManager.js";
 
 import {
@@ -3573,10 +3574,19 @@ function renderNightIntroPage() {
   setCurrentScreen(
     GAME_PHASES.NIGHT_INTRO,
   );
-  playSfx("nightStart", {
-    key: `offline-night-${gameState.roundNumber}`,
-    volume: 0.82,
-  });
+  const shouldPlayOpeningLine =
+    gameState.roundNumber === 1 &&
+    gameState.settings.voiceCommentaryEnabled !== false;
+  if (shouldPlayOpeningLine) {
+    playNightOpeningLine(
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  } else {
+    playSfx("nightStart", {
+      key: `offline-night-${gameState.roundNumber}`,
+      volume: 0.82,
+    });
+  }
 
   const activeNightRoles =
     gameState.nightSequence?.roleIds ??
