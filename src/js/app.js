@@ -2813,6 +2813,162 @@ function getAliveRolePlayer(roleId) {
 }
 
 
+let activeRulesNarration = null;
+let activeRulesNarrationFrame = null;
+
+const RULES_NARRATION_CUES = Object.freeze([
+  { start: 0, end: 19, role: null },
+  { start: 19, end: 27, role: "thief" },
+  { start: 27, end: 35, role: "citizen" },
+  { start: 35, end: 41, role: "nurse" },
+  { start: 41, end: 55, role: "king" },
+  { start: 55, end: 70, role: "investigator" },
+  { start: 70, end: 999, role: null },
+]);
+
+function stopRulesNarration() {
+  if (activeRulesNarrationFrame) {
+    cancelAnimationFrame(activeRulesNarrationFrame);
+    activeRulesNarrationFrame = null;
+  }
+
+  if (activeRulesNarration) {
+    activeRulesNarration.pause();
+    activeRulesNarration.currentTime = 0;
+    activeRulesNarration = null;
+  }
+}
+
+function getRulesNarrationRole(currentTime) {
+  return RULES_NARRATION_CUES.find(
+    (cue) => currentTime >= cue.start && currentTime < cue.end,
+  )?.role ?? null;
+}
+
+function updateRulesNarrationFocus(currentTime = 0) {
+  const activeRole = getRulesNarrationRole(currentTime);
+  const cards = document.querySelectorAll(".rules-commentary-role-card");
+
+  cards.forEach((card) => {
+    const role = card.dataset.role;
+    const isFocused = !activeRole || role === activeRole;
+    card.classList.toggle("is-focused", isFocused);
+    card.classList.toggle("is-muted", Boolean(activeRole) && role !== activeRole);
+  });
+
+  const label = document.querySelector("#rulesCommentaryNow");
+  if (label) {
+    const roleLabels = {
+      thief: "اللصوص",
+      citizen: "المواطنون",
+      nurse: "الممرضة",
+      king: "الملك",
+      investigator: "المحقق",
+    };
+    label.textContent = activeRole
+      ? `الآن: ${roleLabels[activeRole]}`
+      : "شرح قوانين اللعبة";
+  }
+}
+
+function renderRulesCommentaryPage() {
+  if (gameState.settings.voiceCommentaryEnabled === false) {
+    transitionTo(GAME_PHASES.ROLE_HANDOFF);
+    return;
+  }
+
+  setCurrentScreen(GAME_PHASES.RULES_INTRO);
+  stopRulesNarration();
+
+  const roleCards = [
+    ["thief", "اللصوص", "/roles/thief-card.png"],
+    ["citizen", "المواطنون", "/roles/citizen-card.png"],
+    ["nurse", "الممرضة", "/roles/nurse-card.png"],
+    ["king", "الملك", "/roles/king-card.png"],
+    ["investigator", "المحقق", "/roles/investigator-card.png"],
+  ];
+
+  app.innerHTML = `
+    <main class="rules-commentary-page">
+      <div class="rules-commentary-glow rules-commentary-glow--red"></div>
+      <div class="rules-commentary-glow rules-commentary-glow--gold"></div>
+
+      <section class="rules-commentary-shell">
+        <div class="rules-commentary-heading">
+          <span class="rules-commentary-kicker">قبل توزيع الأدوار</span>
+          <h1>قوانين لعبة مافيا</h1>
+          <p id="rulesCommentaryNow">شرح قوانين اللعبة</p>
+        </div>
+
+        <div class="rules-commentary-cards" aria-label="بطاقات شخصيات اللعبة">
+          ${roleCards.map(([roleId, roleName, image]) => `
+            <article class="rules-commentary-role-card is-focused" data-role="${roleId}">
+              <div class="rules-commentary-card-frame">
+                <img src="${image}" alt="بطاقة ${roleName}" />
+              </div>
+              <strong>${roleName}</strong>
+            </article>
+          `).join("")}
+        </div>
+
+        <div class="rules-commentary-audio-status">
+          <span class="rules-commentary-wave" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i>
+          </span>
+          <span>المعلّق يشرح القوانين الآن</span>
+        </div>
+
+        <button class="rules-commentary-skip" id="skipRulesCommentaryButton" type="button">
+          تخطي، لقد فهمت
+        </button>
+      </section>
+    </main>
+  `;
+
+  const finishRules = () => {
+    stopRulesNarration();
+    transitionTo(GAME_PHASES.ROLE_HANDOFF);
+  };
+
+  document.querySelector("#skipRulesCommentaryButton")
+    ?.addEventListener("click", finishRules);
+
+  activeRulesNarration = new Audio("/audio/commentary/rules-intro.mp3");
+  activeRulesNarration.preload = "auto";
+  activeRulesNarration.volume = 0.92;
+
+  const syncFocus = () => {
+    if (!activeRulesNarration) return;
+    updateRulesNarrationFocus(activeRulesNarration.currentTime);
+    activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
+  };
+
+  activeRulesNarration.addEventListener("ended", finishRules, { once: true });
+  activeRulesNarration.addEventListener("play", () => {
+    if (!activeRulesNarrationFrame) {
+      activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
+    }
+  }, { once: true });
+
+  updateRulesNarrationFocus(0);
+
+  if (gameState.soundEnabled !== false) {
+    activeRulesNarration.play().catch(() => {
+      const status = document.querySelector(".rules-commentary-audio-status span:last-child");
+      if (status) status.textContent = "اضغط على الشاشة لتشغيل شرح القوانين";
+
+      const unlock = () => {
+        if (!activeRulesNarration) return;
+        activeRulesNarration.play().catch(() => {});
+        document.removeEventListener("pointerdown", unlock);
+      };
+      document.addEventListener("pointerdown", unlock, { once: true });
+    });
+  } else {
+    const status = document.querySelector(".rules-commentary-audio-status span:last-child");
+    if (status) status.textContent = "الصوت العام مكتوم — يمكنك تخطي الشرح";
+  }
+}
 function renderRoleHandoffPage() {
   setCurrentScreen(
     GAME_PHASES.ROLE_HANDOFF,
