@@ -7281,6 +7281,26 @@
   text-align: center;
 }
 
+.rules-commentary-play {
+  padding: 7px 12px;
+  border: 1px solid rgba(230, 169, 78, .55);
+  border-radius: 999px;
+  color: #fff4e2;
+  background: rgba(112, 58, 20, .72);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rules-commentary-play:hover,
+.rules-commentary-play:focus-visible {
+  border-color: #e6a94e;
+  background: rgba(145, 76, 27, .9);
+  outline: 2px solid rgba(230, 169, 78, .35);
+  outline-offset: 2px;
+}
+
 .rules-commentary-wave {
   height: 22px;
   display: inline-flex;

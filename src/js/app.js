@@ -2815,27 +2815,21 @@ function getAliveRolePlayer(roleId) {
 
 let activeRulesNarration = null;
 let activeRulesNarrationFrame = null;
-let activeRulesNarrationUnlock = null;
 
 const RULES_NARRATION_CUES = Object.freeze([
-  { start: 0, end: 19, role: null },
-  { start: 19, end: 27, role: "thief" },
-  { start: 27, end: 35, role: "citizen" },
-  { start: 35, end: 41, role: "nurse" },
-  { start: 41, end: 55, role: "king" },
-  { start: 55, end: 70, role: "investigator" },
-  { start: 70, end: 999, role: null },
+  { start: 0, end: 10.76, role: null },
+  { start: 10.76, end: 18.76, role: "thief" },
+  { start: 18.76, end: 26.76, role: "citizen" },
+  { start: 26.76, end: 32.76, role: "nurse" },
+  { start: 32.76, end: 46.76, role: "king" },
+  { start: 46.76, end: 61.76, role: "investigator" },
+  { start: 61.76, end: 999, role: null },
 ]);
 
 function stopRulesNarration() {
   if (activeRulesNarrationFrame) {
     cancelAnimationFrame(activeRulesNarrationFrame);
     activeRulesNarrationFrame = null;
-  }
-
-  if (activeRulesNarrationUnlock) {
-    document.removeEventListener("pointerdown", activeRulesNarrationUnlock);
-    activeRulesNarrationUnlock = null;
   }
 
   if (activeRulesNarration) {
@@ -2926,7 +2920,10 @@ function renderRulesCommentaryPage() {
           <span class="rules-commentary-wave" aria-hidden="true">
             <i></i><i></i><i></i><i></i><i></i>
           </span>
-          <span>المعلّق يشرح القوانين الآن</span>
+          <span id="rulesCommentaryAudioMessage" role="status" aria-live="polite">جارٍ تجهيز شرح القوانين…</span>
+          <button class="rules-commentary-play" id="playRulesCommentaryButton" type="button" hidden>
+            تشغيل الشرح
+          </button>
         </div>
 
         <button class="rules-commentary-skip" id="skipRulesCommentaryButton" type="button">
@@ -2969,7 +2966,28 @@ function renderRulesCommentaryPage() {
   };
 
   activeRulesNarration.addEventListener("ended", finishRules, { once: true });
+  const audioMessage = document.querySelector("#rulesCommentaryAudioMessage");
+  const playButton = document.querySelector("#playRulesCommentaryButton");
+  const playRulesNarration = () => {
+    if (!activeRulesNarration) return;
+    if (audioMessage) audioMessage.textContent = "جارٍ تشغيل شرح القوانين…";
+    if (playButton) playButton.hidden = true;
+
+    activeRulesNarration.play().then(() => {
+      if (audioMessage) audioMessage.textContent = "المعلّق يشرح القوانين الآن";
+    }).catch(() => {
+      if (audioMessage) audioMessage.textContent = "اضغط تشغيل الشرح للاستماع إلى القوانين";
+      if (playButton) playButton.hidden = false;
+    });
+  };
+
+  activeRulesNarration.addEventListener("error", () => {
+    if (audioMessage) audioMessage.textContent = "تعذر تحميل الصوت. حاول تشغيله مجددًا";
+    if (playButton) playButton.hidden = false;
+  }, { once: true });
+  playButton?.addEventListener("click", playRulesNarration);
   activeRulesNarration.addEventListener("play", () => {
+    if (audioMessage) audioMessage.textContent = "المعلّق يشرح القوانين الآن";
     if (!activeRulesNarrationFrame) {
       activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
     }
@@ -2977,23 +2995,8 @@ function renderRulesCommentaryPage() {
 
   updateRulesNarrationFocus(0);
 
-  if (gameState.soundEnabled !== false) {
-    activeRulesNarration.play().catch(() => {
-      const status = document.querySelector(".rules-commentary-audio-status span:last-child");
-      if (status) status.textContent = "اضغط على الشاشة لتشغيل شرح القوانين";
-
-      activeRulesNarrationUnlock = () => {
-        if (!activeRulesNarration) return;
-        activeRulesNarration.play().catch(() => {});
-        document.removeEventListener("pointerdown", activeRulesNarrationUnlock);
-        activeRulesNarrationUnlock = null;
-      };
-      document.addEventListener("pointerdown", activeRulesNarrationUnlock, { once: true });
-    });
-  } else {
-    const status = document.querySelector(".rules-commentary-audio-status span:last-child");
-    if (status) status.textContent = "الصوت العام مكتوم — يمكنك تخطي الشرح";
-  }
+  // Voice commentary has its own setting. Game sound effects must not silence it.
+  playRulesNarration();
 }
 function renderRoleHandoffPage() {
   setCurrentScreen(
