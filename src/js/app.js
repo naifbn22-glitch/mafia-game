@@ -1927,7 +1927,7 @@ function renderSettingsPage() {
 
             ${renderToggleSetting(
               "التعليق الصوتي",
-              "تشغيل المعلّق الصوتي وشرح القوانين والتعليقات أثناء مجريات اللعبة.",
+              "تشغيل المعلّق الصوتي وشرح القوانين والتعليقات أثناء اللعبة. عند إيقافه يتم تجاوز شاشة القوانين وتعطيل جميع أصوات المعلّق.",
               "voiceCommentaryEnabled",
               settings.voiceCommentaryEnabled ?? true,
             )}
@@ -2001,31 +2001,31 @@ function renderSettingsPage() {
 
           <div class="roles-grid">
             ${renderRoleCard(
-              THIEF_EYES_ICON,
+              "thief",
               "اللصوص",
               roles.thieves,
             )}
 
             ${renderRoleCard(
-              "👑",
+              "king",
               "الملك",
               roles.king,
             )}
 
             ${renderRoleCard(
-              "🏥",
+              "nurse",
               "الممرضة",
               roles.nurse,
             )}
 
             ${renderRoleCard(
-              "🕵️",
+              "investigator",
               "المحقق",
               roles.investigator,
             )}
 
             ${renderRoleCard(
-              "👥",
+              "citizen",
               "المواطنون",
               roles.citizens,
             )}
