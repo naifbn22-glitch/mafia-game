@@ -9,6 +9,7 @@ const TRACKS = Object.freeze({
   nightStart: "/audio/sfx/night-start.mp3",
   morning: "/audio/sfx/morning.mp3",
   discussionFinal5: "/audio/sfx/discussion-final-5.mp3",
+  buttonClick: "/audio/sfx/button-click.mp3",
 });
 
 let enabled = localStorage.getItem(AUDIO_ENABLED_KEY) !== "false";
@@ -33,6 +34,31 @@ let musicGainNode = null;
 let musicGainUnavailable = false;
 const sfxPool = new Map();
 const playedKeys = new Set();
+let globalButtonClickInstalled = false;
+
+function installGlobalButtonClickSound() {
+  if (globalButtonClickInstalled) return;
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target = event.target;
+      const button =
+        target instanceof Element
+          ? target.closest('button, [role="button"]')
+          : null;
+
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") {
+        return;
+      }
+
+      playSfx("buttonClick", { volume: 0.82 });
+    },
+    true,
+  );
+
+  globalButtonClickInstalled = true;
+}
 
 function isIOSAudioEnvironment() {
   const ua = navigator.userAgent || "";
@@ -163,6 +189,8 @@ function syncMusic() {
 }
 
 export function installGlobalSoundButton() {
+  installGlobalButtonClickSound();
+
   if (document.querySelector("#globalSoundButton")) {
     updateButton();
     return;
