@@ -63,6 +63,7 @@ import {
   playSfx,
   playDiscussionFinalFive,
   playNightOpeningLine,
+  playThiefNightCue,
 } from "./audio/audioManager.js";
 
 import {
@@ -3813,6 +3814,14 @@ function renderThiefHandoffPage() {
     GAME_PHASES.THIEF_HANDOFF,
   );
 
+  if (gameState.settings.voiceCommentaryEnabled !== false) {
+    playThiefNightCue(
+      "wake",
+      gameState.roundNumber,
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  }
+
   renderNightRoleHandoff({
     roleId: ROLE_IDS.THIEF,
 
@@ -3947,6 +3956,14 @@ function renderThiefSelectionPage() {
         playerId;
 
       saveGame();
+
+      if (gameState.settings.voiceCommentaryEnabled !== false) {
+        playThiefNightCue(
+          "confirmation",
+          gameState.roundNumber,
+          `offline:${gameState.matchStartedAt || "first-match"}`,
+        );
+      }
 
       goToNextNightRole();
     },
