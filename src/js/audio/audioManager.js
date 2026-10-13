@@ -71,6 +71,7 @@ const thiefCueBlocked = new Set();
 const nurseCueAudioPool = new Map();
 const nurseCuePending = new Set();
 const nurseCueBlocked = new Set();
+let roleNarrationTail = Promise.resolve();
 let globalButtonClickInstalled = false;
 
 function stableNightOpeningVariant(seed) {
@@ -125,6 +126,42 @@ export function playNightOpeningLine(key, { variant, respectMute = false } = {})
   return true;
 }
 
+function enqueueRoleNarration(audio, playbackKey, storageKey, pending, blocked) {
+  pending.add(playbackKey);
+  const playAndWait = async () => {
+    if (!enabled) return;
+    try {
+      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 0.92;
+      await audio.play();
+      playedKeys.add(playbackKey);
+      try { localStorage.setItem(storageKey, "played"); } catch { /* In-memory dedupe remains available. */ }
+      await new Promise(resolve => {
+        const finish = () => {
+          audio.removeEventListener("ended", finish);
+          audio.removeEventListener("error", finish);
+          audio.removeEventListener("pause", finish);
+          resolve();
+        };
+        if (audio.ended) { resolve(); return; }
+        audio.addEventListener("ended", finish, { once: true });
+        audio.addEventListener("error", finish, { once: true });
+        audio.addEventListener("pause", finish, { once: true });
+      });
+    } catch {
+      blocked.add(playbackKey);
+      await new Promise(resolve => document.addEventListener("pointerdown", resolve, { once: true }));
+      blocked.delete(playbackKey);
+      await playAndWait();
+    }
+  };
+  const queuedPlayback = roleNarrationTail.then(playAndWait, playAndWait);
+  roleNarrationTail = queuedPlayback.catch(() => {});
+  queuedPlayback.then(() => pending.delete(playbackKey), () => pending.delete(playbackKey));
+}
+
 export function playThiefNightCue(type, nightNumber, key) {
   const tracks = THIEF_NIGHT_TRACKS[type];
   const night = Math.max(1, Number.parseInt(nightNumber, 10) || 1);
@@ -147,34 +184,7 @@ export function playThiefNightCue(type, nightNumber, key) {
     thiefCueAudioPool.set(audioKey, audio);
   }
 
-  const attemptPlayback = async () => {
-    if (thiefCuePending.has(playbackKey) || playedKeys.has(playbackKey)) return;
-    thiefCueBlocked.delete(playbackKey);
-    thiefCuePending.add(playbackKey);
-    try {
-      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = 0.92;
-      await audio.play();
-      playedKeys.add(playbackKey);
-      try {
-        localStorage.setItem(storageKey, "played");
-      } catch {
-        // The in-memory key still prevents duplicate playback in this session.
-      }
-    } catch {
-      thiefCueBlocked.add(playbackKey);
-      document.addEventListener("pointerdown", () => {
-        thiefCueBlocked.delete(playbackKey);
-        void attemptPlayback();
-      }, { once: true });
-    } finally {
-      thiefCuePending.delete(playbackKey);
-    }
-  };
-
-  void attemptPlayback();
+  enqueueRoleNarration(audio, playbackKey, storageKey, thiefCuePending, thiefCueBlocked);
   return true;
 }
 
@@ -200,34 +210,7 @@ export function playNurseNightCue(type, nightNumber, key) {
     nurseCueAudioPool.set(audioKey, audio);
   }
 
-  const attemptPlayback = async () => {
-    if (nurseCuePending.has(playbackKey) || playedKeys.has(playbackKey)) return;
-    nurseCueBlocked.delete(playbackKey);
-    nurseCuePending.add(playbackKey);
-    try {
-      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = 0.92;
-      await audio.play();
-      playedKeys.add(playbackKey);
-      try {
-        localStorage.setItem(storageKey, "played");
-      } catch {
-        // The in-memory key still prevents duplicate playback in this session.
-      }
-    } catch {
-      nurseCueBlocked.add(playbackKey);
-      document.addEventListener("pointerdown", () => {
-        nurseCueBlocked.delete(playbackKey);
-        void attemptPlayback();
-      }, { once: true });
-    } finally {
-      nurseCuePending.delete(playbackKey);
-    }
-  };
-
-  void attemptPlayback();
+  enqueueRoleNarration(audio, playbackKey, storageKey, nurseCuePending, nurseCueBlocked);
   return true;
 }
 

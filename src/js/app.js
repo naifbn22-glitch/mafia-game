@@ -2886,7 +2886,7 @@ function renderRulesCommentaryPage() {
   const roleCards = [
     ["thief", "اللصوص", getRoleCardImage("thief")],
     ["citizen", "المواطنون", getRoleCardImage("citizen")],
-    ["nurse", "الممرضة", getRoleCardImage("nurse")],
+    ["nurse", "الممرض", getRoleCardImage("nurse")],
     ["king", "الملك", getRoleCardImage("king")],
     ["investigator", "المحقق", getRoleCardImage("investigator")],
   ];
