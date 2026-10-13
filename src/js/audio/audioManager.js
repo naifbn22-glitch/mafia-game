@@ -53,9 +53,24 @@ const THIEF_NIGHT_TRACKS = Object.freeze({
     "/audio/narrator/thief/confirm-3.mp3",
   ]),
 });
+const NURSE_NIGHT_TRACKS = Object.freeze({
+  wake: Object.freeze([
+    "/audio/narrator/nurse/wake-1.mp3",
+    "/audio/narrator/nurse/wake-2.mp3",
+    "/audio/narrator/nurse/wake-3.mp3",
+  ]),
+  protection: Object.freeze([
+    "/audio/narrator/nurse/protect-1.mp3",
+    "/audio/narrator/nurse/protect-2.mp3",
+    "/audio/narrator/nurse/protect-3.mp3",
+  ]),
+});
 const thiefCueAudioPool = new Map();
 const thiefCuePending = new Set();
 const thiefCueBlocked = new Set();
+const nurseCueAudioPool = new Map();
+const nurseCuePending = new Set();
+const nurseCueBlocked = new Set();
 let globalButtonClickInstalled = false;
 
 function stableNightOpeningVariant(seed) {
@@ -156,6 +171,59 @@ export function playThiefNightCue(type, nightNumber, key) {
       }, { once: true });
     } finally {
       thiefCuePending.delete(playbackKey);
+    }
+  };
+
+  void attemptPlayback();
+  return true;
+}
+
+export function playNurseNightCue(type, nightNumber, key) {
+  const tracks = NURSE_NIGHT_TRACKS[type];
+  const night = Math.max(1, Number.parseInt(nightNumber, 10) || 1);
+  if (!tracks || !key || !enabled) return false;
+
+  const variant = (night - 1) % tracks.length;
+  const playbackKey = `nurse-${type}:${key}:night-${night}`;
+  const storageKey = `mafia:${playbackKey}`;
+  if (playedKeys.has(playbackKey) || nurseCuePending.has(playbackKey) || nurseCueBlocked.has(playbackKey)) return false;
+  try {
+    if (localStorage.getItem(storageKey) === "played") return false;
+  } catch {
+    // Continue when browser storage is unavailable.
+  }
+
+  const audioKey = `${type}-${variant}`;
+  let audio = nurseCueAudioPool.get(audioKey);
+  if (!audio) {
+    audio = audioFor(tracks[variant], { volume: 0.92 });
+    nurseCueAudioPool.set(audioKey, audio);
+  }
+
+  const attemptPlayback = async () => {
+    if (nurseCuePending.has(playbackKey) || playedKeys.has(playbackKey)) return;
+    nurseCueBlocked.delete(playbackKey);
+    nurseCuePending.add(playbackKey);
+    try {
+      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 0.92;
+      await audio.play();
+      playedKeys.add(playbackKey);
+      try {
+        localStorage.setItem(storageKey, "played");
+      } catch {
+        // The in-memory key still prevents duplicate playback in this session.
+      }
+    } catch {
+      nurseCueBlocked.add(playbackKey);
+      document.addEventListener("pointerdown", () => {
+        nurseCueBlocked.delete(playbackKey);
+        void attemptPlayback();
+      }, { once: true });
+    } finally {
+      nurseCuePending.delete(playbackKey);
     }
   };
 
@@ -405,6 +473,10 @@ export function setAudioEnabled(value) {
       audio.pause();
       audio.currentTime = 0;
     }
+    for (const audio of nurseCueAudioPool.values()) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
   }
   updateButton();
   syncMusic();
@@ -500,6 +572,17 @@ export function syncOnlineAudio(room) {
     playThiefNightCue("wake", nightNumber, matchKey);
   }
 
+  if (
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "nurse" &&
+    previous.activeRole !== "nurse"
+  ) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playNurseNightCue("wake", nightNumber, matchKey);
+  }
+
   const livingThieves = (room.players || []).filter(player => player.alive && player.role === "thief");
   const thievesConfirmed =
     room._view === "host" &&
@@ -514,6 +597,20 @@ export function syncOnlineAudio(room) {
     playThiefNightCue("confirmation", nightNumber, matchKey);
   }
 
+  const livingNurses = (room.players || []).filter(player => player.alive && player.role === "nurse");
+  const nurseConfirmed =
+    room._view === "host" &&
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "nurse" &&
+    livingNurses.length > 0 &&
+    livingNurses.every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]));
+  if (nurseConfirmed && !previous.nurseConfirmed) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playNurseNightCue("protection", nightNumber, matchKey);
+  }
+
   if (room.status === "playing" && room.phase === "day" && previous.phase !== "day") {
     playSfx("morning", { key: `morning:${phaseKey}`, volume: 0.82 });
   }
@@ -524,6 +621,7 @@ export function syncOnlineAudio(room) {
     matchSequence: Number(room.matchSequence || 0),
     activeRole: room.activeRole || null,
     thievesConfirmed,
+    nurseConfirmed,
   });
 }
 

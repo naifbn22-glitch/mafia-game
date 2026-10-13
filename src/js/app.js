@@ -64,6 +64,7 @@ import {
   playDiscussionFinalFive,
   playNightOpeningLine,
   playThiefNightCue,
+  playNurseNightCue,
 } from "./audio/audioManager.js";
 
 import {
@@ -3976,6 +3977,14 @@ function renderNurseHandoffPage() {
     GAME_PHASES.NURSE_HANDOFF,
   );
 
+  if (gameState.settings.voiceCommentaryEnabled !== false) {
+    playNurseNightCue(
+      "wake",
+      gameState.roundNumber,
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  }
+
   renderNightRoleHandoff({
     roleId: ROLE_IDS.NURSE,
 
@@ -4098,6 +4107,14 @@ function renderNurseSelectionPage() {
         .savedPlayerId = playerId;
 
       saveGame();
+
+      if (gameState.settings.voiceCommentaryEnabled !== false) {
+        playNurseNightCue(
+          "protection",
+          gameState.roundNumber,
+          `offline:${gameState.matchStartedAt || "first-match"}`,
+        );
+      }
 
       goToNextNightRole();
     },
