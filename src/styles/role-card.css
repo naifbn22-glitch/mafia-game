@@ -121,17 +121,6 @@
   border-radius: 14px;
 }
 
-.role-card-back-logo {
-  position: relative;
-  z-index: 2;
-
-  width: 46%;
-  max-width: 150px;
-
-  filter:
-    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55));
-}
-
 .role-card-back-title {
   position: absolute;
   right: 0;

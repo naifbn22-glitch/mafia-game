@@ -61,6 +61,7 @@ export const gameState = {
     votingDuration: 45,
     showTimer: true,
     vibrationEnabled: true,
+    voiceCommentaryEnabled: true,
 
     advancedRules: {
       preventRepeatVictim: true,

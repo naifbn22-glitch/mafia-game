@@ -315,3 +315,14 @@
   justify-content: center;
   touch-action: manipulation;
 }
+
+
+/* iOS Capacitor: allow the music range control to own the horizontal drag.
+   The general app touch-action rule is optimized for taps and can make a
+   WKWebView range slider feel unresponsive while dragging. */
+.native-app--ios #globalMusicVolume {
+  min-height: 34px;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

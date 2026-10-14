@@ -1,0 +1,686 @@
+const AUDIO_ENABLED_KEY = "mafia:audio-enabled";
+const MUSIC_VOLUME_KEY = "mafia:music-volume";
+const MUSIC_VOLUME_PRESET_KEY = "mafia:music-volume-preset-v7";
+const DEFAULT_MUSIC_VOLUME = 0.07;
+
+const TRACKS = Object.freeze({
+  music: "/audio/music/mafia-theme.mp3",
+  cardFlip: "/audio/sfx/card-flip.mp3",
+  nightStart: "/audio/sfx/night-start.mp3",
+  morning: "/audio/sfx/morning.mp3",
+  discussionFinal5: "/audio/sfx/discussion-final-5.mp3",
+  buttonClick: "/audio/sfx/button-click.mp3",
+});
+
+let enabled = localStorage.getItem(AUDIO_ENABLED_KEY) !== "false";
+
+const hasSevenPercentPreset =
+  localStorage.getItem(MUSIC_VOLUME_PRESET_KEY) === "applied";
+
+if (!hasSevenPercentPreset) {
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(DEFAULT_MUSIC_VOLUME));
+  localStorage.setItem(MUSIC_VOLUME_PRESET_KEY, "applied");
+}
+
+const storedMusicVolume = Number(localStorage.getItem(MUSIC_VOLUME_KEY));
+let musicVolume = Number.isFinite(storedMusicVolume)
+  ? Math.min(1, Math.max(0, storedMusicVolume))
+  : DEFAULT_MUSIC_VOLUME;
+let scene = "menu";
+let backgroundMusic = null;
+let musicAudioContext = null;
+let musicSourceNode = null;
+let musicGainNode = null;
+let musicGainUnavailable = false;
+const sfxPool = new Map();
+const playedKeys = new Set();
+const nightOpeningPending = new Set();
+const nightOpeningBlocked = new Set();
+const NIGHT_OPENING_TRACKS = Object.freeze([
+  "/audio/narrator/night-opening-1.mp3",
+  "/audio/narrator/night-opening-2.mp3",
+  "/audio/narrator/night-opening-3.mp3",
+]);
+const THIEF_NIGHT_TRACKS = Object.freeze({
+  wake: Object.freeze([
+    "/audio/narrator/thief/wake-1.mp3",
+    "/audio/narrator/thief/wake-2.mp3",
+    "/audio/narrator/thief/wake-3.mp3",
+  ]),
+  confirmation: Object.freeze([
+    "/audio/narrator/thief/confirm-1.mp3",
+    "/audio/narrator/thief/confirm-2.mp3",
+    "/audio/narrator/thief/confirm-3.mp3",
+  ]),
+});
+const NURSE_NIGHT_TRACKS = Object.freeze({
+  wake: Object.freeze([
+    "/audio/narrator/nurse/wake-1.mp3",
+    "/audio/narrator/nurse/wake-2.mp3",
+    "/audio/narrator/nurse/wake-3.mp3",
+  ]),
+  protection: Object.freeze([
+    "/audio/narrator/nurse/protect-1.mp3",
+    "/audio/narrator/nurse/protect-2.mp3",
+    "/audio/narrator/nurse/protect-3.mp3",
+  ]),
+});
+const thiefCueAudioPool = new Map();
+const thiefCuePending = new Set();
+const thiefCueBlocked = new Set();
+const nurseCueAudioPool = new Map();
+const nurseCuePending = new Set();
+const nurseCueBlocked = new Set();
+let roleNarrationTail = Promise.resolve();
+let activeAiCommentaryAudio = null;
+let globalButtonClickInstalled = false;
+
+function stableNightOpeningVariant(seed) {
+  let value = 0;
+  for (const char of String(seed)) {
+    value = (value * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return value % NIGHT_OPENING_TRACKS.length;
+}
+
+export function playNightOpeningLine(key, { variant, respectMute = false } = {}) {
+  const playbackKey = `night-opening:${key}`;
+  const storageKey = `mafia:${playbackKey}`;
+  if (!key || (respectMute && !enabled)) return false;
+  if (playedKeys.has(playbackKey) || nightOpeningPending.has(playbackKey) || nightOpeningBlocked.has(playbackKey)) return false;
+  try {
+    if (localStorage.getItem(storageKey) === "played") return false;
+  } catch {
+    // Continue when browser storage is unavailable.
+  }
+
+  const requestedVariant = Number.isInteger(variant)
+    ? ((variant % NIGHT_OPENING_TRACKS.length) + NIGHT_OPENING_TRACKS.length) % NIGHT_OPENING_TRACKS.length
+    : Math.floor(Math.random() * NIGHT_OPENING_TRACKS.length);
+  const audio = audioFor(NIGHT_OPENING_TRACKS[requestedVariant], { volume: 0.92 });
+
+  const attemptPlayback = async () => {
+    if (nightOpeningPending.has(playbackKey) || playedKeys.has(playbackKey)) return;
+    nightOpeningBlocked.delete(playbackKey);
+    nightOpeningPending.add(playbackKey);
+    try {
+      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+      await audio.play();
+      playedKeys.add(playbackKey);
+      try {
+        localStorage.setItem(storageKey, "played");
+      } catch {
+        // The in-memory key still prevents duplicate playback in this session.
+      }
+    } catch {
+      nightOpeningBlocked.add(playbackKey);
+      document.addEventListener("pointerdown", () => {
+        nightOpeningBlocked.delete(playbackKey);
+        void attemptPlayback();
+      }, { once: true });
+    } finally {
+      nightOpeningPending.delete(playbackKey);
+    }
+  };
+
+  void attemptPlayback();
+  return true;
+}
+
+function enqueueRoleNarration(audio, playbackKey, storageKey, pending, blocked) {
+  pending.add(playbackKey);
+  const playAndWait = async () => {
+    if (!enabled) return;
+    try {
+      if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 0.92;
+      await audio.play();
+      playedKeys.add(playbackKey);
+      try { localStorage.setItem(storageKey, "played"); } catch { /* In-memory dedupe remains available. */ }
+      await new Promise(resolve => {
+        const finish = () => {
+          audio.removeEventListener("ended", finish);
+          audio.removeEventListener("error", finish);
+          audio.removeEventListener("pause", finish);
+          resolve();
+        };
+        if (audio.ended) { resolve(); return; }
+        audio.addEventListener("ended", finish, { once: true });
+        audio.addEventListener("error", finish, { once: true });
+        audio.addEventListener("pause", finish, { once: true });
+      });
+    } catch {
+      blocked.add(playbackKey);
+      await new Promise(resolve => document.addEventListener("pointerdown", resolve, { once: true }));
+      blocked.delete(playbackKey);
+      await playAndWait();
+    }
+  };
+  const queuedPlayback = roleNarrationTail.then(playAndWait, playAndWait);
+  roleNarrationTail = queuedPlayback.catch(() => {});
+  queuedPlayback.then(() => pending.delete(playbackKey), () => pending.delete(playbackKey));
+}
+
+export function playThiefNightCue(type, nightNumber, key) {
+  const tracks = THIEF_NIGHT_TRACKS[type];
+  const night = Math.max(1, Number.parseInt(nightNumber, 10) || 1);
+  if (!tracks || !key || !enabled) return false;
+
+  const variant = (night - 1) % tracks.length;
+  const playbackKey = `thief-${type}:${key}:night-${night}`;
+  const storageKey = `mafia:${playbackKey}`;
+  if (playedKeys.has(playbackKey) || thiefCuePending.has(playbackKey) || thiefCueBlocked.has(playbackKey)) return false;
+  try {
+    if (localStorage.getItem(storageKey) === "played") return false;
+  } catch {
+    // Continue when browser storage is unavailable.
+  }
+
+  const audioKey = `${type}-${variant}`;
+  let audio = thiefCueAudioPool.get(audioKey);
+  if (!audio) {
+    audio = audioFor(tracks[variant], { volume: 0.92 });
+    thiefCueAudioPool.set(audioKey, audio);
+  }
+
+  enqueueRoleNarration(audio, playbackKey, storageKey, thiefCuePending, thiefCueBlocked);
+  return true;
+}
+
+export function playNurseNightCue(type, nightNumber, key) {
+  const tracks = NURSE_NIGHT_TRACKS[type];
+  const night = Math.max(1, Number.parseInt(nightNumber, 10) || 1);
+  if (!tracks || !key || !enabled) return false;
+
+  const variant = (night - 1) % tracks.length;
+  const playbackKey = `nurse-${type}:${key}:night-${night}`;
+  const storageKey = `mafia:${playbackKey}`;
+  if (playedKeys.has(playbackKey) || nurseCuePending.has(playbackKey) || nurseCueBlocked.has(playbackKey)) return false;
+  try {
+    if (localStorage.getItem(storageKey) === "played") return false;
+  } catch {
+    // Continue when browser storage is unavailable.
+  }
+
+  const audioKey = `${type}-${variant}`;
+  let audio = nurseCueAudioPool.get(audioKey);
+  if (!audio) {
+    audio = audioFor(tracks[variant], { volume: 0.92 });
+    nurseCueAudioPool.set(audioKey, audio);
+  }
+
+  enqueueRoleNarration(audio, playbackKey, storageKey, nurseCuePending, nurseCueBlocked);
+  return true;
+}
+
+function installGlobalButtonClickSound() {
+  if (globalButtonClickInstalled) return;
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target = event.target;
+      const button =
+        target instanceof Element
+          ? target.closest('button, [role="button"]')
+          : null;
+
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") {
+        return;
+      }
+
+      playSfx("buttonClick", { volume: 0.82 });
+    },
+    true,
+  );
+
+  globalButtonClickInstalled = true;
+}
+
+function isIOSAudioEnvironment() {
+  const ua = navigator.userAgent || "";
+  const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
+  const isIPadDesktopMode =
+    navigator.platform === "MacIntel" &&
+    Number(navigator.maxTouchPoints || 0) > 1;
+
+  return isIOSDevice || isIPadDesktopMode;
+}
+
+function ensureIOSMusicGain() {
+  if (!isIOSAudioEnvironment() || musicGainUnavailable) return null;
+  if (musicGainNode) return musicGainNode;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass || !backgroundMusic) return null;
+
+  try {
+    musicAudioContext = musicAudioContext || new AudioContextClass();
+    musicSourceNode =
+      musicSourceNode ||
+      musicAudioContext.createMediaElementSource(backgroundMusic);
+    musicGainNode = musicAudioContext.createGain();
+    musicGainNode.gain.value = musicVolume;
+    musicSourceNode.connect(musicGainNode);
+    musicGainNode.connect(musicAudioContext.destination);
+
+    // iOS/WKWebView ignores programmatic HTMLMediaElement.volume changes.
+    // Keep the element at full level and control background music via GainNode.
+    backgroundMusic.volume = 1;
+    return musicGainNode;
+  } catch (error) {
+    musicGainUnavailable = true;
+    console.info("iOS Web Audio volume control is unavailable.", error);
+    return null;
+  }
+}
+
+async function resumeIOSMusicOutput() {
+  if (!isIOSAudioEnvironment()) return;
+
+  ensureIOSMusicGain();
+  if (musicAudioContext?.state === "suspended") {
+    try {
+      await musicAudioContext.resume();
+    } catch {
+      // A later user gesture can resume the context.
+    }
+  }
+}
+
+function applyMusicVolume() {
+  const music = ensureBackgroundMusic();
+  const gain = ensureIOSMusicGain();
+
+  if (gain && musicAudioContext) {
+    const now = musicAudioContext.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(musicVolume, now);
+    music.volume = 1;
+    return;
+  }
+
+  music.volume = musicVolume;
+}
+
+function audioFor(src, { loop = false, volume = 1 } = {}) {
+  const audio = new Audio(src);
+  audio.preload = "auto";
+  audio.loop = loop;
+  audio.volume = volume;
+  return audio;
+}
+
+function ensureBackgroundMusic() {
+  if (!backgroundMusic) {
+    backgroundMusic = audioFor(TRACKS.music, {
+      loop: true,
+      volume: isIOSAudioEnvironment() ? 1 : musicVolume,
+    });
+  }
+  return backgroundMusic;
+}
+
+function updateButton() {
+  const button = document.querySelector("#globalSoundButton");
+  if (button) {
+    button.textContent = enabled ? "🔊" : "🔇";
+    button.setAttribute("aria-label", "التحكم بالصوت");
+    button.title = "التحكم بالصوت";
+  }
+
+  const muteButton = document.querySelector("#globalAudioMuteButton");
+  if (muteButton) {
+    muteButton.textContent = enabled ? "كتم الصوت" : "تشغيل الصوت";
+    muteButton.setAttribute("aria-pressed", enabled ? "false" : "true");
+  }
+
+  const slider = document.querySelector("#globalMusicVolume");
+  const value = document.querySelector("#globalMusicVolumeValue");
+  if (slider) slider.value = String(Math.round(musicVolume * 100));
+  if (value) value.textContent = `${Math.round(musicVolume * 100)}%`;
+}
+
+async function tryPlay(audio) {
+  try {
+    if (audio === backgroundMusic) {
+      await resumeIOSMusicOutput();
+    }
+    await audio.play();
+  } catch (error) {
+    // Browsers may block autoplay until the first user interaction.
+    if (error?.name !== "NotAllowedError") {
+      console.info("Audio playback was skipped.", error);
+    }
+  }
+}
+
+function syncMusic() {
+  const music = ensureBackgroundMusic();
+  const shouldPlay = enabled && (scene === "menu" || scene === "winner");
+  if (shouldPlay) {
+    tryPlay(music);
+  } else {
+    music.pause();
+  }
+}
+
+export function installGlobalSoundButton() {
+  installGlobalButtonClickSound();
+
+  if (document.querySelector("#globalSoundButton")) {
+    updateButton();
+    return;
+  }
+  const control = document.createElement("div");
+  control.className = "global-audio-control";
+  control.innerHTML = `
+    <button id="globalSoundButton" class="global-sound-button" type="button" aria-expanded="false"></button>
+    <div id="globalAudioPanel" class="global-audio-panel" aria-hidden="true">
+      <div class="global-audio-panel-title">
+        <strong>الصوت</strong>
+        <span id="globalMusicVolumeValue">${Math.round(musicVolume * 100)}%</span>
+      </div>
+      <label class="global-volume-row" for="globalMusicVolume">
+        <span>موسيقى الخلفية</span>
+        <input id="globalMusicVolume" type="range" min="0" max="100" step="1" value="${Math.round(musicVolume * 100)}" />
+      </label>
+      <button id="globalAudioMuteButton" class="global-audio-mute-button" type="button"></button>
+    </div>
+  `;
+  document.body.appendChild(control);
+
+  const button = control.querySelector("#globalSoundButton");
+  const panel = control.querySelector("#globalAudioPanel");
+  const muteButton = control.querySelector("#globalAudioMuteButton");
+  const slider = control.querySelector("#globalMusicVolume");
+
+  button?.addEventListener("click", event => {
+    event.stopPropagation();
+    const open = !panel.classList.contains("is-open");
+    panel.classList.toggle("is-open", open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  muteButton?.addEventListener("click", () => setAudioEnabled(!enabled));
+
+  const applySliderVolume = event => {
+    const target = event?.currentTarget || slider;
+    if (!target) return;
+    setMusicVolume(Number(target.value) / 100);
+  };
+
+  // iOS WKWebView may defer range updates until the gesture finishes,
+  // so listen to both live and committed range events.
+  slider?.addEventListener("input", applySliderVolume);
+  slider?.addEventListener("change", applySliderVolume);
+  slider?.addEventListener("pointerup", applySliderVolume);
+  slider?.addEventListener("touchend", applySliderVolume, { passive: true });
+
+  document.addEventListener("pointerdown", event => {
+    if (!control.contains(event.target)) {
+      panel.classList.remove("is-open");
+      panel.setAttribute("aria-hidden", "true");
+      button?.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  updateButton();
+
+  const unlock = () => {
+    void resumeIOSMusicOutput();
+    syncMusic();
+    window.removeEventListener("pointerdown", unlock, true);
+    window.removeEventListener("keydown", unlock, true);
+  };
+  window.addEventListener("pointerdown", unlock, true);
+  window.addEventListener("keydown", unlock, true);
+}
+
+export function isAudioEnabled() {
+  return enabled;
+}
+
+function isVoiceCommentaryEnabled() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("mafiaGameSave") || "{}");
+    return saved?.settings?.voiceCommentaryEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+function speakCommentaryFallback(text) {
+  if (!text || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return false;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "ar-SA";
+  utterance.rate = 0.94;
+  utterance.pitch = 0.96;
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+export function playAiCommentary(payload) {
+  const id = String(payload?.id || "").trim();
+  const text = String(payload?.text || "").trim();
+  const playbackKey = `ai-commentary:${id}`;
+  if (!id || !text || !enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return false;
+
+  const playAndWait = async () => {
+    if (!enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return;
+    let audio = null;
+    let objectUrl = "";
+
+    try {
+      if (payload.audioBase64) {
+        const binary = atob(payload.audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        objectUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+        audio = new Audio(objectUrl);
+        activeAiCommentaryAudio = audio;
+        audio.volume = 0.92;
+        if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+        await audio.play();
+        await new Promise(resolve => {
+          const finish = () => resolve();
+          audio.addEventListener("ended", finish, { once: true });
+          audio.addEventListener("error", finish, { once: true });
+        });
+      } else {
+        speakCommentaryFallback(text);
+      }
+    } catch {
+      speakCommentaryFallback(text);
+    } finally {
+      audio?.pause();
+      if (activeAiCommentaryAudio === audio) activeAiCommentaryAudio = null;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      playedKeys.add(playbackKey);
+    }
+  };
+
+  const queuedPlayback = roleNarrationTail.then(playAndWait, playAndWait);
+  roleNarrationTail = queuedPlayback.catch(() => {});
+  return true;
+}
+
+export function setAudioEnabled(value) {
+  enabled = Boolean(value);
+  localStorage.setItem(AUDIO_ENABLED_KEY, String(enabled));
+  if (!enabled) {
+    activeAiCommentaryAudio?.pause();
+    activeAiCommentaryAudio = null;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    ensureBackgroundMusic().pause();
+    for (const audio of sfxPool.values()) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    for (const audio of thiefCueAudioPool.values()) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    for (const audio of nurseCueAudioPool.values()) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }
+  updateButton();
+  syncMusic();
+  window.dispatchEvent(new CustomEvent("mafia:audio-change", { detail: { enabled } }));
+}
+
+export function setMusicVolume(value) {
+  musicVolume = Math.min(1, Math.max(0, Number(value) || 0));
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+  applyMusicVolume();
+  void resumeIOSMusicOutput();
+  updateButton();
+  if (musicVolume > 0 && !enabled) setAudioEnabled(true);
+  else syncMusic();
+}
+
+export function setAudioScene(nextScene) {
+  scene = nextScene || "game";
+  syncMusic();
+}
+
+export function playSfx(name, { key = "", volume = 0.8 } = {}) {
+  if (!enabled || !TRACKS[name]) return false;
+  if (key && playedKeys.has(key)) return false;
+  if (key) playedKeys.add(key);
+
+  let audio = sfxPool.get(name);
+  if (!audio) {
+    audio = audioFor(TRACKS[name], { volume });
+    sfxPool.set(name, audio);
+  }
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = volume;
+  tryPlay(audio);
+  return true;
+}
+
+export function syncOfflineAudioPhase(phase) {
+  if (["home", "players", "settings"].includes(phase)) {
+    setAudioScene("menu");
+    return;
+  }
+  if (phase === "game-over") {
+    setAudioScene("winner");
+    return;
+  }
+  setAudioScene("game");
+}
+
+const onlineState = new Map();
+
+export function syncOnlineAudio(room) {
+  if (!room?.code) {
+    setAudioScene("menu");
+    return;
+  }
+
+  const previous = onlineState.get(room.code) || {};
+  if (room.winner) {
+    setAudioScene("winner");
+  } else if (room.phase === "role-reveal" || room.status === "playing") {
+    // كشف الأدوار هو بداية اللعبة صوتيًا: نوقف موسيقى الخلفية قبل صوت قلب البطاقة.
+    setAudioScene("game");
+  } else if (room.status === "waiting") {
+    setAudioScene("menu");
+  } else {
+    setAudioScene("game");
+  }
+
+  const phaseKey = `${room.code}:${Number(room.matchSequence || 0)}:${room.phase}:${Number(room.nightNumber || 0)}:${Number(room.roundNumber || 0)}`;
+
+  if (room.status === "playing" && room.phase === "eyes-closed" && previous.phase !== "eyes-closed") {
+    const nightNumber = Number(room.nightNumber || 0);
+    if (nightNumber === 1) {
+      const openingKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}:night-1`;
+      playNightOpeningLine(openingKey, {
+        variant: stableNightOpeningVariant(openingKey),
+        respectMute: true,
+      });
+    } else {
+      playSfx("nightStart", { key: `night:${phaseKey}`, volume: 0.82 });
+    }
+  }
+  if (
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "thief" &&
+    previous.activeRole !== "thief"
+  ) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playThiefNightCue("wake", nightNumber, matchKey);
+  }
+
+  if (
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "nurse" &&
+    previous.activeRole !== "nurse"
+  ) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playNurseNightCue("wake", nightNumber, matchKey);
+  }
+
+  const livingThieves = (room.players || []).filter(player => player.alive && player.role === "thief");
+  const thievesConfirmed =
+    room._view === "host" &&
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "thief" &&
+    livingThieves.length > 0 &&
+    livingThieves.every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]));
+  if (thievesConfirmed && !previous.thievesConfirmed) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playThiefNightCue("confirmation", nightNumber, matchKey);
+  }
+
+  const livingNurses = (room.players || []).filter(player => player.alive && player.role === "nurse");
+  const nurseConfirmed =
+    room._view === "host" &&
+    room.status === "playing" &&
+    room.phase === "night-role" &&
+    room.activeRole === "nurse" &&
+    livingNurses.length > 0 &&
+    livingNurses.every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]));
+  if (nurseConfirmed && !previous.nurseConfirmed) {
+    const nightNumber = Number(room.nightNumber || 1);
+    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
+    playNurseNightCue("protection", nightNumber, matchKey);
+  }
+
+  if (room.status === "playing" && room.phase === "day" && previous.phase !== "day") {
+    playSfx("morning", { key: `morning:${phaseKey}`, volume: 0.82 });
+  }
+
+  onlineState.set(room.code, {
+    phase: room.phase,
+    winner: room.winner || null,
+    matchSequence: Number(room.matchSequence || 0),
+    activeRole: room.activeRole || null,
+    thievesConfirmed,
+    nurseConfirmed,
+  });
+}
+
+export function playRoleCardFlip(key = "") {
+  return playSfx("cardFlip", { key, volume: 0.78 });
+}
+
+export function playDiscussionFinalFive(key = "") {
+  return playSfx("discussionFinal5", { key, volume: 0.82 });
+}

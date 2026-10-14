@@ -6,7 +6,7 @@ export const thiefRole = Object.freeze({
 
   team: "thieves",
 
-  icon: "🗡️",
+  icon: '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />',
   colorClass: "role-thief",
   className: "role-thief",
 
@@ -21,7 +21,7 @@ export const thiefRole = Object.freeze({
 
   card: {
     title: "اللص",
-    symbol: "🗡️",
+    symbol: '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />',
     image: "/roles/thief-card.png",
     themeClass: "role-card-thief",
   },

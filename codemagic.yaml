@@ -1,0 +1,74 @@
+workflows:
+  ios-build:
+    name: Mafia iOS Build for Sideloadly
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: multi-server-sharding-v1
+          include: true
+      cancel_previous_builds: true
+
+    environment:
+      xcode: latest
+      node: lts
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm ci
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor iOS
+        script: |
+          npx cap sync ios
+
+      - name: Build unsigned device app
+        script: |
+          set -euo pipefail
+          cd ios/App
+
+          rm -rf build ipa
+
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+          APP_PATH="build/Build/Products/Release-iphoneos/App.app"
+
+          test -d "$APP_PATH"
+
+          # Sideloadly performs the final signing. Remove stale signing artifacts
+          # so the IPA contains a clean unsigned app bundle that can be re-signed.
+          rm -rf "$APP_PATH/_CodeSignature"
+          rm -f "$APP_PATH/embedded.mobileprovision"
+
+          mkdir -p ipa/Payload
+          cp -R "$APP_PATH" ipa/Payload/Mafia.app
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Mafia" ipa/Payload/Mafia.app/Info.plist || true
+
+          cd ipa
+          /usr/bin/zip -qry Mafia.ipa Payload
+
+          echo "Created Sideloadly-ready IPA:"
+          ls -lh Mafia.ipa
+
+    artifacts:
+      - ios/App/ipa/Mafia.ipa
+      - /tmp/xcodebuild_logs/*.log

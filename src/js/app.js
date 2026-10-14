@@ -56,6 +56,18 @@ import {
 } from "./ui/roleCards.js";
 
 import {
+  isAudioEnabled,
+  setAudioEnabled,
+  syncOfflineAudioPhase,
+  playRoleCardFlip,
+  playSfx,
+  playDiscussionFinalFive,
+  playNightOpeningLine,
+  playThiefNightCue,
+  playNurseNightCue,
+} from "./audio/audioManager.js";
+
+import {
   openOnlinePortal,
   restoreOnlineRoute,
   getSavedOnlineGame,
@@ -127,6 +139,12 @@ const DEFAULT_AVATARS = [
 ];
 const app = document.querySelector("#app");
 
+const THIEF_EYES_ICON =
+  '<img class="thief-eyes-inline" src="/images/roles/thief-eyes.png" alt="اللصوص" />';
+
+const NURSE_HEART_ICON =
+  '<img class="nurse-heart-inline" src="/images/roles/nurse-heart.png" alt="قلب أخضر نابض" />';
+
 if (!app) {
   throw new Error(
     "لم يتم العثور على عنصر التطبيق.",
@@ -138,6 +156,7 @@ const GAME_PHASES = Object.freeze({
   HOME: "home",
   PLAYERS: "players",
   SETTINGS: "settings",
+  RULES_INTRO: "rules-intro",
 
   ROLE_HANDOFF: "role-handoff",
   ROLE_REVEAL: "role-reveal",
@@ -172,6 +191,12 @@ const GAME_PHASES = Object.freeze({
 
   GAME_OVER: "game-over",
 });
+
+gameState.soundEnabled = isAudioEnabled();
+window.addEventListener("mafia:audio-change", (event) => {
+  gameState.soundEnabled = Boolean(event.detail?.enabled);
+});
+
 
 
 const NIGHT_ROLE_PHASES = Object.freeze({
@@ -227,8 +252,20 @@ function getRolesDistribution(playerCount) {
   };
 }
 
+function setPageCanonical(pathname = "/") {
+  const link = document.querySelector('link[rel="canonical"]');
+  if (!link) return;
+  const safePath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  link.setAttribute("href", `https://mafiagameplay.com${safePath}`);
+}
+
 function renderHomePage() {
+  document.title = "لعبة مافيا || Mafia Game";
+  setPageCanonical("/");
   const savedOnlineGame = getSavedOnlineGame();
+  if (["/privacy", "/terms", "/contact"].includes(location.pathname)) {
+    history.replaceState({}, "", "/");
+  }
   app.innerHTML = `
     <main class="home-page">
       <div
@@ -327,32 +364,21 @@ function renderHomePage() {
       <header class="top-bar">
         <div class="brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             class="brand-logo-image"
             alt="شعار لعبة مافيا"
           />
 
           <div>
-            <h1>مافيا</h1>
+            <h1>لعبة مافيا</h1>
 
             <p>
-              الخداع، التحليل، البقاء
+              لعبة جماعية عربية للخداع، التحليل، والبقاء
             </p>
           </div>
         </div>
 
-        <button
-          class="icon-button"
-          id="soundButton"
-          type="button"
-          aria-label="تشغيل أو إيقاف الصوت"
-        >
-          ${
-            gameState.soundEnabled
-              ? "🔊"
-              : "🔇"
-          }
-        </button>
+
       </header>
 
       <section class="hero">
@@ -361,13 +387,13 @@ function renderHomePage() {
             class="logo-circle logo-circle-image"
           >
             <img
-              src="/mafia-logo-v2.png"
+              src="/mafia-logo-v2.png?v=20261001b"
               alt="شعار لعبة مافيا"
             />
           </div>
 
           <p class="eyebrow">
-            لعبة جماعية
+            لعبة مافيا عربية جماعية
           </p>
 
           <h2>
@@ -375,9 +401,9 @@ function renderHomePage() {
           </h2>
 
           <p class="hero-description">
-            اكتشف اللصوص قبل أن يسيطروا
-            على المدينة. ناقش، صوّت،
-            وراقب كل حركة.
+            العب لعبة مافيا أونلاين مع أصدقائك
+            أو بدون إنترنت. اكتشف اللصوص،
+            ناقش، صوّت، وراقب كل حركة.
           </p>
 
           ${
@@ -450,14 +476,20 @@ function renderHomePage() {
               : ""
           }
 
-          <div class="game-actions">
+          <div class="game-actions mafia-mode-actions">
             <button
-              class="game-button offline-button"
+              class="game-button mafia-mode-button offline-button"
               id="offlineButton"
               type="button"
+              aria-label="اللعب بدون إنترنت"
             >
-              <span class="button-icon">
-                📱
+              <span class="mafia-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 72 88" role="img">
+                  <rect x="13" y="5" width="46" height="78" rx="8"></rect>
+                  <path d="M29 14h14"></path>
+                  <circle cx="36" cy="71" r="3.5"></circle>
+                  <path d="M19 23h34v39H19z" class="icon-screen"></path>
+                </svg>
               </span>
 
               <span class="button-content">
@@ -466,36 +498,36 @@ function renderHomePage() {
                 </strong>
 
                 <small>
-                  استخدموا جهازًا واحدًا
+                  ابدأ اللعبة على نفس الجهاز
                 </small>
-              </span>
-
-              <span class="button-arrow">
-                ←
               </span>
             </button>
 
             <button
-              class="game-button online-button"
+              class="game-button mafia-mode-button online-button"
               id="onlineButton"
               type="button"
+              aria-label="لعبة مافيا أونلاين"
             >
-              <span class="button-icon">
-                🌐
+              <span class="mafia-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 96 88" role="img">
+                  <circle cx="48" cy="25" r="12"></circle>
+                  <circle cx="21" cy="31" r="9"></circle>
+                  <circle cx="75" cy="31" r="9"></circle>
+                  <path d="M30 69c0-15 8-24 18-24s18 9 18 24"></path>
+                  <path d="M5 70c0-12 6-20 16-20 5 0 9 2 12 6"></path>
+                  <path d="M91 70c0-12-6-20-16-20-5 0-9 2-12 6"></path>
+                </svg>
               </span>
 
               <span class="button-content">
                 <strong>
-                  اللعب عن طريق الشبكة
+                  لعبة مافيا أونلاين
                 </strong>
 
                 <small>
-                  إنشاء غرفة أو الانضمام إليها
+                  أنشئ غرفة والعب مع أصدقائك
                 </small>
-              </span>
-
-              <span class="button-arrow">
-                ←
               </span>
             </button>
           </div>
@@ -559,7 +591,7 @@ function renderHomePage() {
 
         <div class="rules-role-grid">
           <article class="rules-role-card rules-role-card--thief">
-            <div class="rules-role-icon">🗡️</div>
+            <div class="rules-role-icon">${THIEF_EYES_ICON}</div>
             <h4>اللصوص</h4>
             <p>يستيقظون كل ليلة ويختارون شخصًا واحدًا لإخراجه من اللعبة.</p>
             <p>هدفهم أن يصبح عددهم مساويًا لعدد المواطنين الأحياء.</p>
@@ -686,7 +718,7 @@ function renderHomePage() {
             <div>
               <p><span>🕵️</span> المحقق يفحص لاعبًا واحدًا فقط في الجولة ولا يغير اختياره بعد التأكيد.</p>
               <p><span>👑</span> الملك يمتلك 3 أوسمة عفو، ومن يحمل الوسام لا يخرج عند التصويت عليه.</p>
-              <p><span>🗡️</span> اللصوص يعرفون بعضهم في بداية اللعبة.</p>
+              <p><span>${THIEF_EYES_ICON}</span> اللصوص يعرفون بعضهم في بداية اللعبة.</p>
             </div>
           </div>
         </section>
@@ -707,9 +739,12 @@ function renderHomePage() {
       </section>
 
       <footer class="home-footer">
-        <span>
-          الإصدار التجريبي 1.0
-        </span>
+        <span>الإصدار التجريبي 1.0</span>
+        <nav class="home-legal-links" aria-label="روابط قانونية ومعلومات التواصل">
+          <a class="home-privacy-link" href="/privacy">سياسة الخصوصية</a>
+          <a class="home-privacy-link" href="/terms">شروط الاستخدام</a>
+          <a class="home-privacy-link" href="/contact">تواصل معنا</a>
+        </nav>
       </footer>
     </main>
   `;
@@ -742,11 +777,6 @@ function renderHomePage() {
   const onlineButton =
     document.querySelector(
       "#onlineButton",
-    );
-
-  const soundButton =
-    document.querySelector(
-      "#soundButton",
     );
 
   resumeGameButton?.addEventListener(
@@ -829,20 +859,246 @@ function renderHomePage() {
     },
   );
 
-  soundButton?.addEventListener(
-    "click",
-    () => {
-      gameState.soundEnabled =
-        !gameState.soundEnabled;
+}
 
-      soundButton.textContent =
-        gameState.soundEnabled
-          ? "🔊"
-          : "🔇";
 
-      saveGame();
-    },
-  );
+function renderPrivacyPolicyPage() {
+  document.title = "سياسة الخصوصية | لعبة مافيا || Mafia Game";
+  setPageCanonical("/privacy");
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  if (location.pathname !== "/privacy") history.pushState({ page: "privacy" }, "", "/privacy");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="privacyBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>سياسة الخصوصية</h1>
+            <p>Privacy Policy</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <h2>سياسة الخصوصية — العربية</h2>
+          <p><strong>آخر تحديث:</strong> 3 أكتوبر 2026</p>
+
+          <h3>1. نطاق السياسة</h3>
+          <p>توضح هذه السياسة كيفية تعامل لعبة Mafia وموقع mafiagameplay.com مع المعلومات عند استخدام اللعبة على الويب أو تطبيق iOS. باستخدام الخدمة، فإنك تقر بأن بعض المعلومات اللازمة لتشغيل خصائص اللعبة عبر الشبكة ستتم معالجتها كما هو موضح أدناه.</p>
+
+          <h3>2. المعلومات التي نعالجها</h3>
+          <p>في اللعب المحلي على الجهاز، تُحفظ إعدادات اللعبة والتقدم وتفضيلات الصوت محليًا على جهازك. عند استخدام اللعب عبر الشبكة، قد نعالج اسم اللاعب أو مدير الغرفة، الجنس الذي يختاره اللاعب لأغراض صياغة الدور داخل اللعبة، الصورة الرمزية المختارة من الصور المضمنة في اللعبة، رمز الغرفة، حالة المباراة والأدوار والأصوات والنتائج وسجل أحداث المباراة، ومعرّفات ورموز جلسة عشوائية لازمة لتأمين الغرفة واللاعب.</p>
+
+          <h3>3. لماذا نستخدم هذه المعلومات</h3>
+          <p>تُستخدم المعلومات فقط لتشغيل الغرف متعددة اللاعبين، مزامنة المباراة بين الأجهزة، استعادة الجلسة، حماية أوامر مدير الغرفة واللاعبين، عرض الأسماء والصور داخل المباراة، حساب النتائج، منع إساءة الاستخدام، وتشخيص الأعطال الفنية.</p>
+
+          <h3>4. التخزين والاحتفاظ</h3>
+          <p>قد تُحفظ بعض تفضيلات وجلسات اللعبة محليًا على جهاز المستخدم. وقد تُحفظ حالة الغرف عبر خوادم اللعبة والبنية التحتية المستضافة اللازمة لتقديم اللعب عبر الشبكة. لا نطلب من المستخدم إنشاء حساب شخصي للعب. نحتفظ ببيانات التشغيل فقط للمدة اللازمة لتقديم الخدمة والأمان والتشغيل، ويمكن إزالة الغرف المنتهية أو القديمة وفق آليات تشغيل الخدمة.</p>
+
+          <h3>5. المشاركة ومقدمو الخدمة</h3>
+          <p>لا نبيع المعلومات الشخصية. قد تمر بيانات التشغيل عبر مقدمي البنية التحتية والاستضافة الذين نستخدمهم لتشغيل Mafia، مثل خدمات استضافة الخادم وقاعدة البيانات عند تفعيلها. يقتصر استخدامهم للمعلومات على تقديم البنية التحتية والخدمات الفنية وفق شروطهم والتزاماتهم القانونية.</p>
+
+          <h3>6. الإعلانات وملفات الارتباط والتحليلات</h3>
+          <p>قد نفعّل مستقبلًا إعلانات على نسخة الويب، بما في ذلك خدمات مثل Google AdSense. عند تفعيلها قد تستخدم Google أو شركاؤها ملفات تعريف ارتباط أو تقنيات مماثلة لعرض الإعلانات وقياسها ومنع الاحتيال وفق إعدادات الموافقة والقوانين المطبقة. سنعرض خيارات الموافقة المطلوبة للمستخدمين في المناطق التي تستلزم ذلك، وسنحدّث هذه السياسة عند بدء تشغيل الإعلانات فعليًا. تطبيق iOS لا يستخدم معرّف Apple الإعلاني ما لم يتم الإفصاح عن ذلك وطلب الإذن اللازم.</p>
+
+          <h3>7. الأذونات وموارد الجهاز</h3>
+          <p>الإصدار الحالي لا يحتاج إلى الوصول إلى الكاميرا أو الميكروفون أو الصور أو جهات الاتصال أو الموقع الجغرافي لتشغيل الوظائف الأساسية للعبة.</p>
+
+          <h3>8. الأطفال</h3>
+          <p>Mafia لا تطلب تاريخ الميلاد ولا تنشئ ملفات تعريف إعلانية للأطفال. إذا علمنا أن معلومات شخصية لطفل جُمعت بصورة غير مقصودة وبشكل يتطلب الحذف قانونًا، فسنقوم بمعالجة طلب الحذف وفق القانون المعمول به.</p>
+
+          <h3>9. الأمان</h3>
+          <p>نستخدم اتصالات HTTPS/WSS وإجراءات تقنية للحد من الوصول غير المصرح به، لكن لا توجد وسيلة نقل أو تخزين إلكترونية يمكن ضمان أمانها بصورة مطلقة.</p>
+
+          <h3>10. خياراتك وطلبات الخصوصية</h3>
+          <p>يمكنك حذف الحفظ المحلي من داخل اللعبة أو إزالة بيانات التطبيق من جهازك. لطلب معلومات عن بياناتك أو تصحيحها أو حذفها، أو لأي استفسار متعلق بالخصوصية، استخدم وسيلة التواصل المنشورة في الموقع. قد نطلب معلومات كافية للتحقق من الطلب وربطه بالغرفة أو الجلسة ذات الصلة دون طلب بيانات أكثر من اللازم.</p>
+
+          <h3>11. النقل الدولي</h3>
+          <p>قد تتم معالجة بيانات التشغيل في الدول التي توجد فيها البنية التحتية المستخدمة لتقديم الخدمة. عند انطباق متطلبات قانونية على عمليات النقل، نتعامل معها وفق المتطلبات المعمول بها.</p>
+
+          <h3>12. التغييرات</h3>
+          <p>قد نحدّث هذه السياسة عند تغيير خصائص اللعبة أو مزودي الخدمة أو المتطلبات القانونية. سيظهر تاريخ آخر تحديث في أعلى هذه الصفحة.</p>
+
+          <h3>13. التواصل</h3>
+          <p>للدعم أو الاستفسارات المتعلقة بالخصوصية أو الخدمة، استخدم صفحة <a href="/contact">تواصل معنا</a> المنشورة على mafiagameplay.com.</p>
+        </div>
+
+        <div class="privacy-language" dir="ltr" lang="en">
+          <h2>Privacy Policy — English</h2>
+          <p><strong>Last updated:</strong> October 3, 2026</p>
+
+          <h3>1. Scope</h3>
+          <p>This Privacy Policy explains how Mafia and mafiagameplay.com handle information when you use the game on the web or through the iOS app.</p>
+
+          <h3>2. Information We Process</h3>
+          <p>For local gameplay, game settings, progress, and audio preferences are stored locally on your device. For online multiplayer, we may process the player or host name, the gender selected for in-game role wording, the built-in avatar selected by the player, room codes, game state, roles, votes, results and game-event history, and random session identifiers or tokens needed to secure rooms and player actions.</p>
+
+          <h3>3. How We Use Information</h3>
+          <p>We use this information to operate multiplayer rooms, synchronize games across devices, restore sessions, secure host and player actions, display participant names and avatars, calculate game results, prevent abuse, and diagnose technical problems.</p>
+
+          <h3>4. Storage and Retention</h3>
+          <p>Some preferences and session information may be stored locally on your device. Online room state may be processed and stored by the game servers and hosted infrastructure needed to provide multiplayer functionality. Mafia does not require a personal account to play. Operational data is retained only as needed for service delivery, security, and operation, and expired or old rooms may be removed under service operating procedures.</p>
+
+          <h3>5. Sharing and Service Providers</h3>
+          <p>We do not sell personal information. Operational data may pass through infrastructure and hosting providers used to operate Mafia, including server hosting and database services when enabled. Their access is limited to providing infrastructure and technical services subject to their applicable terms and legal obligations.</p>
+
+          <h3>6. Advertising, Cookies, and Analytics</h3>
+          <p>We may enable advertising on the web version in the future, including services such as Google AdSense. When enabled, Google or its partners may use cookies or similar technologies to serve and measure ads and prevent fraud, subject to applicable consent settings and law. We will provide required consent choices in regions where they apply and update this policy when advertising becomes active. The iOS app does not use Apple's advertising identifier unless that practice is disclosed and any required permission is obtained.</p>
+
+          <h3>7. Device Permissions</h3>
+          <p>The current version does not require access to the camera, microphone, photo library, contacts, or precise location for the game's core functionality.</p>
+
+          <h3>8. Children</h3>
+          <p>Mafia does not request a date of birth and does not create advertising profiles for children. If we learn that a child's personal information was unintentionally collected in circumstances requiring deletion by applicable law, we will address a valid deletion request.</p>
+
+          <h3>9. Security</h3>
+          <p>We use HTTPS/WSS connections and technical safeguards designed to reduce unauthorized access. No method of electronic transmission or storage can be guaranteed to be completely secure.</p>
+
+          <h3>10. Your Choices and Privacy Requests</h3>
+          <p>You can remove locally saved game information through the game or by removing app data from your device. To request access, correction, or deletion of information associated with you, or to ask a privacy question, use the contact method published on the official website. We may request enough information to verify and locate the relevant room or session without requesting unnecessary data.</p>
+
+          <h3>11. International Processing</h3>
+          <p>Operational data may be processed in countries where the infrastructure used to provide the service is located. Where legal transfer requirements apply, we handle such transfers in accordance with applicable requirements.</p>
+
+          <h3>12. Changes</h3>
+          <p>We may update this policy when game features, service providers, or legal requirements change. The latest revision date will appear at the top of this page.</p>
+
+          <h3>13. Contact</h3>
+          <p>For support, privacy questions, or service inquiries, use the <a href="/contact">Contact Us</a> page published on mafiagameplay.com.</p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#privacyBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    renderHomePage();
+  });
+}
+
+
+function renderTermsPage() {
+  setPageCanonical("/terms");
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  document.title = "شروط الاستخدام | لعبة مافيا || Mafia Game";
+  if (location.pathname !== "/terms") history.pushState({ page: "terms" }, "", "/terms");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="termsBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>شروط الاستخدام</h1>
+            <p>Terms of Use</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <p><strong>آخر تحديث:</strong> 3 أكتوبر 2026</p>
+
+          <h3>1. قبول الشروط</h3>
+          <p>باستخدام موقع mafiagameplay.com أو لعبة Mafia على الويب أو التطبيق، فإنك توافق على هذه الشروط. إذا لم توافق عليها، فتوقف عن استخدام الخدمة.</p>
+
+          <h3>2. طبيعة الخدمة</h3>
+          <p>Mafia لعبة جماعية ترفيهية تتيح اللعب محليًا أو عبر غرف متعددة اللاعبين. قد تتغير الخصائص أو القواعد أو البنية التقنية مع تطوير الخدمة.</p>
+
+          <h3>3. الاستخدام المسموح</h3>
+          <p>يجوز استخدام الخدمة للأغراض الترفيهية والقانونية فقط. يمنع محاولة تعطيل الخوادم، تجاوز حدود الاستخدام، إساءة استخدام واجهات الخدمة، انتحال هوية الآخرين، أو استخدام اللعبة لإرسال محتوى غير قانوني أو مسيء.</p>
+
+          <h3>4. أسماء اللاعبين والمحتوى المدخل</h3>
+          <p>أنت مسؤول عن الاسم أو النص الذي تدخله داخل اللعبة، ويجب ألا يتضمن محتوى مخالفًا للقانون أو حقوق الآخرين أو إساءة واضحة. يجوز للخدمة إزالة أو تقييد الاستخدام عند إساءة الاستخدام أو تهديد أمن النظام.</p>
+
+          <h3>5. التوفر والتحديثات</h3>
+          <p>نسعى إلى إبقاء الخدمة متاحة ومستقرة، لكن لا نضمن عملها دون انقطاع أو أخطاء في جميع الأوقات. قد نجري صيانة أو تحديثات أو تغييرات في الخوادم دون إشعار مسبق عندما يكون ذلك ضروريًا للتشغيل أو الأمان.</p>
+
+          <h3>6. الإعلانات والخدمات الخارجية</h3>
+          <p>قد تتضمن نسخة الويب مستقبلًا إعلانات أو روابط أو خدمات مقدمة من جهات خارجية. تخضع الخدمات الخارجية لشروط وسياسات مزوديها، ولا يعني عرضها داخل الموقع اعتماد جميع محتوياتها أو عروضها.</p>
+
+          <h3>7. الملكية الفكرية</h3>
+          <p>تصميم اللعبة وواجهاتها وعناصرها البرمجية والمحتوى الأصلي الخاص بها محمي وفق الحقوق المطبقة. لا يمنح استخدام الخدمة حق نسخ أو بيع أو إعادة نشر مكونات محمية بصورة غير مصرح بها.</p>
+
+          <h3>8. إخلاء المسؤولية</h3>
+          <p>تُقدم اللعبة على أساس "كما هي" للاستخدام الترفيهي. لا نضمن خلو الخدمة بصورة مطلقة من الأخطاء أو الانقطاعات، ولا نتحمل مسؤولية خسارة ناجمة عن استخدام غير صحيح أو أجهزة أو شبكات أو خدمات خارجية لا نتحكم بها، وذلك في الحدود التي يسمح بها القانون.</p>
+
+          <h3>9. إنهاء أو تقييد الاستخدام</h3>
+          <p>يجوز تقييد الوصول أو إيقاف جلسات أو غرف عند وجود إساءة استخدام، هجوم تقني، محاولة تحايل، أو حاجة تشغيلية أو أمنية مشروعة.</p>
+
+          <h3>10. التعديلات</h3>
+          <p>قد نحدّث هذه الشروط مع تطور اللعبة أو المتطلبات القانونية. استمرار استخدام الخدمة بعد نشر النسخة المحدّثة يعني قبول الشروط السارية وقت الاستخدام.</p>
+
+          <h3>11. التواصل</h3>
+          <p>للاستفسارات المتعلقة بهذه الشروط، استخدم صفحة <a href="/contact">تواصل معنا</a>.</p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#termsBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    document.title = "لعبة مافيا || Mafia Game";
+    renderHomePage();
+  });
+}
+
+function renderContactPage() {
+  setPageCanonical("/contact");
+  syncOfflineAudioPhase("home");
+  scrollPageToTop();
+  document.title = "تواصل معنا | لعبة مافيا || Mafia Game";
+  if (location.pathname !== "/contact") history.pushState({ page: "contact" }, "", "/contact");
+
+  app.innerHTML = `
+    <main class="privacy-page">
+      <section class="privacy-card">
+        <button id="contactBackButton" class="privacy-back-button" type="button">العودة</button>
+
+        <header class="privacy-header">
+          <img src="/mafia-logo-v2.png?v=20261001b" alt="Mafia" />
+          <div>
+            <span>MAFIA</span>
+            <h1>تواصل معنا</h1>
+            <p>Contact & Support</p>
+          </div>
+        </header>
+
+        <div class="privacy-language">
+          <h2>الدعم والاستفسارات</h2>
+          <p>يسعدنا استقبال البلاغات عن المشاكل التقنية، اقتراحات تطوير اللعبة، استفسارات الخصوصية، والاستفسارات التجارية المتعلقة بموقع Mafia.</p>
+
+          <h3>الموقع الرسمي</h3>
+          <p><a href="https://mafiagameplay.com/">mafiagameplay.com</a></p>
+
+          <h3>الدعم الفني الحالي</h3>
+          <p>يمكن فتح بلاغ أو طلب دعم من مستودع المشروع على GitHub. لا تضع كلمات مرور أو رموز جلسات أو معلومات شخصية حساسة في البلاغات العامة.</p>
+
+          <div class="contact-actions">
+            <a class="legal-action-link" href="https://github.com/naifbn22-glitch/mafia-game/issues" target="_blank" rel="noopener noreferrer">فتح صفحة الدعم على GitHub</a>
+          </div>
+
+          <h3>البريد الرسمي</h3>
+          <p>سيتم إضافة بريد دعم على نطاق mafiagameplay.com بعد تفعيله. وحتى ذلك الوقت، استخدم قناة الدعم أعلاه.</p>
+
+          <h3>الخصوصية والشروط</h3>
+          <p><a href="/privacy">سياسة الخصوصية</a> · <a href="/terms">شروط الاستخدام</a></p>
+        </div>
+      </section>
+    </main>
+  `;
+
+  document.querySelector("#contactBackButton")?.addEventListener("click", () => {
+    history.replaceState({}, "", "/");
+    document.title = "لعبة مافيا || Mafia Game";
+    renderHomePage();
+  });
 }
 
 
@@ -877,7 +1133,7 @@ function renderPlayersPage() {
 
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -922,7 +1178,7 @@ function renderPlayersPage() {
                 />
 
                 <span>
-                  👨 ذكر
+                  ذكر
                 </span>
               </label>
 
@@ -934,7 +1190,7 @@ function renderPlayersPage() {
                 />
 
                 <span>
-                  👩 أنثى
+                  أنثى
                 </span>
               </label>
             </div>
@@ -1087,33 +1343,33 @@ function renderPlayersPage() {
             </h2>
           </div>
 
-          <div class="roles-grid">
+          <div class="roles-grid roles-grid--cinematic">
             ${renderRoleCard(
-              "🗡️",
-              "اللصوص",
-              roles.thieves,
-            )}
-
-            ${renderRoleCard(
-              "👑",
+              "king",
               "الملك",
               roles.king,
             )}
 
             ${renderRoleCard(
-              "🏥",
-              "الممرضة",
-              roles.nurse,
+              "thief",
+              "اللصوص",
+              roles.thieves,
             )}
 
             ${renderRoleCard(
-              "🕵️",
+              "investigator",
               "المحقق",
               roles.investigator,
             )}
 
             ${renderRoleCard(
-              "👥",
+              "nurse",
+              "الممرضة",
+              roles.nurse,
+            )}
+
+            ${renderRoleCard(
+              "citizen",
               "المواطنون",
               roles.citizens,
             )}
@@ -1182,12 +1438,7 @@ function renderPlayersList() {
           ? "أنثى"
           : "ذكر";
 
-      const genderIcon =
-        playerGender === "female"
-          ? "👩"
-          : "👨";
-
-      return `
+       return `
         <div class="player-item">
           <div class="player-information">
             <span class="player-number">
@@ -1202,8 +1453,7 @@ function renderPlayersList() {
               </strong>
 
               <small>
-                ${genderIcon}
-                ${genderLabel}
+${genderLabel}
               </small>
             </div>
           </div>
@@ -1226,25 +1476,70 @@ function renderPlayersList() {
 
 
 function renderRoleCard(
-  icon,
+  roleType,
   title,
   count,
 ) {
+  const roleIcons = {
+    king: `
+      <svg viewBox="0 0 84 84" aria-hidden="true">
+        <path d="M15 57h54l-5 13H20z"></path>
+        <path d="M18 56l-4-31 18 14 10-24 10 24 18-14-4 31"></path>
+        <circle cx="14" cy="24" r="3"></circle>
+        <circle cx="42" cy="14" r="3"></circle>
+        <circle cx="70" cy="24" r="3"></circle>
+      </svg>
+    `,
+    thief: `
+      <img
+        class="role-summary-image role-summary-image--thief"
+        src="/images/roles/thief-eyes.png"
+        alt=""
+        aria-hidden="true"
+      />
+    `,
+    investigator: `
+      <svg viewBox="0 0 84 84" aria-hidden="true">
+        <circle cx="35" cy="35" r="20"></circle>
+        <path d="M50 50l20 20"></path>
+        <path d="M27 35c3-7 12-10 19-6"></path>
+      </svg>
+    `,
+    nurse: `
+      <img
+        class="role-summary-image role-summary-image--nurse"
+        src="/images/roles/nurse-heart.png"
+        alt=""
+        aria-hidden="true"
+      />
+    `,
+    citizen: `
+      <svg viewBox="0 0 96 84" aria-hidden="true">
+        <circle cx="48" cy="27" r="12"></circle>
+        <circle cx="22" cy="33" r="9"></circle>
+        <circle cx="74" cy="33" r="9"></circle>
+        <path d="M27 71c0-14 8-23 21-23s21 9 21 23"></path>
+        <path d="M5 71c0-11 6-19 17-19 6 0 10 2 13 6"></path>
+        <path d="M91 71c0-11-6-19-17-19-6 0-10 2-13 6"></path>
+      </svg>
+    `,
+  };
+
   return `
-    <article class="role-summary-card">
-      <span class="role-summary-icon">
-        ${icon}
+    <article class="role-summary-card role-summary-card--${roleType}">
+      <span class="role-summary-icon" aria-hidden="true">
+        ${roleIcons[roleType] ?? ""}
       </span>
 
-      <div>
+      <div class="role-summary-copy">
         <p>
           ${title}
         </p>
-
-        <strong>
-          ${count}
-        </strong>
       </div>
+
+      <strong class="role-summary-count" aria-label="${title}: ${count}">
+        ${count}
+      </strong>
     </article>
   `;
 }
@@ -1559,7 +1854,7 @@ function renderSettingsPage() {
 
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -1634,6 +1929,13 @@ function renderSettingsPage() {
             )}
 
             ${renderToggleSetting(
+              "التعليق الصوتي",
+              "تشغيل المعلّق الصوتي وشرح القوانين والتعليقات أثناء اللعبة. عند إيقافه يتم تجاوز شاشة القوانين وتعطيل جميع أصوات المعلّق.",
+              "voiceCommentaryEnabled",
+              settings.voiceCommentaryEnabled ?? true,
+            )}
+
+            ${renderToggleSetting(
               "اهتزاز الهاتف",
               "تنبيه اللاعب عند بداية دوره.",
               "vibrationEnabled",
@@ -1702,31 +2004,31 @@ function renderSettingsPage() {
 
           <div class="roles-grid">
             ${renderRoleCard(
-              "🗡️",
+              "thief",
               "اللصوص",
               roles.thieves,
             )}
 
             ${renderRoleCard(
-              "👑",
+              "king",
               "الملك",
               roles.king,
             )}
 
             ${renderRoleCard(
-              "🏥",
+              "nurse",
               "الممرضة",
               roles.nurse,
             )}
 
             ${renderRoleCard(
-              "🕵️",
+              "investigator",
               "المحقق",
               roles.investigator,
             )}
 
             ${renderRoleCard(
-              "👥",
+              "citizen",
               "المواطنون",
               roles.citizens,
             )}
@@ -2038,6 +2340,7 @@ function bindSettingsPageEvents() {
         ) {
           gameState.soundEnabled =
             input.checked;
+          setAudioEnabled(input.checked);
 
           saveGame();
 
@@ -2101,7 +2404,9 @@ function bindSettingsPageEvents() {
       saveGame();
 
       transitionTo(
-        GAME_PHASES.ROLE_HANDOFF,
+        gameState.settings.voiceCommentaryEnabled === false
+          ? GAME_PHASES.ROLE_HANDOFF
+          : GAME_PHASES.RULES_INTRO,
       );
     },
   );
@@ -2511,6 +2816,191 @@ function getAliveRolePlayer(roleId) {
 }
 
 
+let activeRulesNarration = null;
+let activeRulesNarrationFrame = null;
+
+const RULES_NARRATION_CUES = Object.freeze([
+  { start: 0, end: 10.76, role: null },
+  { start: 10.76, end: 18.76, role: "thief" },
+  { start: 18.76, end: 26.76, role: "citizen" },
+  { start: 26.76, end: 32.76, role: "nurse" },
+  { start: 32.76, end: 46.76, role: "king" },
+  { start: 46.76, end: 61.76, role: "investigator" },
+  { start: 61.76, end: 999, role: null },
+]);
+
+function stopRulesNarration() {
+  if (activeRulesNarrationFrame) {
+    cancelAnimationFrame(activeRulesNarrationFrame);
+    activeRulesNarrationFrame = null;
+  }
+
+  if (activeRulesNarration) {
+    activeRulesNarration.pause();
+    activeRulesNarration.currentTime = 0;
+    activeRulesNarration = null;
+  }
+}
+
+function getRulesNarrationRole(currentTime) {
+  return RULES_NARRATION_CUES.find(
+    (cue) => currentTime >= cue.start && currentTime < cue.end,
+  )?.role ?? null;
+}
+
+function updateRulesNarrationFocus(currentTime = 0) {
+  const activeRole = getRulesNarrationRole(currentTime);
+  const cards = document.querySelectorAll(".rules-commentary-role-card");
+
+  cards.forEach((card) => {
+    const role = card.dataset.role;
+    const isFocused = !activeRole || role === activeRole;
+    card.classList.toggle("is-focused", isFocused);
+    card.classList.toggle("is-muted", Boolean(activeRole) && role !== activeRole);
+  });
+
+  const label = document.querySelector("#rulesCommentaryNow");
+  if (label) {
+    const roleLabels = {
+      thief: "اللصوص",
+      citizen: "المواطنون",
+      nurse: "الممرضة",
+      king: "الملك",
+      investigator: "المحقق",
+    };
+    label.textContent = activeRole
+      ? `الآن: ${roleLabels[activeRole]}`
+      : "شرح قوانين اللعبة";
+  }
+}
+
+function renderRulesCommentaryPage() {
+  if (gameState.settings.voiceCommentaryEnabled === false) {
+    transitionTo(GAME_PHASES.ROLE_HANDOFF);
+    return;
+  }
+
+  setCurrentScreen(GAME_PHASES.RULES_INTRO);
+  stopRulesNarration();
+
+  const roleCards = [
+    ["thief", "اللصوص", getRoleCardImage("thief")],
+    ["citizen", "المواطنون", getRoleCardImage("citizen")],
+    ["nurse", "الممرض", getRoleCardImage("nurse")],
+    ["king", "الملك", getRoleCardImage("king")],
+    ["investigator", "المحقق", getRoleCardImage("investigator")],
+  ];
+
+  app.innerHTML = `
+    <main class="rules-commentary-page">
+      <div class="rules-commentary-glow rules-commentary-glow--red"></div>
+      <div class="rules-commentary-glow rules-commentary-glow--gold"></div>
+
+      <section class="rules-commentary-shell">
+        <div class="rules-commentary-heading">
+          <span class="rules-commentary-kicker">قبل توزيع الأدوار</span>
+          <h1>تعرف على شخصيات اللعبة</h1>
+          <p class="rules-commentary-subtitle">استمع إلى المعلق قبل بدء اللعبة</p>
+          <p id="rulesCommentaryNow" aria-live="polite">شرح قوانين اللعبة</p>
+        </div>
+
+        <div class="rules-commentary-cards" aria-label="بطاقات شخصيات اللعبة">
+          ${roleCards.map(([roleId, roleName, image]) => `
+            <article class="rules-commentary-role-card is-focused" data-role="${roleId}">
+              <div class="rules-commentary-card-frame">
+                <img src="${image}" alt="بطاقة ${roleName}" />
+              </div>
+              <strong>${roleName}</strong>
+            </article>
+          `).join("")}
+        </div>
+
+        <div class="rules-commentary-progress" role="progressbar" aria-label="تقدم شرح القوانين" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="rulesCommentaryProgressFill"></span>
+        </div>
+
+        <div class="rules-commentary-audio-status">
+          <span class="rules-commentary-wave" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i>
+          </span>
+          <span id="rulesCommentaryAudioMessage" role="status" aria-live="polite">جارٍ تجهيز شرح القوانين…</span>
+          <button class="rules-commentary-play" id="playRulesCommentaryButton" type="button" hidden>
+            تشغيل الشرح
+          </button>
+        </div>
+
+        <button class="rules-commentary-skip" id="skipRulesCommentaryButton" type="button">
+          تخطي، لقد فهمت
+        </button>
+      </section>
+    </main>
+  `;
+
+  const finishRules = () => {
+    stopRulesNarration();
+    transitionTo(GAME_PHASES.ROLE_HANDOFF);
+  };
+
+  document.querySelector("#skipRulesCommentaryButton")
+    ?.addEventListener("click", finishRules);
+
+  activeRulesNarration = new Audio("/audio/narrator/rules.mp3");
+  activeRulesNarration.preload = "auto";
+  activeRulesNarration.playsInline = true;
+  activeRulesNarration.volume = 0.92;
+
+  const syncProgress = () => {
+    if (!activeRulesNarration) return;
+    const duration = Number(activeRulesNarration.duration);
+    const ratio = Number.isFinite(duration) && duration > 0
+      ? Math.min(1, activeRulesNarration.currentTime / duration)
+      : 0;
+    const progress = document.querySelector(".rules-commentary-progress");
+    const fill = document.querySelector("#rulesCommentaryProgressFill");
+    if (fill) fill.style.transform = `scaleX(${ratio})`;
+    progress?.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+  };
+
+  const syncFocus = () => {
+    if (!activeRulesNarration) return;
+    updateRulesNarrationFocus(activeRulesNarration.currentTime);
+    syncProgress();
+    activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
+  };
+
+  activeRulesNarration.addEventListener("ended", finishRules, { once: true });
+  const audioMessage = document.querySelector("#rulesCommentaryAudioMessage");
+  const playButton = document.querySelector("#playRulesCommentaryButton");
+  const playRulesNarration = () => {
+    if (!activeRulesNarration) return;
+    if (audioMessage) audioMessage.textContent = "جارٍ تشغيل شرح القوانين…";
+    if (playButton) playButton.hidden = true;
+
+    activeRulesNarration.play().then(() => {
+      if (audioMessage) audioMessage.textContent = "المعلّق يشرح القوانين الآن";
+    }).catch(() => {
+      if (audioMessage) audioMessage.textContent = "اضغط تشغيل الشرح للاستماع إلى القوانين";
+      if (playButton) playButton.hidden = false;
+    });
+  };
+
+  activeRulesNarration.addEventListener("error", () => {
+    if (audioMessage) audioMessage.textContent = "تعذر تحميل الصوت. حاول تشغيله مجددًا";
+    if (playButton) playButton.hidden = false;
+  }, { once: true });
+  playButton?.addEventListener("click", playRulesNarration);
+  activeRulesNarration.addEventListener("play", () => {
+    if (audioMessage) audioMessage.textContent = "المعلّق يشرح القوانين الآن";
+    if (!activeRulesNarrationFrame) {
+      activeRulesNarrationFrame = requestAnimationFrame(syncFocus);
+    }
+  }, { once: true });
+
+  updateRulesNarrationFocus(0);
+
+  // Voice commentary has its own setting. Game sound effects must not silence it.
+  playRulesNarration();
+}
 function renderRoleHandoffPage() {
   setCurrentScreen(
     GAME_PHASES.ROLE_HANDOFF,
@@ -2542,7 +3032,7 @@ function renderRoleHandoffPage() {
       <header class="role-page-header">
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -2661,12 +3151,6 @@ function renderRolePlayingCard(
           <div
             class="role-card-face role-card-back"
           >
-            <img
-              class="role-card-back-logo"
-              src="/mafia-logo-v2.png"
-              alt=""
-            />
-
             <p class="role-card-back-title">
               مافيا
             </p>
@@ -2907,6 +3391,7 @@ function startRoleCardAnimation() {
       card.classList.add(
         "card-flipped",
       );
+      playRoleCardFlip();
     },
     850,
   );
@@ -2994,7 +3479,7 @@ function renderRolesReadyPage() {
       >
         <img
           class="ready-logo"
-          src="/mafia-logo-v2.png"
+          src="/mafia-logo-v2.png?v=20261001b"
           alt="شعار مافيا"
         />
 
@@ -3091,6 +3576,19 @@ function renderNightIntroPage() {
   setCurrentScreen(
     GAME_PHASES.NIGHT_INTRO,
   );
+  const shouldPlayOpeningLine =
+    gameState.roundNumber === 1 &&
+    gameState.settings.voiceCommentaryEnabled !== false;
+  if (shouldPlayOpeningLine) {
+    playNightOpeningLine(
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  } else {
+    playSfx("nightStart", {
+      key: `offline-night-${gameState.roundNumber}`,
+      volume: 0.82,
+    });
+  }
 
   const activeNightRoles =
     gameState.nightSequence?.roleIds ??
@@ -3133,7 +3631,7 @@ function renderNightIntroPage() {
       <section class="night-card">
         <img
           class="night-logo"
-          src="/mafia-logo-v2.png"
+          src="/mafia-logo-v2.png?v=20261001b"
           alt="شعار مافيا"
         />
 
@@ -3249,14 +3747,14 @@ function renderNightRoleHandoff({
       ></div>
 
       <section class="night-card night-handoff-card">
-        <div class="night-role-icon">
-          ${icon}
-        </div>
-
         <p class="night-round">
           الليلة
           ${gameState.roundNumber}
         </p>
+
+        <div class="night-role-icon">
+          ${icon}
+        </div>
 
         <h1>
           ${title}
@@ -3317,13 +3815,21 @@ function renderThiefHandoffPage() {
     GAME_PHASES.THIEF_HANDOFF,
   );
 
+  if (gameState.settings.voiceCommentaryEnabled !== false) {
+    playThiefNightCue(
+      "wake",
+      gameState.roundNumber,
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  }
+
   renderNightRoleHandoff({
     roleId: ROLE_IDS.THIEF,
 
     pageClass:
       "thief-night",
 
-    icon: "🗡️",
+    icon: '<img class="night-role-artwork night-role-artwork--thief-eyes" src="/images/roles/thief-eyes.png" alt="عيون اللصوص" />',
 
     title:
       "يستيقظ اللصوص",
@@ -3417,7 +3923,10 @@ function renderThiefSelectionPage() {
     description:
       "حددوا لاعبًا واحدًا من خارج فريق اللصوص. سيتم تنفيذ الاختيار بعد انتهاء جميع الأدوار الليلية.",
 
-    icon: "🗡️",
+    icon: '<img class="night-role-artwork night-role-artwork--thief-eyes" src="/images/roles/thief-eyes.png" alt="عيون اللصوص" />',
+
+    pageClass:
+      "thief-night thief-selection-night",
 
     players: targets,
 
@@ -3449,6 +3958,14 @@ function renderThiefSelectionPage() {
 
       saveGame();
 
+      if (gameState.settings.voiceCommentaryEnabled !== false) {
+        playThiefNightCue(
+          "confirmation",
+          gameState.roundNumber,
+          `offline:${gameState.matchStartedAt || "first-match"}`,
+        );
+      }
+
       goToNextNightRole();
     },
   });
@@ -3460,13 +3977,21 @@ function renderNurseHandoffPage() {
     GAME_PHASES.NURSE_HANDOFF,
   );
 
+  if (gameState.settings.voiceCommentaryEnabled !== false) {
+    playNurseNightCue(
+      "wake",
+      gameState.roundNumber,
+      `offline:${gameState.matchStartedAt || "first-match"}`,
+    );
+  }
+
   renderNightRoleHandoff({
     roleId: ROLE_IDS.NURSE,
 
     pageClass:
       "nurse-night",
 
-    icon: "🩺",
+    icon: NURSE_HEART_ICON,
 
     title:
       "تستيقظ الممرضة",
@@ -3551,7 +4076,7 @@ function renderNurseSelectionPage() {
     description:
       "يمكن للممرضة حماية أي لاعب حي، بما في ذلك نفسها. إذا كان هو هدف اللصوص فسينجو.",
 
-    icon: "🩺",
+    icon: NURSE_HEART_ICON,
 
     players: targets,
 
@@ -3582,6 +4107,14 @@ function renderNurseSelectionPage() {
         .savedPlayerId = playerId;
 
       saveGame();
+
+      if (gameState.settings.voiceCommentaryEnabled !== false) {
+        playNurseNightCue(
+          "protection",
+          gameState.roundNumber,
+          `offline:${gameState.matchStartedAt || "first-match"}`,
+        );
+      }
 
       goToNextNightRole();
     },
@@ -3962,7 +4495,7 @@ function getInvestigationDetails(
           : "هذا اللاعب لص",
       description:
         "هذا اللاعب ينتمي إلى فريق اللصوص.",
-      icon: "🗡️",
+      icon: THIEF_EYES_ICON,
       className:
         "inspection-thief",
     };
@@ -4176,6 +4709,7 @@ function renderNightPlayerSelection({
   title,
   description,
   icon,
+  pageClass = "",
   players,
   selectedPlayerId,
   buttonText,
@@ -4190,7 +4724,7 @@ function renderNightPlayerSelection({
       : [];
 
   app.innerHTML = `
-    <main class="night-page">
+    <main class="night-page ${pageClass}">
       <div
         class="night-background-glow night-background-glow-purple"
       ></div>
@@ -4200,14 +4734,14 @@ function renderNightPlayerSelection({
       ></div>
 
       <section class="night-selection-card">
-        <div class="night-role-icon">
-          ${icon}
-        </div>
-
         <p class="night-round">
           الليلة
           ${gameState.roundNumber}
         </p>
+
+        <div class="night-role-icon">
+          ${icon}
+        </div>
 
         <h1>
           ${title}
@@ -4253,12 +4787,10 @@ function renderNightPlayerSelection({
                       : "false"
                   }"
                 >
-                  <span
-                    class="night-player-avatar"
-                  >
-                    ${escapeHtml(
-                      playerInitial,
-                    )}
+                  <span class="night-player-avatar">
+                    ${player.avatar
+                      ? `<img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.name)}" />`
+                      : escapeHtml(playerInitial)}
                   </span>
 
                   <strong>
@@ -4566,7 +5098,7 @@ function resolveNight() {
           description:
             "نجحت الممرضة في حماية هدف اللصوص، ولم يخرج أحد هذه الليلة.",
 
-          icon: "🩺",
+          icon: NURSE_HEART_ICON,
 
           round:
             gameState.roundNumber,
@@ -4606,7 +5138,7 @@ function resolveNight() {
         description:
           "تم إخراج اللاعب خلال مرحلة الليل.",
 
-        icon: "🗡️",
+        icon: THIEF_EYES_ICON,
 
         round:
           gameState.roundNumber,
@@ -4682,6 +5214,10 @@ function renderNightResultPage(
   setCurrentScreen(
     GAME_PHASES.NIGHT_RESULT,
   );
+  playSfx("morning", {
+    key: `offline-morning-${gameState.roundNumber}`,
+    volume: 0.82,
+  });
 
   const noVictimSelected =
     !victim;
@@ -4739,7 +5275,7 @@ function renderNightResultPage(
         <div class="assassination-blood" aria-hidden="true"></div>
         <div class="assassination-knife" aria-hidden="true">🗡️</div>
         <div class="assassination-portrait-frame">
-          <img src="${escapeHtml(victim.avatar || "/mafia-logo-v2.png")}" alt="${escapeHtml(victim.name)}" />
+          <img src="${escapeHtml(victim.avatar || "/mafia-logo-v2.png?v=20261001b")}" alt="${escapeHtml(victim.name)}" />
           <span class="assassination-crack crack-a"></span>
           <span class="assassination-crack crack-b"></span>
           <span class="assassination-mourning-ribbon">تم الاغتيال</span>
@@ -4775,7 +5311,7 @@ function renderNightResultPage(
       <section class="night-card">
         <img
           class="night-logo"
-          src="/mafia-logo-v2.png"
+          src="/mafia-logo-v2.png?v=20261001b"
           alt="شعار مافيا"
         />
 
@@ -4939,7 +5475,7 @@ function renderDayPage() {
       <header class="day-header">
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -5314,6 +5850,12 @@ function startDiscussionTimer() {
           );
 
         updateDiscussionTimerDisplay();
+
+        if (gameState.timer.remainingSeconds === 5) {
+          playDiscussionFinalFive(
+            `offline-discussion-${gameState.roundNumber}`,
+          );
+        }
 
         /*
          * يتم الحفظ كل خمس ثوانٍ
@@ -5917,7 +6459,7 @@ function renderVotingHandoffPage() {
       <header class="voting-header">
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -6042,7 +6584,7 @@ function renderCurrentVoterPage() {
       <header class="voting-header">
         <div class="setup-brand">
           <img
-            src="/mafia-logo-v2.png"
+            src="/mafia-logo-v2.png?v=20261001b"
             alt="شعار مافيا"
           />
 
@@ -6103,12 +6645,10 @@ function renderCurrentVoterPage() {
                   )}"
                   aria-pressed="false"
                 >
-                  <span
-                    class="vote-player-avatar"
-                  >
-                    ${escapeHtml(
-                      playerInitial,
-                    )}
+                  <span class="vote-player-avatar">
+                    ${player.avatar
+                      ? `<img src="${escapeHtml(player.avatar)}" alt="${escapeHtml(player.name)}" />`
+                      : escapeHtml(playerInitial)}
                   </span>
 
                   <strong>
@@ -6693,7 +7233,7 @@ function renderVotingResultsPage() {
       >
         <img
           class="voting-result-logo"
-          src="/mafia-logo-v2.png"
+          src="/mafia-logo-v2.png?v=20261001b"
           alt="شعار مافيا"
         />
 
@@ -7085,7 +7625,7 @@ function renderGameOverPage(
        >
         <img
           class="game-over-logo"
-          src="/mafia-logo-v2.png"
+          src="/mafia-logo-v2.png?v=20261001b"
           alt="شعار مافيا"
         />
 
@@ -7100,7 +7640,7 @@ function renderGameOverPage(
         >
           ${
             thievesWon
-              ? "🗡️"
+              ? THIEF_EYES_ICON
               : "🏆"
           }
         </div>
@@ -7692,6 +8232,11 @@ function loadSavedGame() {
           ?.vibrationEnabled ??
         true,
 
+      voiceCommentaryEnabled:
+        parsedState.settings
+          ?.voiceCommentaryEnabled ??
+        true,
+
       advancedRules: {
         preventRepeatVictim:
           parsedState.settings
@@ -7895,7 +8440,11 @@ function setCurrentScreen(
 
   gameState.currentPhase =
     screenName;
-scrollPageToTop();
+
+  // الموسيقى تعمل فقط قبل بدء كشف الأدوار، وتتوقف فور دخول مراحل اللعبة.
+  syncOfflineAudioPhase(screenName);
+
+  scrollPageToTop();
   saveGame();
 
 }
@@ -8010,6 +8559,9 @@ const phaseRenderers = {
 
   [GAME_PHASES.SETTINGS]:
     renderSettingsPage,
+
+  [GAME_PHASES.RULES_INTRO]:
+    renderRulesCommentaryPage,
 
   [GAME_PHASES.ROLE_HANDOFF]:
     renderRoleHandoffPage,
@@ -8197,6 +8749,14 @@ registerTemporaryAdminShortcut();
 
 loadSavedGame();
 
+if (location.pathname === "/privacy") {
+  document.title = "سياسة الخصوصية | لعبة مافيا || Mafia Game";
+  renderPrivacyPolicyPage();
+} else if (location.pathname === "/terms") {
+  renderTermsPage();
+} else if (location.pathname === "/contact") {
+  renderContactPage();
+} else {
 const restoredOnlineRoute = restoreOnlineRoute({
   app,
   onBack: () => {
@@ -8207,4 +8767,5 @@ const restoredOnlineRoute = restoreOnlineRoute({
 
 if (!restoredOnlineRoute) {
   renderHomePage();
+}
 }

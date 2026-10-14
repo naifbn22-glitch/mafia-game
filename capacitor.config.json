@@ -1,6 +1,6 @@
 {
   "appId": "com.naif.mafiagame",
-  "appName": "Mafia Game",
+  "appName": "Mafia",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
