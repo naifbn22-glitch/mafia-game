@@ -5,6 +5,7 @@ import { getRoleCardImage } from "../ui/roleCards.js";
 import {
   setAudioScene,
   syncOnlineAudio,
+  playAiCommentary,
   playRoleCardFlip,
   playDiscussionFinalFive,
 } from "../audio/audioManager.js";
@@ -720,6 +721,7 @@ async function subscribeRoom(code, mode = "public", playerId = null) {
 }
 
 socket.on("room:snapshot", cacheServerRoom);
+socket.on("room:ai-commentary", playAiCommentary);
 socket.on("connect", () => {
   activeSubscriptions.clear();
   window.dispatchEvent(new CustomEvent("mafia-server-connected"));
@@ -1768,6 +1770,14 @@ function renderOnlineNightSummary(room) {
   const summary = room?.daySummary;
   if (!summary) return "";
   const pardonCard = renderRoyalPardonCard(summary);
+  const commentary = room?.aiCommentary?.nightNumber === Number(summary.nightNumber || room.nightNumber || 1)
+    ? room.aiCommentary
+    : null;
+  const commentaryCard = commentary?.status === "pending"
+    ? `<section class="online-ai-commentary" role="status"><span aria-hidden="true">🎙️</span><div><small>المعلّق الذكي</small><p>يجهّز تعليق هذه الليلة…</p></div></section>`
+    : commentary?.status === "ready"
+      ? `<section class="online-ai-commentary"><span aria-hidden="true">🎙️</span><div><small>المعلّق الذكي</small><p>${escapeOnlineText(commentary.text)}</p></div></section>`
+      : "";
 
   if (summary.outcome === "saved") {
     return `
@@ -1776,6 +1786,7 @@ function renderOnlineNightSummary(room) {
         ${pardonCard}
         ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
       </div>
+      ${commentaryCard}
     `;
   }
 
@@ -1790,6 +1801,7 @@ function renderOnlineNightSummary(room) {
         ${pardonCard}
         ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
       </div>
+      ${commentaryCard}
     `;
   }
 
@@ -1805,7 +1817,18 @@ function renderOnlineNightSummary(room) {
       ${pardonCard}
       ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
     </div>
+    ${commentaryCard}
   `;
+}
+
+function escapeOnlineText(value) {
+  return String(value || "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
 }
 
 function renderOnlineVotingStatus(room) {

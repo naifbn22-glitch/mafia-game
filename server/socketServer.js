@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
+import { createAiNightCommentary, toPublicNightSummary } from "./aiCommentary.js";
 import {
   addTimeline, beginEyesClosed, beginNextNight, castVote, confirmNightAction, createRoom, finishNight, hostProjection, joinPlayer,
   markRoleKnown, normalizeRoomCode, playerProjection, publicProjection, requireHost, requirePlayer,
@@ -37,6 +38,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
   // projections for every vote/role acknowledgement arriving together.
   const pendingSnapshots = new Map();
   const recentSnapshots = new Map();
+  const aiCommentaryJobs = new Set();
   const SNAPSHOT_BATCH_MS = 20;
 
   function broadcastRoom(room) {
@@ -93,6 +95,53 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
       version: room.version || 0,
       changedAt: Date.now(),
     });
+  }
+
+  async function generateAndBroadcastAiCommentary(code, eventId, summary) {
+    const jobKey = `${code}:${eventId}`;
+    if (aiCommentaryJobs.has(jobKey)) return;
+    aiCommentaryJobs.add(jobKey);
+
+    try {
+      let generated;
+      try {
+        generated = await createAiNightCommentary(summary);
+      } catch (error) {
+        console.error("AI night commentary failed", error?.message || "UNKNOWN_ERROR");
+        generated = await createAiNightCommentary(summary, { mode: "demo" });
+        generated.mode = "fallback";
+      }
+
+      const updatedRoom = await store.withRoomLock(code, async () => {
+        const room = await store.get(code);
+        if (!room || room.aiCommentary?.id !== eventId || room.phase !== "day") return null;
+
+        room.aiCommentary = {
+          id: eventId,
+          nightNumber: Number(summary.nightNumber || 1),
+          text: generated.text,
+          mode: generated.mode,
+          status: "ready",
+          createdAt: Date.now(),
+        };
+        touch(room);
+        await store.set(room);
+        return room;
+      });
+
+      if (!updatedRoom) return;
+      emitRoom(updatedRoom, { immediate: true });
+      io.to(`room:${code}`).emit("room:ai-commentary", {
+        id: eventId,
+        text: generated.text,
+        audioBase64: generated.audioBase64,
+        mode: generated.mode,
+      });
+    } catch (error) {
+      console.error("AI night commentary dispatch failed", error?.message || "UNKNOWN_ERROR");
+    } finally {
+      aiCommentaryJobs.delete(jobKey);
+    }
   }
 
 
@@ -303,7 +352,7 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
         const normalizedForAuth = normalizeRoomCode(code);
         if (!socket.rooms.has(`room:${normalizedForAuth}:host`)) throw new Error("HOST_SUBSCRIPTION_REQUIRED");
         const normalized = normalizeRoomCode(code);
-        const room = await store.withRoomLock(normalized, async () => {
+        const result = await store.withRoomLock(normalized, async () => {
           const current = await store.get(normalized);
           if (!current) throw new Error("ROOM_NOT_FOUND");
           requireHost(current, token);
@@ -314,14 +363,35 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
           else if (action === "skip-role-reveal") { current.roleRevealEndsAt = Date.now(); touch(current); }
           else if (action === "eyes-closed") beginEyesClosed(current);
           else if (action === "wake-role") wakeRole(current, payload.role);
-          else if (action === "finish-night") finishNight(current);
+          else if (action === "finish-night") {
+            finishNight(current);
+            if (process.env.AI_COMMENTARY_ENABLED === "true") {
+              const summary = toPublicNightSummary(current.daySummary);
+              const eventId = `${current.code}:${Number(current.matchSequence || 0)}:${summary.nightNumber}`;
+              current.aiCommentary = {
+                id: eventId,
+                nightNumber: summary.nightNumber,
+                text: "",
+                mode: "pending",
+                status: "pending",
+                createdAt: Date.now(),
+              };
+              touch(current);
+            }
+          }
           else if (action === "start-voting") startVoting(current);
           else if (action === "next-night") beginNextNight(current);
           else if (action === "rematch") resetForRematch(current);
           else throw new Error("UNKNOWN_ACTION");
           await store.set(current);
-          return current;
+          return {
+            room: current,
+            commentary: action === "finish-night" && current.aiCommentary?.status === "pending"
+              ? { id: current.aiCommentary.id, summary: current.daySummary }
+              : null,
+          };
         });
+        const room = result.room;
 
         // Phase transitions remain immediate; only rapid player-state updates
         // are batched. Voting/day reliability notifications are unchanged.
@@ -336,6 +406,13 @@ export async function createSocketServer(httpServer, store, { allowedOrigins = [
             version: room.version || 0,
             changedAt: Date.now(),
           });
+          if (result.commentary) {
+            void generateAndBroadcastAiCommentary(
+              room.code,
+              result.commentary.id,
+              result.commentary.summary,
+            );
+          }
         }
         if (action === "start-voting") {
           // بث مؤكد ومتكرر لفترة قصيرة. لا يحمل أي بيانات سرية ولا يغيّر

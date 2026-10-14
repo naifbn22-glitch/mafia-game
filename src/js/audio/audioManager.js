@@ -72,6 +72,7 @@ const nurseCueAudioPool = new Map();
 const nurseCuePending = new Set();
 const nurseCueBlocked = new Set();
 let roleNarrationTail = Promise.resolve();
+let activeAiCommentaryAudio = null;
 let globalButtonClickInstalled = false;
 
 function stableNightOpeningVariant(seed) {
@@ -443,10 +444,78 @@ export function isAudioEnabled() {
   return enabled;
 }
 
+function isVoiceCommentaryEnabled() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("mafiaGameSave") || "{}");
+    return saved?.settings?.voiceCommentaryEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+function speakCommentaryFallback(text) {
+  if (!text || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return false;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "ar-SA";
+  utterance.rate = 0.94;
+  utterance.pitch = 0.96;
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+export function playAiCommentary(payload) {
+  const id = String(payload?.id || "").trim();
+  const text = String(payload?.text || "").trim();
+  const playbackKey = `ai-commentary:${id}`;
+  if (!id || !text || !enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return false;
+
+  const playAndWait = async () => {
+    if (!enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return;
+    let audio = null;
+    let objectUrl = "";
+
+    try {
+      if (payload.audioBase64) {
+        const binary = atob(payload.audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        objectUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+        audio = new Audio(objectUrl);
+        activeAiCommentaryAudio = audio;
+        audio.volume = 0.92;
+        if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
+        await audio.play();
+        await new Promise(resolve => {
+          const finish = () => resolve();
+          audio.addEventListener("ended", finish, { once: true });
+          audio.addEventListener("error", finish, { once: true });
+        });
+      } else {
+        speakCommentaryFallback(text);
+      }
+    } catch {
+      speakCommentaryFallback(text);
+    } finally {
+      audio?.pause();
+      if (activeAiCommentaryAudio === audio) activeAiCommentaryAudio = null;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      playedKeys.add(playbackKey);
+    }
+  };
+
+  const queuedPlayback = roleNarrationTail.then(playAndWait, playAndWait);
+  roleNarrationTail = queuedPlayback.catch(() => {});
+  return true;
+}
+
 export function setAudioEnabled(value) {
   enabled = Boolean(value);
   localStorage.setItem(AUDIO_ENABLED_KEY, String(enabled));
   if (!enabled) {
+    activeAiCommentaryAudio?.pause();
+    activeAiCommentaryAudio = null;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     ensureBackgroundMusic().pause();
     for (const audio of sfxPool.values()) {
       audio.pause();
