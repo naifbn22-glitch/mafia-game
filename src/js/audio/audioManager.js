@@ -72,7 +72,6 @@ const nurseCueAudioPool = new Map();
 const nurseCuePending = new Set();
 const nurseCueBlocked = new Set();
 let roleNarrationTail = Promise.resolve();
-let activeAiCommentaryAudio = null;
 let globalButtonClickInstalled = false;
 
 function stableNightOpeningVariant(seed) {
@@ -444,78 +443,10 @@ export function isAudioEnabled() {
   return enabled;
 }
 
-function isVoiceCommentaryEnabled() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("mafiaGameSave") || "{}");
-    return saved?.settings?.voiceCommentaryEnabled !== false;
-  } catch {
-    return true;
-  }
-}
-
-function speakCommentaryFallback(text) {
-  if (!text || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return false;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ar-SA";
-  utterance.rate = 0.94;
-  utterance.pitch = 0.96;
-  window.speechSynthesis.speak(utterance);
-  return true;
-}
-
-export function playAiCommentary(payload) {
-  const id = String(payload?.id || "").trim();
-  const text = String(payload?.text || "").trim();
-  const playbackKey = `ai-commentary:${id}`;
-  if (!id || !text || !enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return false;
-
-  const playAndWait = async () => {
-    if (!enabled || !isVoiceCommentaryEnabled() || playedKeys.has(playbackKey)) return;
-    let audio = null;
-    let objectUrl = "";
-
-    try {
-      if (payload.audioBase64) {
-        const binary = atob(payload.audioBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-        objectUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        audio = new Audio(objectUrl);
-        activeAiCommentaryAudio = audio;
-        audio.volume = 0.92;
-        if (isIOSAudioEnvironment()) await resumeIOSMusicOutput();
-        await audio.play();
-        await new Promise(resolve => {
-          const finish = () => resolve();
-          audio.addEventListener("ended", finish, { once: true });
-          audio.addEventListener("error", finish, { once: true });
-        });
-      } else {
-        speakCommentaryFallback(text);
-      }
-    } catch {
-      speakCommentaryFallback(text);
-    } finally {
-      audio?.pause();
-      if (activeAiCommentaryAudio === audio) activeAiCommentaryAudio = null;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      playedKeys.add(playbackKey);
-    }
-  };
-
-  const queuedPlayback = roleNarrationTail.then(playAndWait, playAndWait);
-  roleNarrationTail = queuedPlayback.catch(() => {});
-  return true;
-}
-
 export function setAudioEnabled(value) {
   enabled = Boolean(value);
   localStorage.setItem(AUDIO_ENABLED_KEY, String(enabled));
   if (!enabled) {
-    activeAiCommentaryAudio?.pause();
-    activeAiCommentaryAudio = null;
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     ensureBackgroundMusic().pause();
     for (const audio of sfxPool.values()) {
       audio.pause();
@@ -603,64 +534,9 @@ export function syncOnlineAudio(room) {
 
   if (room.status === "playing" && room.phase === "eyes-closed" && previous.phase !== "eyes-closed") {
     const nightNumber = Number(room.nightNumber || 0);
-    if (nightNumber === 1) {
-      const openingKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}:night-1`;
-      playNightOpeningLine(openingKey, {
-        variant: stableNightOpeningVariant(openingKey),
-        respectMute: true,
-      });
-    } else {
+    if (nightNumber > 1) {
       playSfx("nightStart", { key: `night:${phaseKey}`, volume: 0.82 });
     }
-  }
-  if (
-    room.status === "playing" &&
-    room.phase === "night-role" &&
-    room.activeRole === "thief" &&
-    previous.activeRole !== "thief"
-  ) {
-    const nightNumber = Number(room.nightNumber || 1);
-    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
-    playThiefNightCue("wake", nightNumber, matchKey);
-  }
-
-  if (
-    room.status === "playing" &&
-    room.phase === "night-role" &&
-    room.activeRole === "nurse" &&
-    previous.activeRole !== "nurse"
-  ) {
-    const nightNumber = Number(room.nightNumber || 1);
-    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
-    playNurseNightCue("wake", nightNumber, matchKey);
-  }
-
-  const livingThieves = (room.players || []).filter(player => player.alive && player.role === "thief");
-  const thievesConfirmed =
-    room._view === "host" &&
-    room.status === "playing" &&
-    room.phase === "night-role" &&
-    room.activeRole === "thief" &&
-    livingThieves.length > 0 &&
-    livingThieves.every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]));
-  if (thievesConfirmed && !previous.thievesConfirmed) {
-    const nightNumber = Number(room.nightNumber || 1);
-    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
-    playThiefNightCue("confirmation", nightNumber, matchKey);
-  }
-
-  const livingNurses = (room.players || []).filter(player => player.alive && player.role === "nurse");
-  const nurseConfirmed =
-    room._view === "host" &&
-    room.status === "playing" &&
-    room.phase === "night-role" &&
-    room.activeRole === "nurse" &&
-    livingNurses.length > 0 &&
-    livingNurses.every(player => Boolean(room.nightActions?.confirmedActors?.[player.id]));
-  if (nurseConfirmed && !previous.nurseConfirmed) {
-    const nightNumber = Number(room.nightNumber || 1);
-    const matchKey = `${String(room.code || "").trim().toUpperCase()}:${Number(room.matchSequence || 0)}`;
-    playNurseNightCue("protection", nightNumber, matchKey);
   }
 
   if (room.status === "playing" && room.phase === "day" && previous.phase !== "day") {
@@ -672,8 +548,6 @@ export function syncOnlineAudio(room) {
     winner: room.winner || null,
     matchSequence: Number(room.matchSequence || 0),
     activeRole: room.activeRole || null,
-    thievesConfirmed,
-    nurseConfirmed,
   });
 }
 

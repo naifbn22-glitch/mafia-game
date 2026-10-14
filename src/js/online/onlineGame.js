@@ -5,7 +5,6 @@ import { getRoleCardImage } from "../ui/roleCards.js";
 import {
   setAudioScene,
   syncOnlineAudio,
-  playAiCommentary,
   playRoleCardFlip,
   playDiscussionFinalFive,
 } from "../audio/audioManager.js";
@@ -721,7 +720,6 @@ async function subscribeRoom(code, mode = "public", playerId = null) {
 }
 
 socket.on("room:snapshot", cacheServerRoom);
-socket.on("room:ai-commentary", playAiCommentary);
 socket.on("connect", () => {
   activeSubscriptions.clear();
   window.dispatchEvent(new CustomEvent("mafia-server-connected"));
@@ -1770,14 +1768,6 @@ function renderOnlineNightSummary(room) {
   const summary = room?.daySummary;
   if (!summary) return "";
   const pardonCard = renderRoyalPardonCard(summary);
-  const commentary = room?.aiCommentary?.nightNumber === Number(summary.nightNumber || room.nightNumber || 1)
-    ? room.aiCommentary
-    : null;
-  const commentaryCard = commentary?.status === "pending"
-    ? `<section class="online-ai-commentary" role="status"><span aria-hidden="true">🎙️</span><div><small>المعلّق الذكي</small><p>يجهّز تعليق هذه الليلة…</p></div></section>`
-    : commentary?.status === "ready"
-      ? `<section class="online-ai-commentary"><span aria-hidden="true">🎙️</span><div><small>المعلّق الذكي</small><p>${escapeOnlineText(commentary.text)}</p></div></section>`
-      : "";
 
   if (summary.outcome === "saved") {
     return `
@@ -1786,7 +1776,6 @@ function renderOnlineNightSummary(room) {
         ${pardonCard}
         ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
       </div>
-      ${commentaryCard}
     `;
   }
 
@@ -1801,7 +1790,6 @@ function renderOnlineNightSummary(room) {
         ${pardonCard}
         ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
       </div>
-      ${commentaryCard}
     `;
   }
 
@@ -1817,18 +1805,7 @@ function renderOnlineNightSummary(room) {
       ${pardonCard}
       ${summary.investigatorCompleted ? `<section class="night-event-card night-event-card--investigation"><div class="night-event-card__badge">🕵️</div><div class="night-event-card__body"><small>التحقيق الليلي</small><h3>اكتملت مهمة المحقق بسرية</h3><p>لا يتم كشف هوية المحقق أو نتيجة تحقيقه في البث العام.</p></div></section>` : ""}
     </div>
-    ${commentaryCard}
   `;
-}
-
-function escapeOnlineText(value) {
-  return String(value || "").replace(/[&<>"']/g, character => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character]);
 }
 
 function renderOnlineVotingStatus(room) {
@@ -1866,7 +1843,11 @@ function finalRoleIcon(role) {
 
 function renderOnlineWinnerFinal(room, { live = false } = {}) {
   if (!room?.winner) return "";
-  const finalRoles = Array.isArray(room.finalRoles) ? room.finalRoles : [];
+  const finalRoles = Array.isArray(room.finalRoles)
+    ? room.finalRoles
+    : room._view === "host" && Array.isArray(room.players)
+      ? room.players
+      : [];
   const thiefNames = finalRoles.filter(player => player.role === "thief").map(player => player.name);
   const thievesWon = room.winner === "thieves";
   const namesText = thiefNames.length ? thiefNames.join("، ") : "اللصوص";
@@ -1913,6 +1894,21 @@ function renderOnlineBestPlayer(room, { live = false } = {}) {
     <h2>${best.playerName}</h2>
     <p>${best.reason || "قدم أفضل أداء إجمالي في المباراة"}</p>
   </section>`;
+}
+
+function renderHostWinnerActions(room) {
+  if (!room?.winner) return "";
+  return `
+    ${room.phase === "day" ? renderOnlineNightSummary(room) : ""}
+    <div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>
+    ${renderOnlineWinnerFinal(room)}
+    ${renderOnlineBestPlayer(room)}
+    <div class="online-final-actions">
+      <button id="restartOnlineGame" class="online-primary-button large online-rematch-button" type="button">🔄 إعادة اللعبة</button>
+      <button id="newOnlineGame" class="online-secondary-button large online-new-game-button" type="button">✨ لعبة جديدة</button>
+    </div>
+    <small class="finish-night-hint">إعادة اللعبة تبقي نفس الغرفة والمشاركين.</small>
+  `;
 }
 
 function findPlayerAvatar(room, { playerId = "", playerName = "", avatar = "" } = {}) {
@@ -2012,13 +2008,13 @@ function renderHostLobby({ app, onBack, code }) {
     const broadcastUrl = liveViewUrl(code);
     app.innerHTML = pageShell(`
       <div class="host-dashboard">
-        <section class="host-room-hero"><div><span class="live-status"><i></i>${room.status === "waiting" && !room.joinLocked ? "الغرفة مفتوحة" : room.status === "waiting" ? "الغرفة مغلقة" : "المباراة جارية"}</span><h2>${room.roomName}</h2><p>مدير اللعبة: ${room.hostName}</p></div><div class="host-room-code"><small>رمز الغرفة</small><strong>${room.code}</strong></div></section>
+        <section class="host-room-hero"><div><span class="live-status"><i></i>${room.winner ? "انتهت المباراة" : room.status === "waiting" && !room.joinLocked ? "الغرفة مفتوحة" : room.status === "waiting" ? "الغرفة مغلقة" : "المباراة جارية"}</span><h2>${room.roomName}</h2><p>مدير اللعبة: ${room.hostName}</p></div><div class="host-room-code"><small>رمز الغرفة</small><strong>${room.code}</strong></div></section>
         <section class="invite-panel"><div><small>رابط دعوة المتسابقين</small><input id="inviteLinkInput" readonly value="${url}" /></div><button id="copyInviteButton" class="online-secondary-button">نسخ الرابط</button><button id="shareInviteButton" class="online-primary-button">مشاركة</button></section>
         <div class="dashboard-grid">
           <section class="players-panel"><div class="panel-title"><div><h3>المتسابقون</h3><p>يظهر كل لاعب فور انضمامه</p></div><strong>${room.players.length} / ${room.maxPlayers}</strong></div><div class="online-players-list">${room.players.length ? room.players.map(p => playerCard(p, room.status === "waiting")).join("") : `<div class="online-empty small"><div>👥</div><h3>بانتظار المتسابقين</h3><p>شارك الرابط ليبدأ اللاعبون بالانضمام.</p></div>`}</div></section>
           <aside class="host-controls">
             <h3>التحكم بالمباراة</h3>
-            <div class="control-stat"><span>حالة الغرفة</span><strong>${room.status === "waiting" ? "انتظار" : "بدأت"}</strong></div>
+            <div class="control-stat"><span>حالة الغرفة</span><strong>${room.winner ? "انتهت المباراة" : room.status === "waiting" ? "انتظار" : "بدأت"}</strong></div>
             <div class="control-stat"><span>عرفوا أدوارهم</span><strong>${room.players.filter(p=>p.roleKnown).length} / ${room.players.length}</strong></div>
             ${room.status === "waiting" ? `
               <button id="startOnlineGame" class="online-primary-button large" ${room.players.length < 4 ? "disabled" : ""}>▶ بدء اللعبة</button>
@@ -2027,9 +2023,10 @@ function renderHostLobby({ app, onBack, code }) {
               <button id="openLiveView" class="online-secondary-button" type="button">📡 شاشة البث المباشر</button>
               <button id="shareLiveView" class="online-secondary-button live-share-button" type="button">🔗 مشاركة رابط البث</button>
             </div>
-            ${room.status === "playing" && room.phase === "role-reveal" ? renderHostRoleRevealCountdown(room) : ""}
-            ${renderHostNightControls(room)}
-            ${room.status === "playing" && room.phase === "day" ? `
+            ${room.winner ? renderHostWinnerActions(room) : ""}
+            ${!room.winner && room.status === "playing" && room.phase === "role-reveal" ? renderHostRoleRevealCountdown(room) : ""}
+            ${!room.winner ? renderHostNightControls(room) : ""}
+            ${!room.winner && room.status === "playing" && room.phase === "day" ? `
               <div class="day-stage-banner">
                 <strong>☀️ مرحلة النهار</strong>
                 <span>استيقظوا جميعًا، انتهت مهام الليل.</span>
@@ -2039,10 +2036,10 @@ function renderHostLobby({ app, onBack, code }) {
               <button id="forceStartOnlineVoting" class="online-primary-button large start-voting-button" type="button">🗳️ الانتقال إلى التصويت</button>
               <small class="finish-night-hint">زر مدير اللعبة ينقل جميع المتسابقين الأحياء في الغرفة مباشرة إلى صفحة التصويت في أي وقت من مرحلة النهار.</small>
             ` : ""}
-            ${room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
-            ${room.status === "playing" && room.phase === "voting-result" ? `
+            ${!room.winner && room.status === "playing" && room.phase === "voting" ? `${renderOnlineVotingStatus(room)}` : ""}
+            ${!room.winner && room.status === "playing" && room.phase === "voting-result" ? `
               ${renderOnlineVotingResult(room)}
-              ${room.winner ? `<div class="online-winner-banner">🏆 ${room.winner === "citizens" ? "فاز المواطنون" : "فاز اللصوص"}</div>${renderOnlineBestPlayer(room)}<div class="online-final-actions"><button id="restartOnlineGame" class="online-primary-button large online-rematch-button" type="button">🔄 إعادة اللعبة</button><button id="newOnlineGame" class="online-secondary-button large online-new-game-button" type="button">✨ لعبة جديدة</button></div><small class="finish-night-hint">إعادة اللعبة تبقي نفس الغرفة والمشاركين وتعيد فتح الانضمام إذا كان هناك مكان. لعبة جديدة تعيدك إلى بوابة إنشاء أو دخول غرفة.</small>` : `<button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>`}
+              <button id="startNextOnlineNight" class="online-primary-button large" type="button">🌙 بدء الليلة التالية</button>
             ` : ""}
             <section class="host-live-timeline"><h3>سجل الأحداث المباشر</h3>${renderOnlineTimeline(room, 10)}</section>
           </aside>

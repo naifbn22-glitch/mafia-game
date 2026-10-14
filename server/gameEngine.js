@@ -533,7 +533,6 @@ export function beginNextNight(room) {
   room.roundNumber = Number(room.roundNumber || 1) + 1;
   room.currentPardonPlayerId = null;
   room.daySummary = null;
-  room.aiCommentary = null;
   room.dayStartedAt = null;
   room.dayEndsAt = null;
   room.timerEndsAt = null;
@@ -560,7 +559,6 @@ export function resetForRematch(room) {
   room.dayStartedAt = null;
   room.dayEndsAt = null;
   room.daySummary = null;
-  room.aiCommentary = null;
   room.votes = {};
   room.votingReady = {};
   room.votingStartedAt = null;
@@ -651,7 +649,6 @@ export function publicProjection(room) {
     roleRevealStartedAt: room.roleRevealStartedAt, roleRevealEndsAt: room.roleRevealEndsAt,
     discussionDurationSeconds: room.discussionDurationSeconds || 60, dayStartedAt: room.dayStartedAt || null, dayEndsAt: room.dayEndsAt || null,
     daySummary: room.daySummary ? { ...room.daySummary, kingPardonPlayerId: null, kingPardonPlayerName: null } : null, votingStartedAt: room.votingStartedAt || null, votingResult: room.votingResult ? { ...room.votingResult } : null, winner: room.winner || null, bestPlayer: room.bestPlayer ? { ...room.bestPlayer } : null,
-    aiCommentary: room.aiCommentary ? { ...room.aiCommentary } : null,
     votingReadyStatus: { readyPlayerIds: Object.keys(room.votingReady || {}), totalAlive: room.players.filter(p => p.alive).length },
     votingStatus: { votedPlayerIds: Object.keys(room.votes || {}), totalAlive: room.players.filter(p => p.alive).length },
     players: room.players.map(p => ({ id: p.id, name: p.name, gender: p.gender, avatar: p.avatar, online: p.online, alive: p.alive, roleKnown: p.roleKnown, joinedAt: p.joinedAt })),
