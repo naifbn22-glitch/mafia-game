@@ -1762,31 +1762,3 @@ body.online-action-busy .online-page {
     width: 34px;
   }
 }
-
-.online-ai-commentary {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 14px;
-  padding: 14px 16px;
-  border: 1px solid rgba(168, 123, 255, .28);
-  border-radius: 16px;
-  background: linear-gradient(120deg, rgba(105, 73, 175, .18), rgba(35, 30, 58, .42));
-  color: #f5f0ff;
-  text-align: right;
-}
-
-.online-ai-commentary > span {
-  font-size: 22px;
-  line-height: 1.2;
-}
-
-.online-ai-commentary small {
-  color: #c6a8ff;
-  font-weight: 800;
-}
-
-.online-ai-commentary p {
-  margin: 5px 0 0;
-  line-height: 1.8;
-}

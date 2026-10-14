@@ -15,7 +15,7 @@
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
     "cap:add:android": "npx cap add android",
     "test:security": "node tests/security-adversarial-test.js",
-    "test:ai-commentary": "node --test tests/ai-commentary.test.js tests/ai-commentary-online.test.js"
+    "test:night-winner-rematch": "node --test tests/night-winner-rematch-test.js"
   },
   "devDependencies": {
     "vite": "^8.1.1",
